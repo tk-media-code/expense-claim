@@ -57,9 +57,11 @@ EOF
 
 ```bash
 git switch main
-git pull
+git pull --prune
 git branch --merged main    # マージ済みで不要になったローカルブランチを確認
 ```
+
+`--prune` は GitHub 上で消えたリモートブランチに対応する `origin/…` の追跡参照をローカルから落とす。
 
 マージ済みのブランチがあれば削除する（`main` 自身は除く）。放っておくとブランチ一覧が
 読めなくなり、再開時にどれが生きているのか分からなくなる。
