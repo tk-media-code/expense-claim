@@ -83,7 +83,7 @@ Cursor は `.claude/rules/` を読まないので、この二重化は避けら�
 
 ## 全プロジェクトに効かせたい場合
 
-**このリポジトリの中では対応できない。** ハーネスの正本（`tk-media/.harness/rules/`）に
+**このリポジトリの中では対応できない。** ハーネスの正本（`ai-harness/share/rules/`）に
 足して配布し直す必要がある。ユーザーにそう伝える。
 
 > 完了の目安: `.claude/rules/<name>.md` と `.cursor/rules/<name>.mdc` が対で存在し、
