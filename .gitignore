@@ -1,0 +1,4 @@
+# 環境変数（認証情報など）。雛形の .env.example だけをコミットする
+.env
+.env.*
+!.env.example
