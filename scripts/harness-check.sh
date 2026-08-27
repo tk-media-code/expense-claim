@@ -90,11 +90,18 @@ candidates+=("${untracked[@]}")
 
 # 重複を落としつつ、このスクリプト自身を検査から外す。検出パターン（コンフリクト
 # マーカーや秘匿情報の正規表現）を必然的に含んでおり、自分自身を検出してしまうため。
+#
+# 除外するパスは実行時に解決する。配布先では scripts/harness-check.sh に置かれるが、
+# ハーネス自身のリポジトリでは正本の .harness/templates/harness-check.sh を直接叩くため、
+# 決め打ちにすると後者で自己検出してしまう。
+self_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+self_rel="${self_path#"$repo_root"/}"
+
 declare -A seen=()
 changed=()
 for f in "${candidates[@]}"; do
 	[ -n "$f" ] || continue
-	[ "$f" = "scripts/harness-check.sh" ] && continue
+	[ "$f" = "$self_rel" ] && continue
 	[ -n "${seen[$f]:-}" ] && continue
 	seen["$f"]=1
 	changed+=("$f")
