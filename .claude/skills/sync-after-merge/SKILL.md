@@ -44,7 +44,20 @@ git branch -d <ブランチ名>
 本当にマージされているか確認する。Squash マージだと `--merged` に出ないことがあるが、
 このリポジトリはマージコミット固定なので、拒否されたなら何か別の理由がある。
 
-## 4. Issue が閉じたか確認する
+## 4. 用済みのプランを片付ける
+
+```bash
+node scripts/plan-store.cjs gc
+```
+
+消えたブランチに紐付いていたプランを `plans/` から削除する。
+**ブランチに紐付いていないプラン（着手前の計画）は消えない。**
+
+`.githooks/reference-transaction` が効いていればブランチ削除の時点で片付いている。
+**そのときこのコマンドは何もしない（冪等）ので、そのまま実行してよい。**
+何が残っているか見たいときは `node scripts/plan-store.cjs status`。
+
+## 5. Issue が閉じたか確認する
 
 ```bash
 gh issue list --state open
@@ -54,9 +67,10 @@ gh issue list --state open
 **開いたままなら、PR 本文に `Closes #` が入っていなかった可能性がある。** 手で閉じ、
 次回から漏らさないようにする。
 
-## 5. 次の作業へ
+## 6. 次の作業へ
 
 次の依頼があれば `start-issue-work` スキルへ進む。
 
 > 完了の目安: `main` が最新で、マージ済みのローカルブランチが残っておらず、
-> `git branch -r` に消えたブランチの追跡参照（`origin/feature/…` など）も残っていない。
+> `git branch -r` に消えたブランチの追跡参照（`origin/feature/…` など）も残っておらず、
+> 終わった作業のプランが `plans/` に残っていない。
