@@ -1,6 +1,18 @@
 {
   "version": 1,
   "hooks": {
+    "sessionStart": [
+      {
+        "command": "node .cursor/hooks/plan-mirror.cjs start",
+        "timeout": 15
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .cursor/hooks/plan-mirror.cjs stop",
+        "timeout": 15
+      }
+    ],
     "beforeShellExecution": [
       {
         "command": "node .cursor/hooks/guard.cjs",
