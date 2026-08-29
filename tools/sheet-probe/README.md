@@ -11,16 +11,11 @@
 
 ### 1. Google Cloud
 
-Workspace（独自ドメイン）のアカウントで、次を済ませる。
+**手順と、その理由は [`docs/google-cloud-basics.md`](../../docs/google-cloud-basics.md) にまとめてある。**
+プロジェクトの作成・API の有効化・同意画面・スコープ・OAuth クライアントまで、
+そちらの「第2部 セットアップ手順」を見ること。
 
-1. Sheets / Drive / Gmail API を有効化する
-2. Google Auth Platform で同意画面を構成する。**対象ユーザーは「内部」**
-   （審査が不要になり、リフレッシュトークンが7日で失効する制限も受けない）
-3. スコープに `spreadsheets` / `drive` / `gmail.readonly` を登録する
-4. **「デスクトップ アプリ」**の OAuth クライアントを作り、JSON を落とす
-
-`drive.file` ではアプリが作ったファイルしか触れず、委託元のシートを複製できないため
-`drive` を使う。
+Google Cloud を触ったことがなければ、第1部から読むと**なぜそう設定するのか**が分かる。
 
 ### 2. このリポジトリ側
 
@@ -61,6 +56,9 @@ node tools/sheet-probe/probe.cjs verify-live    # 段階C 実シート。1セル
 編集可否を返すため、試す必要がない。
 
 ## 認可について
+
+**OAuth そのものの仕組みは [`docs/google-cloud-basics.md`](../../docs/google-cloud-basics.md) の
+「6. 認証と認可」にある。** ここに書くのは、このスクリプト固有の実装上の判断だけ。
 
 `@google-cloud/local-auth` は使っていない。ブラウザを自動起動する実装で、WSL2 では
 Windows 側のブラウザを開けずに詰まるため。代わりに認可 URL を端末へ出力し、
