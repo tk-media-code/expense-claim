@@ -2,3 +2,15 @@
 .env
 .env.*
 !.env.example
+
+# OAuth クライアント JSON とアクセストークン。
+# ファイル名が .env ではないため harness-check.sh の秘匿情報チェックに掛からない。
+# 取りこぼす前にここで明示的に除外する。
+credentials/
+token*.json
+
+# Node の依存。tools/ 配下に閉じた検証用スクリプトのもの
+node_modules/
+
+# 検証スクリプトの出力。他スタッフの氏名・実績データを含むため決してコミットしない
+tools/**/out/
