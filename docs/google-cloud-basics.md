@@ -95,8 +95,9 @@ API を有効化しただけではデータに触れないし、OAuth だけあ�
 
 アクセスできるかどうかは OAuth（6節）とスコープ（8節）で決まる。
 
-今回3つ有効化したが、**Gmail はまだ一度も使っていない。**
-依頼メールの送信先が独自ドメインへ切り替わってから使う。有効化しておいても害はない。
+今回3つ有効化した。**Gmail も、依頼メールの送信先が独自ドメインへ切り替わったあとに使い始めた**
+（2026-08-31・`tools/gmail-probe/`）。先に有効化しておいたので、そのときスコープの追加も
+認可のやり直しも要らなかった。
 
 > **判断のポイント**: 「API を有効化してください」と言われたら、
 > **それ自体は危なくない**。危ないのはスコープのほう。
@@ -178,7 +179,7 @@ sequenceDiagram
 | --- | --- | --- |
 | `.../auth/spreadsheets` | **全**スプレッドシートの読み書き | 提出シートを読み書きするため |
 | `.../auth/drive` | **ドライブ全体**の読み書き | 下記のとおり、狭いもので済まなかった |
-| `.../auth/gmail.readonly` | メールの読み取り | 依頼メールを読むため（未使用） |
+| `.../auth/gmail.readonly` | メールの読み取り | 依頼メールを読むため |
 
 ### `drive` は広い。それでも選んだ理由
 
@@ -316,7 +317,7 @@ https://console.cloud.google.com/iam-admin/settings
 | Google Drive API | https://console.cloud.google.com/apis/library/drive.googleapis.com |
 | Gmail API | https://console.cloud.google.com/apis/library/gmail.googleapis.com |
 
-Gmail はまだ使わないが、依頼メールの送信先が切り替わったあとに使う。先に済ませておく。
+Gmail は最初は使わないが、依頼メールの送信先が切り替わったあとに使う。先に済ませておく。
 
 ### ③ 同意画面を構成する
 
@@ -347,6 +348,10 @@ https://console.cloud.google.com/auth/clients
 
 `node tools/sheet-probe/probe.cjs read` を実行すると認可 URL が端末に出る。
 ブラウザで開いて許可すると `credentials/token.json` が作られ、以降は再利用される（10節）。
+
+**3つのスコープをまとめて要求しているので、認可は1回で済む。**
+`tools/gmail-probe/` も同じトークンを使う。**確認済み**: Gmail を初めて使ったとき、
+認可のやり直しは要らなかった。
 
 ### 詰まったときに見るところ
 
@@ -433,4 +438,5 @@ https://console.cloud.google.com/auth/clients
 - アプリの対象ユーザーを管理する — https://support.google.com/cloud/answer/15549945
 - 認証情報を作成する — https://developers.google.com/workspace/guides/create-credentials
 
-実際にやったことの記録は要求分析 5.5、動かせるコードは `tools/sheet-probe/` にある。
+実際にやったことの記録は要求分析 5.5（提出シート）と 6章（依頼メール）、
+動かせるコードは `tools/sheet-probe/` と `tools/gmail-probe/` にある。

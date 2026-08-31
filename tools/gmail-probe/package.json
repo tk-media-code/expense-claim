@@ -1,0 +1,11 @@
+{
+  "name": "gmail-probe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "依頼メールを Gmail API から読めるかを実機で確かめる検証スクリプト。アプリ本体とは切り離す",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0"
+  }
+}
