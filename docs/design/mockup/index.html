@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>帰り道の記録は3手で終わるか</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#E9EDF1; --surface:#FFFFFF; --surface-2:#F4F6F8; --surface-3:#EAEEF2;
+  --line:#D3DBE3; --line-strong:#B6C2CE;
+  --ink:#16202B; --ink-2:#5A6875; --ink-3:#8695A3;
+  --accent:#0F5C63; --accent-ink:#FFFFFF; --accent-soft:#E1EEEF;
+  --ok:#2E6B4F; --ok-soft:#E2F0E9;
+  --warn:#9A5B00; --warn-soft:#F8EEDC;
+  --alert:#A5342B; --alert-soft:#F8E5E3;
+  --shadow:0 1px 2px rgba(22,32,43,.06), 0 12px 32px rgba(22,32,43,.10);
+  --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0D1318; --surface:#161E26; --surface-2:#1E2831; --surface-3:#243039;
+    --line:#2B3742; --line-strong:#3C4B58;
+    --ink:#E6ECF2; --ink-2:#98A7B5; --ink-3:#6E7E8D;
+    --accent:#5FBDC4; --accent-ink:#0B1417; --accent-soft:#123034;
+    --ok:#6FBF95; --ok-soft:#142C22;
+    --warn:#DCA13F; --warn-soft:#2E2413;
+    --alert:#E08078; --alert-soft:#301A18;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0D1318; --surface:#161E26; --surface-2:#1E2831; --surface-3:#243039;
+  --line:#2B3742; --line-strong:#3C4B58;
+  --ink:#E6ECF2; --ink-2:#98A7B5; --ink-3:#6E7E8D;
+  --accent:#5FBDC4; --accent-ink:#0B1417; --accent-soft:#123034;
+  --ok:#6FBF95; --ok-soft:#142C22;
+  --warn:#DCA13F; --warn-soft:#2E2413;
+  --alert:#E08078; --alert-soft:#301A18;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--font-ui); font-size:15px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+[hidden]{display:none !important}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* ---------- 計測パネル ---------- */
+.harness{
+  display:grid; gap:24px; padding:24px 20px 64px;
+  grid-template-columns:minmax(0,1fr); justify-items:center;
+}
+@media (min-width:1000px){
+  .harness{grid-template-columns:340px minmax(0,auto);justify-items:start;align-items:start;
+    max-width:820px;margin:0 auto;gap:40px;padding-top:40px}
+}
+.panel{width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px}
+.panel h1{
+  font-size:22px;line-height:1.35;margin:0;font-weight:700;text-wrap:balance;
+  letter-spacing:.01em;
+}
+.panel .lede{margin:0;color:var(--ink-2);font-size:13.5px;line-height:1.75}
+.eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 6px;font-weight:500;
+}
+.meter{
+  background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;display:flex;flex-direction:column;gap:14px;
+}
+.meter-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.meter-count{display:flex;align-items:baseline;gap:8px}
+.meter-count b{font-family:var(--font-mono);font-size:40px;line-height:1;font-weight:500}
+.meter-count span{font-size:13px;color:var(--ink-2)}
+.meter-target{font-size:12px;color:var(--ink-2);text-align:right;line-height:1.5}
+.meter-target b{font-family:var(--font-mono);font-weight:500;color:var(--ink)}
+.verdict{
+  font-size:12.5px;padding:7px 10px;border-radius:6px;font-weight:500;
+  background:var(--surface-2);color:var(--ink-2);
+}
+.verdict[data-state="ok"]{background:var(--ok-soft);color:var(--ok)}
+.verdict[data-state="over"]{background:var(--warn-soft);color:var(--warn)}
+.trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;
+  max-height:200px;overflow-y:auto}
+.trace li{
+  display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:baseline;
+  font-size:12.5px;padding:4px 0;border-top:1px solid var(--line);color:var(--ink-2);
+}
+.trace li:first-child{border-top:none}
+.trace li i{font-family:var(--font-mono);font-style:normal;color:var(--ink-3);font-size:11px}
+.trace li b{font-weight:500;color:var(--ink)}
+.trace-empty{font-size:12.5px;color:var(--ink-3);padding:4px 0}
+.meter-actions{display:flex;gap:8px}
+.btn-ghost{
+  border:1px solid var(--line-strong);border-radius:7px;padding:7px 12px;
+  font-size:12.5px;font-weight:500;color:var(--ink-2);
+}
+.btn-ghost:hover{background:var(--surface-2);color:var(--ink)}
+.checklist{
+  border-top:1px solid var(--line);padding-top:14px;margin:0;
+  display:flex;flex-direction:column;gap:9px;font-size:12.5px;line-height:1.6;
+}
+.checklist div{display:grid;grid-template-columns:14px 1fr;gap:9px;color:var(--ink-2)}
+.checklist i{font-style:normal;color:var(--accent);font-family:var(--font-mono);font-size:11px}
+.checklist b{color:var(--ink);font-weight:500}
+
+/* ---------- 端末枠 ---------- */
+.device{
+  width:390px;max-width:100%;background:var(--surface);
+  border:1px solid var(--line-strong);border-radius:22px;box-shadow:var(--shadow);
+  overflow:hidden;display:flex;flex-direction:column;height:760px;position:relative;
+}
+.device-bar{
+  height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);
+  border-bottom:1px solid var(--line);background:var(--surface-2);
+}
+.viewport{flex:1;overflow-y:auto;overscroll-behavior:contain}
+@media (max-width:999px){
+  .harness{padding:12px 12px 40px;gap:16px}
+  .device{height:min(78vh,760px)}
+}
+@media (max-width:460px){
+  .harness{padding:0 0 200px}
+  .device{width:100%;border:none;border-radius:0;box-shadow:none;height:auto;min-height:100svh}
+  .device-bar{display:none}
+  .viewport{overflow:visible}
+  .panel{order:2;padding:20px 16px;max-width:none}
+  .floating{display:flex}
+}
+/* 実機用の浮きチップ */
+.floating{
+  display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:50;
+  align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
+  background:var(--surface);border:1px solid var(--line-strong);box-shadow:var(--shadow);
+}
+.floating b{font-family:var(--font-mono);font-size:22px;font-weight:500;line-height:1}
+.floating span{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
+
+/* ---------- アプリ内部 ---------- */
+.app{display:flex;flex-direction:column;min-height:100%}
+.appbar{
+  position:sticky;top:0;z-index:5;background:var(--surface);
+  border-bottom:1px solid var(--line);padding:12px 16px;
+  display:flex;align-items:center;gap:10px;min-height:52px;
+}
+.appbar h2{margin:0;font-size:15.5px;font-weight:700;letter-spacing:.01em;flex:1}
+.back{
+  width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:6px;
+  color:var(--ink-2);font-size:17px;line-height:1;
+}
+.back:hover{background:var(--surface-2);color:var(--ink)}
+.appbar .icon-btn{
+  width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:6px;
+  color:var(--ink-2);font-size:16px;
+}
+.appbar .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.body{padding:16px;display:flex;flex-direction:column;gap:16px;flex:1}
+
+.sync{
+  display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-3);
+  font-family:var(--font-mono);
+}
+.sync .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);flex:none}
+
+.notice{
+  display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:8px;
+  background:var(--alert-soft);color:var(--alert);font-size:12.5px;line-height:1.6;
+  border:1px solid transparent;
+}
+.notice b{font-weight:700}
+.notice .arrow{margin-left:auto;flex:none;opacity:.65}
+
+.month{display:flex;flex-direction:column;gap:9px}
+.month-head{display:flex;align-items:baseline;gap:9px;padding-bottom:2px}
+.month-head h3{margin:0;font-size:13.5px;font-weight:700;letter-spacing:.02em}
+.tag{
+  font-size:10.5px;font-family:var(--font-mono);letter-spacing:.06em;padding:2.5px 7px;
+  border-radius:4px;background:var(--surface-3);color:var(--ink-2);white-space:nowrap;
+}
+.tag[data-kind="due"]{background:var(--warn-soft);color:var(--warn)}
+.tag[data-kind="upcoming"]{background:var(--surface-3);color:var(--ink-2)}
+.tag[data-kind="done"]{background:var(--ok-soft);color:var(--ok)}
+
+.card{
+  width:100%;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;
+  padding:13px 14px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+}
+.card:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.card + .card{margin-top:-1px}
+.card-date{text-align:center;line-height:1.15}
+.card-date .d{font-family:var(--font-mono);font-size:19px;font-weight:500;display:block}
+.card-date .w{font-size:10.5px;color:var(--ink-3);display:block;margin-top:2px}
+.card-main{min-width:0}
+.card-main .venue{font-size:14px;font-weight:500;line-height:1.4}
+.card-main .couple{font-size:12px;color:var(--ink-2);line-height:1.5;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-side{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.state{
+  font-size:10.5px;font-family:var(--font-mono);letter-spacing:.05em;padding:2.5px 7px;
+  border-radius:4px;white-space:nowrap;
+}
+.state[data-s="todo"]{background:var(--warn-soft);color:var(--warn)}
+.state[data-s="done"]{background:var(--ok-soft);color:var(--ok)}
+.state[data-s="future"]{background:var(--surface-3);color:var(--ink-3)}
+.card-side .amt{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);
+  font-variant-numeric:tabular-nums}
+.card[data-today="1"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+
+.rows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:9px;
+  overflow:hidden;background:var(--surface)}
+.row{display:flex;gap:12px;padding:11px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.row:first-child{border-top:none}
+.row dt{flex:none;width:88px;color:var(--ink-2);font-size:12.5px;margin:0}
+.row dd{margin:0;flex:1;min-width:0}
+.row dd .sub{font-size:11.5px;color:var(--ink-3);display:block}
+
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:14px 16px;border-radius:9px;font-size:15px;font-weight:700;
+  background:var(--accent);color:var(--accent-ink);letter-spacing:.02em;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn[data-variant="quiet"]{background:var(--surface-2);color:var(--ink-2);
+  border:1px solid var(--line);font-weight:500;font-size:13.5px;padding:11px 14px}
+.btn[data-variant="quiet"]:hover{color:var(--ink);background:var(--surface-3)}
+.btn[data-variant="danger"]{background:transparent;color:var(--alert);font-weight:500;
+  font-size:13px;padding:10px}
+.btn[data-variant="danger"]:hover{background:var(--alert-soft)}
+
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
+.seg button{
+  flex:1;padding:10px 8px;text-align:center;font-size:13.5px;font-weight:500;
+  color:var(--ink-2);background:var(--surface);
+}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:700}
+
+.field{display:flex;flex-direction:column;gap:7px}
+.label{font-size:11.5px;font-family:var(--font-mono);letter-spacing:.09em;
+  text-transform:uppercase;color:var(--ink-3)}
+.picker{
+  display:flex;flex-direction:column;gap:7px;
+}
+.opt{
+  display:grid;grid-template-columns:18px 1fr auto;gap:11px;align-items:center;
+  padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;
+  background:var(--surface);
+}
+.opt:hover{border-color:var(--line-strong)}
+.opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.opt .mark{
+  width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line-strong);
+  display:grid;place-items:center;
+}
+.opt[aria-pressed="true"] .mark{border-color:var(--accent)}
+.opt[aria-pressed="true"] .mark::after{
+  content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);
+}
+.opt .name{font-weight:500}
+.opt .meta{font-size:11.5px;color:var(--ink-3);display:block;font-weight:400}
+.opt .fare{font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2)}
+
+.legs{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.leg{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+  padding:11px 14px;border-top:1px solid var(--line)}
+.leg:first-child{border-top:none}
+.leg .path{font-size:13px;line-height:1.5}
+.leg .path .arrow{color:var(--ink-3);margin:0 6px}
+.leg .fare{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums}
+.leg .fare small{color:var(--ink-3);font-size:11px;margin-left:1px}
+.total{display:flex;justify-content:space-between;align-items:baseline;
+  padding:13px 14px;background:var(--surface-2);border-top:1px solid var(--line)}
+.total span{font-size:12.5px;color:var(--ink-2)}
+.total b{font-family:var(--font-mono);font-size:20px;font-weight:500}
+
+.disclose{border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  overflow:hidden}
+.disclose > button{display:flex;align-items:center;gap:10px;width:100%;padding:13px 14px;
+  font-size:13.5px;font-weight:500}
+.disclose > button:hover{background:var(--surface-2)}
+.disclose .chev{margin-left:auto;color:var(--ink-3);font-size:12px;
+  font-family:var(--font-mono)}
+.disclose-body{padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;
+  border-top:1px solid var(--line);padding-top:14px}
+.fare-input{display:flex;align-items:center;gap:8px;border:1px solid var(--line-strong);
+  border-radius:8px;padding:10px 13px;background:var(--surface)}
+.fare-input span{color:var(--ink-3);font-size:13px}
+.fare-input input{flex:1;border:none;background:none;font-family:var(--font-mono);
+  font-size:16px;color:var(--ink);min-width:0;font-variant-numeric:tabular-nums}
+.fare-input input:focus{outline:none}
+.upload{
+  display:flex;align-items:center;justify-content:center;gap:8px;padding:16px;
+  border:1.5px dashed var(--line-strong);border-radius:8px;font-size:13px;
+  color:var(--ink-2);width:100%;
+}
+.upload:hover{border-color:var(--accent);color:var(--accent)}
+.upload[data-done="1"]{border-style:solid;border-color:var(--ok);color:var(--ok);
+  background:var(--ok-soft)}
+.hint{font-size:11.5px;color:var(--ink-3);line-height:1.65;margin:0}
+.spacer{flex:1}
+.done-mark{
+  display:grid;place-items:center;gap:14px;padding:56px 24px;text-align:center;
+}
+.done-mark .ring{width:56px;height:56px;border-radius:50%;background:var(--ok-soft);
+  color:var(--ok);display:grid;place-items:center;font-size:26px}
+.done-mark h3{margin:0;font-size:17px;font-weight:700}
+.done-mark p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}
+.footnote{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin:0;
+  padding-top:4px;border-top:1px solid var(--line)}
+@media (prefers-reduced-motion:no-preference){
+  .viewport [data-screen]{animation:in .18s ease-out}
+  @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+}
+</style>
+</head>
+<body>
+
+<div class="harness">
+
+  <div class="panel">
+    <div>
+      <p class="eyebrow">画面設計 / モック</p>
+      <h1>帰り道の記録は3手で終わるか</h1>
+    </div>
+    <p class="lede">
+      要件定義 8.1 が定めた「ホーム → 案件の詳細 → 交通費の記録」の経路を、
+      実際にタップして数えます。データはすべて架空です（要件定義 5.6 の例）。
+      <br><b>想定している場面</b>：2026年9月5日（土）の帰り道。移動中のスマートフォン。
+    </p>
+
+    <div class="meter">
+      <div class="meter-top">
+        <div class="meter-count">
+          <b id="tapCount">0</b><span>手</span>
+        </div>
+        <div class="meter-target">
+          目標 <b>3手</b><br>タクシーがある日 <b>+2手</b>
+        </div>
+      </div>
+      <p class="verdict" id="verdict" data-state="idle">案件カードをタップして始めます</p>
+      <ol class="trace" id="trace"></ol>
+      <p class="trace-empty" id="traceEmpty">まだタップがありません</p>
+      <div class="meter-actions">
+        <button class="btn-ghost" id="reset">最初から数え直す</button>
+      </div>
+      <div class="checklist">
+        <div><i>1</i><span><b>3手で保存まで終わるか。</b>ルートが1本の会場は選択済みで開きます（要件定義 8.1）</span></div>
+        <div><i>2</i><span><b>キーボード入力が現れないか。</b>屋外・移動中に文字を打たせない</span></div>
+        <div><i>3</i><span><b>2つの月が並んでも混乱しないか。</b>8月度は提出待ち、9月度は稼働中です（9.2）</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="device">
+    <div class="device-bar"><span>390 × 760</span><span id="screenName">ホーム</span></div>
+    <div class="viewport" id="viewport"></div>
+  </div>
+
+</div>
+
+<div class="floating">
+  <b id="tapCountMobile">0</b>
+  <span id="verdictMobile">目標 3手（タクシーがある日 +2手）</span>
+  <button class="btn-ghost" id="resetMobile">数え直す</button>
+</div>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------
+   架空データ（要件定義 5.6 の例をそのまま使う）
+   会場コード・会場名・ご両家名・駅名・運賃はすべて架空
+------------------------------------------------------------------- */
+const STATIONS = {
+  kou:"X鉄甲駅", otsuX:"X鉄乙駅", otsuY:"Y鉄乙駅", hei:"Y鉄丙駅",
+  teiX:"X鉄丁駅", teiY:"Y鉄丁駅", boY:"Y鉄戊駅", boZ:"Z鉄戊駅"
+};
+
+/* ルートは「自宅→会場」の1方向で持つ（決定9）。区間は片道運賃を持つ（6.1） */
+const ROUTES = {
+  r1:{ name:"乙駅乗換", venue:"AAA", legs:[
+        {from:STATIONS.kou,  to:STATIONS.otsuX, fare:320},
+        {from:STATIONS.otsuY,to:STATIONS.hei,   fare:210}]},
+  r2:{ name:"丁駅乗換", venue:"BBB", legs:[
+        {from:STATIONS.kou,  to:STATIONS.teiX,  fare:380},
+        {from:STATIONS.teiY, to:STATIONS.boY,   fare:210}]},
+  r3:{ name:"戊駅直通", venue:"BBB", legs:[
+        {from:STATIONS.kou,  to:STATIONS.boZ,   fare:520}]},
+  r4:{ name:"丙駅直通", venue:"CCC", legs:[
+        {from:STATIONS.kou,  to:STATIONS.hei,   fare:310}]},
+  r5:{ name:"乙駅乗換", venue:"DDD", legs:[
+        {from:STATIONS.kou,  to:STATIONS.otsuX, fare:320},
+        {from:STATIONS.otsuY,to:STATIONS.boY,   fare:260}]}
+};
+
+const PROJECTS = [
+  { id:"p1", date:"2026-08-22", w:"土", code:"CCC", venue:"丙会館",   couple:"▲▲様▼▼様", no:"250812001",
+    month:"2026-08", recorded:{ routes:["r4"], round:true, total:620 }, taxi:[] },
+  { id:"p2", date:"2026-08-23", w:"日", code:"DDD", venue:"丁ガーデン", couple:"◎◎様☆☆様", no:"250812002",
+    month:"2026-08", recorded:{ routes:["r5"], round:true, total:1160 }, taxi:[{amount:2400}] },
+  { id:"p3", date:"2026-09-05", w:"土", code:"AAA", venue:"甲ホール",   couple:"〇〇様△△様", no:"250901001",
+    month:"2026-09", recorded:null, taxi:[] },
+  { id:"p4", date:"2026-09-05", w:"土", code:"BBB", venue:"乙迎賓館",   couple:"□□様◇◇様", no:"250901002",
+    month:"2026-09", recorded:null, taxi:[] },
+  { id:"p5", date:"2026-09-12", w:"土", code:"AAA", venue:"甲ホール",   couple:"××様＋＋様", no:"250901003",
+    month:"2026-09", recorded:null, taxi:[] }
+];
+
+const TODAY = "2026-09-05";
+/* 対象月度は提出シートの A1 が決める（決定13）。切替（翌月4〜7日）はまだ済んでいない */
+const TARGET_MONTH = "2026-08";
+const ATTENTION = 1; /* 要確認事項の件数。0 なら出さない（4.4） */
+
+/* ------------------------------------------------------------------
+   状態
+------------------------------------------------------------------- */
+const state = { screen:"home", projectId:null, draft:null, taps:0, trace:[] };
+
+const yen = n => "¥" + n.toLocaleString("ja-JP");
+const project = id => PROJECTS.find(p => p.id === id);
+const routesFor = code => Object.entries(ROUTES)
+  .filter(([,r]) => r.venue === code).map(([k,r]) => ({ key:k, ...r }));
+const oneWay = r => r.legs.reduce((a,l) => a + l.fare, 0);
+
+function freshDraft(p){
+  const rs = routesFor(p.code);
+  return {
+    round:true,                                   /* 既定は往復（5.3 の実測） */
+    out: rs.length === 1 ? rs[0].key : null,      /* 1本なら選択済み（8.1） */
+    back:null,
+    taxiOpen:false, taxiAmount:"", taxiReceipt:false
+  };
+}
+
+/* 交通費記録の合計。往復なら区間ごとに ×2 して書く（5.3） */
+function legsOf(d){
+  const out = [];
+  if (d.out) ROUTES[d.out].legs.forEach(l =>
+    out.push({ from:l.from, to:l.to, fare: d.round ? l.fare*2 : l.fare }));
+  if (!d.round && d.back)
+    /* 復路は区間の並びを逆順にし、出発駅と到着駅を入れ替える（決定9） */
+    ROUTES[d.back].legs.slice().reverse().forEach(l =>
+      out.push({ from:l.to, to:l.from, fare:l.fare }));
+  return out;
+}
+
+/* ------------------------------------------------------------------
+   タップの計測
+------------------------------------------------------------------- */
+function tap(label){
+  state.taps++;
+  state.trace.push(label);
+  paintMeter();
+}
+function paintMeter(){
+  const n = state.taps;
+  document.getElementById("tapCount").textContent = n;
+  document.getElementById("tapCountMobile").textContent = n;
+
+  const t = document.getElementById("trace");
+  t.innerHTML = state.trace
+    .map((s,i) => `<li><i>${i+1}</i><b>${s}</b></li>`).join("");
+  document.getElementById("traceEmpty").hidden = state.trace.length > 0;
+  t.scrollTop = t.scrollHeight;
+
+  const v = document.getElementById("verdict");
+  const vm = document.getElementById("verdictMobile");
+  let msg, kind;
+  if (state.screen === "saved"){
+    const taxi = state.trace.some(s => s.includes("タクシー") || s.includes("領収書"));
+    const limit = taxi ? 5 : 3;
+    if (n <= limit){ msg = `${n}手で保存まで到達。目標の${limit}手に収まっています`; kind = "ok"; }
+    else { msg = `${n}手かかりました。目標は${limit}手です`; kind = "over"; }
+  } else if (n === 0){
+    msg = "案件カードをタップして始めます"; kind = "idle";
+  } else {
+    msg = `${n}手。保存するまで数え続けます`; kind = "idle";
+  }
+  v.textContent = msg; v.dataset.state = kind;
+  vm.textContent = msg;
+}
+function reset(){
+  state.screen = "home"; state.projectId = null; state.draft = null;
+  state.taps = 0; state.trace = [];
+  paintMeter(); render();
+  document.getElementById("viewport").scrollTop = 0;
+}
+
+/* ------------------------------------------------------------------
+   画面
+------------------------------------------------------------------- */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const md = iso => `${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
+const monthLabel = m => `${m.slice(0,4)}年${+m.slice(5,7)}月度`;
+
+function screenHome(){
+  const months = [...new Set(PROJECTS.map(p => p.month))].sort().reverse();
+  const blocks = months.map(m => {
+    const list = PROJECTS.filter(p => p.month === m)
+      .sort((a,b) => a.date.localeCompare(b.date));
+    const isTarget = m === TARGET_MONTH;
+    const tag = isTarget
+      ? `<span class="tag" data-kind="due">提出待ち</span>`
+      : `<span class="tag" data-kind="upcoming">稼働中</span>`;
+    const cards = list.map(p => {
+      /* 施行前は未記録でも目立たせない（4.1） */
+      const future = p.date > TODAY;
+      const s = p.recorded ? "done" : (future ? "future" : "todo");
+      const sLabel = p.recorded ? "記録済み" : (future ? "施行前" : "未記録");
+      const amount = p.recorded
+        ? `<span class="amt">${yen(p.recorded.total + p.taxi.reduce((a,t)=>a+t.amount,0))}</span>`
+        : "";
+      return `<button class="card" data-go="detail" data-id="${p.id}"
+                 data-today="${p.date === TODAY ? 1 : 0}"
+                 data-label="案件カード（${esc(p.venue)}）をタップ">
+          <span class="card-date"><span class="d">${md(p.date)}</span><span class="w">${p.w}</span></span>
+          <span class="card-main">
+            <span class="venue">${esc(p.venue)}</span>
+            <span class="couple">${esc(p.couple)}</span>
+          </span>
+          <span class="card-side">
+            <span class="state" data-s="${s}">${sLabel}</span>${amount}
+          </span>
+        </button>`;
+    }).join("");
+    return `<section class="month">
+        <div class="month-head"><h3>${monthLabel(m)}</h3>${tag}</div>
+        <div>${cards}</div>
+      </section>`;
+  }).join("");
+
+  const attention = ATTENTION > 0 ? `
+    <div class="notice" role="status">
+      <span><b>要確認事項が ${ATTENTION} 件</b><br>会場コードがマスタにありません</span>
+      <span class="arrow">›</span>
+    </div>` : "";
+
+  return `<div class="app" data-screen="home">
+    <div class="appbar"><h2>交通費</h2>
+      <span class="icon-btn" aria-hidden="true">＋</span>
+      <span class="icon-btn" aria-hidden="true">≡</span>
+    </div>
+    <div class="body">
+      <div class="sync"><span class="dot"></span>最後の取り込み 9/5 18:42</div>
+      ${attention}
+      ${blocks}
+      <p class="footnote">
+        月度ごとに区切って並べています。8月度は提出待ち、9月度はこれからの稼働分です。
+        <b>月末から月初にかけて、2つの月が同時に存在します</b>（要件定義 9.2）。
+      </p>
+    </div>
+  </div>`;
+}
+
+function screenDetail(){
+  const p = project(state.projectId);
+  const rs = routesFor(p.code);
+  const rec = p.recorded
+    ? `${ROUTES[p.recorded.routes[0]].name} / ${yen(p.recorded.total)}`
+    : "まだ記録がありません";
+  return `<div class="app" data-screen="detail">
+    <div class="appbar">
+      <button class="back" data-go="home" data-label="ホームへ戻る">‹</button>
+      <h2>案件の詳細</h2>
+    </div>
+    <div class="body">
+      <dl class="rows">
+        <div class="row"><dt>施行日</dt><dd>2026年${md(p.date)}（${p.w}）</dd></div>
+        <div class="row"><dt>会場</dt><dd>${esc(p.venue)}<span class="sub">${p.code}</span></dd></div>
+        <div class="row"><dt>ご両家名</dt><dd>${esc(p.couple)}</dd></div>
+        <div class="row"><dt>案件番号</dt><dd class="mono">${p.no}</dd></div>
+        <div class="row"><dt>出どころ</dt><dd>自動取込</dd></div>
+        <div class="row"><dt>交通費</dt><dd>${rec}</dd></div>
+      </dl>
+
+      <button class="btn" data-go="record" data-label="「記録する」をタップ">
+        ${p.recorded ? "記録を直す" : "記録する"}
+      </button>
+
+      <p class="hint">
+        この会場には ${rs.length} 本のルートが登録されています。${
+          rs.length === 1
+            ? "1本なので、記録画面は<b>選択済みの状態で開きます</b>（要件定義 8.1）。"
+            : "<b>複数あるので、記録画面でルートを選びます</b>（+1手）。"}
+      </p>
+
+      <div class="spacer"></div>
+      <button class="btn" data-variant="quiet">項目を直す</button>
+      <button class="btn" data-variant="danger">この案件を削除する</button>
+      <p class="footnote">
+        削除すると、交通費記録・タクシー乗車・領収書のレコードも消えます。
+        <b>ドライブ上のファイル実体は消しません</b>（要件定義 6.4）。
+      </p>
+    </div>
+  </div>`;
+}
+
+function screenRecord(){
+  const p = project(state.projectId);
+  const d = state.draft;
+  const rs = routesFor(p.code);
+  const legs = legsOf(d);
+  const total = legs.reduce((a,l) => a + l.fare, 0);
+  const taxiAmt = parseInt(d.taxiAmount || "0", 10) || 0;
+
+  const routeOpts = (sel, kind) => rs.map(r => `
+    <button class="opt" aria-pressed="${sel === r.key}"
+            data-pick="${kind}" data-route="${r.key}"
+            data-label="${kind === "out" ? "往路" : "復路"}ルート「${esc(r.name)}」を選ぶ">
+      <span class="mark"></span>
+      <span class="name">${esc(r.name)}
+        <span class="meta">${r.legs.length}区間 / ${r.legs.map(l=>esc(l.to)).join(" ・ ")}</span>
+      </span>
+      <span class="fare">片道 ${yen(oneWay(r))}</span>
+    </button>`).join("");
+
+  const legRows = legs.length ? legs.map(l => `
+    <div class="leg">
+      <span class="path">${esc(l.from)}<span class="arrow">→</span>${esc(l.to)}</span>
+      <span class="fare">${yen(l.fare)}${d.round ? '<small>×2済</small>' : ""}</span>
+    </div>`).join("") + `
+    <div class="total"><span>合計</span><b>${yen(total)}</b></div>`
+    : `<div class="leg"><span class="path" style="color:var(--ink-3)">ルートを選ぶと区間が出ます</span><span></span></div>`;
+
+  const canSave = legs.length > 0 && (d.round || d.back);
+
+  return `<div class="app" data-screen="record">
+    <div class="appbar">
+      <button class="back" data-go="detail" data-label="案件の詳細へ戻る">‹</button>
+      <h2>交通費の記録</h2>
+    </div>
+    <div class="body">
+      <dl class="rows">
+        <div class="row"><dt>案件</dt><dd>${esc(p.venue)}
+          <span class="sub">2026年${md(p.date)}（${p.w}）・${esc(p.couple)}</span></dd></div>
+      </dl>
+
+      <div class="field">
+        <span class="label">往復 / 片道</span>
+        <div class="seg">
+          <button aria-pressed="${d.round}" data-set="round" data-value="1"
+                  data-label="「往復」を選ぶ">往復</button>
+          <button aria-pressed="${!d.round}" data-set="round" data-value="0"
+                  data-label="「片道」を選ぶ">往路と復路で別のルート</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">${d.round ? "ルート" : "往路のルート"}</span>
+        <div class="picker">${routeOpts(d.out, "out")}</div>
+      </div>
+
+      ${!d.round ? `
+      <div class="field">
+        <span class="label">復路のルート</span>
+        <div class="picker">${routeOpts(d.back, "back")}</div>
+        <p class="hint">復路は登録された区間を反転して使います（決定9）。</p>
+      </div>` : ""}
+
+      <div class="field">
+        <span class="label">区間と金額</span>
+        <div class="legs">${legRows}</div>
+        <p class="hint">金額は登録した運賃が入っています。<b>直す必要が無ければ触りません</b>（F-20）。</p>
+      </div>
+
+      <div class="disclose">
+        <button data-set="taxiOpen" data-value="${d.taxiOpen ? 0 : 1}"
+                data-label="「タクシーに乗った」をタップ">
+          タクシーに乗った<span class="chev">${d.taxiOpen ? "−" : "＋"}</span>
+        </button>
+        ${d.taxiOpen ? `
+        <div class="disclose-body">
+          <div class="field">
+            <span class="label">1回目の金額</span>
+            <label class="fare-input"><span>¥</span>
+              <input id="taxiAmount" inputmode="numeric" placeholder="1800"
+                     value="${esc(d.taxiAmount)}" aria-label="タクシーの金額"></label>
+          </div>
+          <button class="upload" data-set="taxiReceipt" data-value="${d.taxiReceipt ? 0 : 1}"
+                  data-done="${d.taxiReceipt ? 1 : 0}"
+                  data-label="領収書をアップロード">
+            ${d.taxiReceipt ? "✓ 領収書を添付しました" : "領収書を選ぶ（画像 / PDF）"}
+          </button>
+          <p class="hint">
+            アップロードと同時にドライブへ保存し、共有を付けます（F-24 / F-25）。
+            <b>保存に失敗したら乗車の記録は残しません</b>（F-26）。
+          </p>
+        </div>` : ""}
+      </div>
+
+      <div class="spacer"></div>
+      <button class="btn" data-go="save" data-label="「保存」をタップ" ${canSave ? "" : "disabled style=opacity:.45"}>
+        保存${taxiAmt > 0 ? `（交通費 ${yen(total)} ＋ タクシー ${yen(taxiAmt)}）` : ""}
+      </button>
+    </div>
+  </div>`;
+}
+
+function screenSaved(){
+  const p = project(state.projectId);
+  const taxi = state.trace.some(s => s.includes("タクシー") || s.includes("領収書"));
+  const limit = taxi ? 5 : 3;
+  const ok = state.taps <= limit;
+  return `<div class="app" data-screen="saved">
+    <div class="appbar"><h2>保存しました</h2></div>
+    <div class="body">
+      <div class="done-mark">
+        <span class="ring">✓</span>
+        <h3>${esc(p.venue)}の交通費を記録しました</h3>
+        <p>2026年${md(p.date)}（${p.w}）・${esc(p.couple)}</p>
+      </div>
+      <dl class="rows">
+        <div class="row"><dt>かかった手数</dt><dd><b class="num">${state.taps}手</b>
+          <span class="sub">目標は${limit}手${taxi ? "（タクシーの +2手を含む）" : ""}</span></dd></div>
+        <div class="row"><dt>判定</dt><dd style="color:var(--${ok ? "ok" : "warn"})">
+          ${ok ? "収まっています" : "超えています"}</dd></div>
+      </dl>
+      <button class="btn" data-variant="quiet" data-go="home" data-label="ホームへ戻る">ホームへ戻る</button>
+      <p class="footnote">
+        この画面は<b>計測のためにモックへ足したもの</b>で、要件定義 8章の画面ではありません。
+        実装では保存後に案件の詳細へ戻ります。
+      </p>
+    </div>
+  </div>`;
+}
+
+const SCREENS = { home:screenHome, detail:screenDetail, record:screenRecord, saved:screenSaved };
+const NAMES = { home:"ホーム", detail:"案件の詳細", record:"交通費の記録", saved:"保存しました" };
+
+function render(){
+  document.getElementById("viewport").innerHTML = SCREENS[state.screen]();
+  document.getElementById("screenName").textContent = NAMES[state.screen];
+}
+
+/* ------------------------------------------------------------------
+   操作
+------------------------------------------------------------------- */
+document.getElementById("viewport").addEventListener("click", e => {
+  const el = e.target.closest("[data-go],[data-set],[data-pick]");
+  if (!el || el.hasAttribute("disabled")) return;
+
+  const label = el.dataset.label;
+  if (label) tap(label);
+
+  if (el.dataset.go){
+    const go = el.dataset.go;
+    if (go === "detail" && el.dataset.id){
+      state.projectId = el.dataset.id;
+      state.draft = freshDraft(project(state.projectId));
+    }
+    if (go === "record" && !state.draft) state.draft = freshDraft(project(state.projectId));
+    if (go === "save"){ state.screen = "saved"; }
+    else { state.screen = go; }
+  }
+
+  if (el.dataset.set){
+    const k = el.dataset.set, v = el.dataset.value;
+    if (k === "round"){
+      state.draft.round = v === "1";
+      if (state.draft.round) state.draft.back = null;
+    } else {
+      state.draft[k] = v === "1";
+    }
+  }
+
+  if (el.dataset.pick){
+    /* 入力中のタクシー金額を失わないよう先に取り込む */
+    const inp = document.getElementById("taxiAmount");
+    if (inp) state.draft.taxiAmount = inp.value;
+    state.draft[el.dataset.pick] = el.dataset.route;
+  }
+
+  render();
+  paintMeter();
+});
+
+document.getElementById("viewport").addEventListener("input", e => {
+  if (e.target.id === "taxiAmount") state.draft.taxiAmount = e.target.value;
+});
+
+document.getElementById("reset").addEventListener("click", reset);
+document.getElementById("resetMobile").addEventListener("click", reset);
+
+render();
+paintMeter();
+</script>
+
+</body>
+</html>

@@ -8,7 +8,7 @@
 | # | 文書 | 何を決めるか | 状態 |
 | --- | --- | --- | --- |
 | 1 | [`architecture.md`](architecture.md) | 技術選定、システム構成、層の分け方、認可情報の扱い | **作成済み** |
-| 2 | [`screens.md`](screens.md) | 画面遷移、画面項目定義、状態と分岐 | 未着手 |
+| 2 | [`screens.md`](screens.md) | 画面遷移、画面項目定義、状態と分岐 | **作成済み** |
 | 3 | [`database.md`](database.md) | 物理 ER 図、テーブル定義、型・索引・制約 | 未着手 |
 | 4 | [`api.md`](api.md) | フロントとバックの間のエンドポイント | 未着手 |
 | 5 | [`integration.md`](integration.md) | Gmail / ドライブ / スプレッドシートの呼び出し設計、OAuth フロー | 未着手 |
