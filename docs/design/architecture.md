@@ -438,13 +438,17 @@ integrations/gmail/
 `googleapis` は Node.js への依存が重く、バンドルも大きいため、
 **Workers の 3 MiB に収まらない可能性が高い**（未検証・10章）。
 
-**だが、実際に使う呼び出しは10本しかない。**
+**だが、実際に使う呼び出しは9本しかない。**
 
 | 相手 | 使う呼び出し |
 | --- | --- |
 | Gmail | `messages.list` / `messages.get` / `messages.send`（提出アラート・要件定義 7.5） |
 | ドライブ | `files.create`（マルチパートアップロード）/ `permissions.create` |
-| スプレッドシート | `spreadsheets.get` / `values.get` / `values.update` / `values.clear` / `batchUpdate` |
+| スプレッドシート | `spreadsheets.get` / `values.get` / `values.update` / `batchUpdate` |
+
+> **当初は `values.clear` を入れて10本としていた。**
+> [`integration.md`](integration.md) 8.2 が **クリアという操作そのものをやめた**ため、1本減った。
+> 本文行を「書く行＋空行」の矩形として1回で書けば、**消してから書く必要が無い。**
 
 **`fetch` で書き直しても大した量ではない。** しかも 5.3 のインターフェースがあるので、
 **書き直すのは `integrations` の実装だけで、業務ロジックには一行も触らない。**
@@ -532,7 +536,7 @@ integrations/gmail/
 | `NF-06` 本人以外は使えない | 3.7 |
 | `NF-07` 環境依存値と認証情報をリポジトリに含めない | 7.3 |
 | `NF-08` 他人のシートへ書く経路を持たない | 5.2（書き込み先は環境変数。実行時に決めない） |
-| `NF-09` 行数・保護範囲を決め打ちにしない | [`integration.md`](integration.md) で扱う |
+| `NF-09` 行数・保護範囲を決め打ちにしない | [`integration.md`](integration.md) 7.2（`protectedRanges` の `requestingUserCanEdit` から書ける範囲を決める） |
 | `NF-13` 送るメールの宛先は本人固定 | 2.1 / 7.3（宛先は環境変数。実行時に決めない） |
 | `NF-10` 様式が変わったら止まる | [`error-handling.md`](error-handling.md) で扱う |
 | `NF-11` 設定データの控え | 8章 |

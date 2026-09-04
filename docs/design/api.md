@@ -883,9 +883,12 @@ sequenceDiagram
 | **領収書のサイズ上限** | 1件あたり数百KB〜数MB（要件定義 9.1）。上限をどこに置き、超えたときに何を返すか | 実装時 |
 | **提出の二重送信** | F-29 が「何度でも同じ結果」なので害は小さいが、**押し直すとシートを2回書く**（一括更新も2回走る） | 実装時 |
 | **機械可読な定義を持つか**（OpenAPI など） | **この文書が正本である。** 別に持つと二重管理になるが、型の生成には効く | 実装時 |
-| **`multipart` の受け方** | Hono の実装と、`googleapis` のマルチパートアップロードへの繋ぎ方 | [`integration.md`](integration.md) |
 | **`attentions` の `detail` の書式** | 素のテキストか、種別ごとの構造か（`database.md` 12章から引き継ぐ） | [`error-handling.md`](error-handling.md) |
 | **トランザクションの境界** | 記録の保存と提出をどこで区切るか（同上） | [`error-handling.md`](error-handling.md) |
 
 **`database.md` 12章から引き継いだ2件は、ここでも決めない。**
 **どちらも「失敗したときにどう振る舞うか」であり、`error-handling.md` の主題そのものである。**
+
+**「`multipart` の受け方」は、[`integration.md`](integration.md) 6.2 で閉じた。**
+Hono の `formData()` が返す `File` の種別を先に確かめ（R-13）、
+**本文はストリームのまま `googleapis` の `media.body` へ渡す。**
