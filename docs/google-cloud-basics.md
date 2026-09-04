@@ -64,7 +64,7 @@ API を有効化しただけではデータに触れないし、OAuth だけあ�
 | **API の有効化** | その窓口を使うというスイッチ | コンソールで「有効にする」を押した |
 | **OAuth クライアント** | アプリの身分証。ID とシークレットの組 | デスクトップアプリ型を1つ |
 | **同意画面** | 利用者に許可を求める画面 | 「内部」で構成した |
-| **スコープ** | 何を許すかの品目 | `spreadsheets` / `drive` / `gmail.readonly` |
+| **スコープ** | 何を許すかの品目 | `spreadsheets` / `drive` / `gmail.readonly` / `gmail.send` |
 | **トークン** | 許可の証明書。実際に API を叩く鍵 | `credentials/token.json` |
 
 ## 4. プロジェクト — Google から見た「このアプリ」
@@ -180,6 +180,7 @@ sequenceDiagram
 | `.../auth/spreadsheets` | **全**スプレッドシートの読み書き | 提出シートを読み書きするため |
 | `.../auth/drive` | **ドライブ全体**の読み書き | 下記のとおり、狭いもので済まなかった |
 | `.../auth/gmail.readonly` | メールの読み取り | 依頼メールを読むため |
+| `.../auth/gmail.send` | **メールの送信だけ** | 月初の提出アラートを自分あてに送るため（要件定義 7.5 / F-35） |
 
 ### `drive` は広い。それでも選んだ理由
 
@@ -191,6 +192,18 @@ Drive には狭いスコープ `drive.file` がある。**アプリが作った�
 
 複製したのは、**委託元の本番シートにいきなり書き込まないため。**
 安全側に倒した結果として、スコープは広い側に振れた。**トレードオフを承知で選んでいる。**
+
+### `gmail.send` を後から足した
+
+**当初は `gmail.readonly` だけだった。** 「メールの変更・送信はしない」と要件に書いてあった。
+月初の提出アラート（要件定義 F-35）が要求として出たときに、**送る側に回ることになった。**
+
+**`gmail.send` は送信だけができるスコープで、読み取りも変更も含まない。**
+`gmail.modify` や `mail.google.com` のような広いものは要らない。
+**足すのは最も狭い1つで済んだ。**
+
+宛先は本人のアドレス固定で、実行時には決めない（`NF-13` / `N-23`）。
+**スコープを広げるかわりに、使い道のほうを要件で狭めている。**
 
 > **原則: スコープは狭いほどよい。** 広げるときは必ず理由が要る。
 > **判断のポイント**: スコープを増やす提案が来たら、**「なぜ狭いほうで済まないのか」を聞く。**
@@ -334,7 +347,8 @@ https://console.cloud.google.com/auth/overview
 
 https://console.cloud.google.com/auth/scopes
 
-`.../auth/spreadsheets` / `.../auth/drive` / `.../auth/gmail.readonly` の3つ（8節）。
+`.../auth/spreadsheets` / `.../auth/drive` / `.../auth/gmail.readonly` /
+`.../auth/gmail.send` の4つ（8節）。
 
 ### ⑤ OAuth クライアントを作る
 
@@ -349,7 +363,7 @@ https://console.cloud.google.com/auth/clients
 `node tools/sheet-probe/probe.cjs read` を実行すると認可 URL が端末に出る。
 ブラウザで開いて許可すると `credentials/token.json` が作られ、以降は再利用される（10節）。
 
-**3つのスコープをまとめて要求しているので、認可は1回で済む。**
+**4つのスコープをまとめて要求しているので、認可は1回で済む。**
 `tools/gmail-probe/` も同じトークンを使う。**確認済み**: Gmail を初めて使ったとき、
 認可のやり直しは要らなかった。
 
