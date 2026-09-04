@@ -133,7 +133,7 @@ JavaScript から読める場所にトークンを置かない。
 | **503** | **Google API の認可が無い・切れている** | `GOOGLE_UNAUTHORIZED` |
 
 **401 と 503 を分けるのは、導く先が違うからである。**
-401 はログイン画面へ。**503 は設定画面の「再認可する」へ**（F-02 / `screens.md` 3.10）。
+401 はログイン画面へ。**503 は設定画面の「再認可する」へ**（F-02 / `screens.md` 3.11）。
 **`architecture.md` 3.7 がログインの認可と Google API の認可を分けたので、失われ方も2つある。**
 
 **502 と 503 も分ける。** 502 は相手が失敗した（共有が締められた・様式が変わった）。
@@ -182,7 +182,7 @@ JavaScript から読める場所にトークンを置かない。
 GET  /api/home                          ← 集約。案件一覧＋月度状態＋要確認件数＋最後に取り込んだ日時
 GET  /api/projects/:id/expense-record   ← 集約。案件＋会場のルート＋既定値を一式
 
-GET  /api/venues / POST /api/routes / GET /api/stations ...   ← 以降は素直な資源単位
+GET  /api/venues / GET /api/segments / POST /api/routes ...   ← 以降は素直な資源単位
 ```
 
 **集約するのは2本だけである。** どちらも `screens.md` 2.2 の**3手の経路上にある画面**で、
@@ -227,6 +227,7 @@ flowchart LR
 | **記録画面の既定値** | 「ルートが1本ならそれ、複数なら未選択」（`screens.md` 4.3）。**3手が成立するかどうかがこの規則にかかっている** |
 | **提出行に書く金額**（往復の ×2、復路の反転、上書きの反映） | `database.md` 5.2。**`expense_record_legs` は提出行の正本である。正本を作る規則を1か所に置く**（5.3） |
 | **提出シートに書く行そのもの** | F-27 / R-17。**「書き込む形のまま」見せるのだから、組み立てるのは書く側である** |
+| **ルートが使う区間の `sort_order`** | **`segmentIds` の配列順から振る**（4.7）。クライアントは `sort_order` を1度も計算しない。**並べ替えは、配列を並べ替えて送り直すだけになる** |
 
 **クライアントが決めてよい**
 
@@ -255,14 +256,15 @@ flowchart LR
 - **GraphQL** — 往復も過不足も一度に解ける。**だがクライアントは同じリポジトリの SPA 1つだけで、
   取りたいものが揃わない相手がいない。** スキーマと解決器のぶんだけ構成が増え、
   **`architecture.md` 6.1 の「重いものを選ばない」に反する**
-- **区間を個別のエンドポイントにする**（`POST /api/routes/:id/legs` など）— 一見素直だが、
-  **`sort_order` の付け替えがクライアントとサーバーの2か所に載る。**
-  区間はルートの部品で、単独では意味を持たない（`database.md` 6.2 が CASCADE にしたのと同じ理屈）。
-  **ルートの `PUT` で配列ごと置き換える**
+- **ルートが使う区間の並びを、個別のエンドポイントにする**（`POST /api/routes/:id/legs` など）
+  — 一見素直だが、**`sort_order` の付け替えがクライアントとサーバーの2か所に載る。**
+  **区間そのものは独立した資源になった**（`/api/segments`・`database.md` 5.1）が、
+  **並びのほうはルートの部品である**（`database.md` 6.2 が CASCADE にしたのと同じ理屈）。
+  **ルートの `PUT` で `segmentIds` の配列ごと置き換える**
 
 ## 4. エンドポイント一覧
 
-**全34本。** 要件の番号を添える。
+**全37本。** 要件の番号を添える。
 
 ### 4.1 認証 — ログイン
 
@@ -442,19 +444,36 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 **「タクシーだけあって交通費の記録が無い」状態は起こりうる。**
 これは提出時に「記録の無い案件は飛ばして警告する」（要件定義 5.5）で拾われる。**中途半端ではない。**
 
-### 4.7 会場・ルート・駅
+### 4.7 会場・区間・ルート・駅
 
 | | パス | 何をするか | 要件 |
 | --- | --- | --- | --- |
 | GET | `/api/venues` | 会場一覧。**紐づくルート（名前・区間数・片道合計）まで含める** | F-13 / F-14 / F-17 |
 | POST | `/api/venues` | 会場を追加。**`source` は `manual` 固定** | F-14 |
 | POST | `/api/venues/import` | **会場マスタを取り込む。** `code` を鍵にした upsert | F-13 |
-| POST | `/api/routes` | ルートを追加。区間の配列を伴う | F-16 / F-17 |
+| GET | `/api/segments` | 区間一覧。**使っているルート数まで含める** | F-37 |
+| POST | `/api/segments` | 区間を登録。出発駅・到着駅・片道運賃 | F-37 |
+| PUT | `/api/segments/:id` | **片道運賃を直す。使っている全ルートに効く** | F-37 |
+| POST | `/api/routes` | ルートを追加。**`segmentIds` の配列を伴う** | F-16 / F-17 |
 | GET | `/api/routes/:id` | ルート1本。**区間の中身つき** | F-16 |
-| PUT | `/api/routes/:id` | 更新。**区間の配列ごと置き換える** | F-16 |
-| DELETE | `/api/routes/:id` | 削除。**区間も一緒に消える**（CASCADE） | F-16 |
+| PUT | `/api/routes/:id` | 更新。**`segmentIds` の配列ごと置き換える** | F-16 |
+| DELETE | `/api/routes/:id` | 削除。**使う区間の並びだけが消える**（CASCADE）。**区間そのものは残る** | F-16 |
 | GET | `/api/stations` | 駅一覧 | F-15 |
 | POST | `/api/stations` | 駅を登録。**名前は鉄道会社の略称込み** | F-15 |
+
+**ルートの更新は `segmentIds: [1, 2]` を送る。配列の順が、そのまま並び順である。**
+`sort_order` はサーバーが振る（3.2）。**クライアントは番号を持たない。**
+
+**`PUT /api/segments/:id` が変えるのは運賃だけである。**
+出発駅・到着駅を変えたいなら、**それは別の区間**である（`UNIQUE (from_station_id, to_station_id)`）。
+**駅を差し替えられると、その区間を使っている全ルートの経路が黙って変わる。**
+
+**区間を削除するエンドポイントを持たない。** 会場・駅と同じ理屈で、
+`database.md` 6.2 は `segments → route_segments` を RESTRICT にしている。
+**使われていない区間が残っても困らない。**
+
+**新しい区間は `POST /api/segments` で足してからルートに使う。**
+駅について `POST /api/stations` が先に来るのと同じ順である（8章）。
 
 **`GET /api/venues` がルートまで返すのは、会場43件・ルートは会場あたり1〜数本だからである**
 （要件定義 9.1）。**分ける理由が無い。** 区間の中身だけは重いので、`GET /api/routes/:id` に置く。
@@ -465,8 +484,8 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 **会場を削除するエンドポイントを持たない。** `screens.md` 3.6 に操作が無く、
 `database.md` 6.2 も `venues → routes` を RESTRICT にしている。**設定データを巻き込みで消さない。**
 
-**駅を削除するエンドポイントも持たない。** 同じく `stations → route_legs` は RESTRICT で、
-**使われている駅を消せてしまうとルートが壊れる。**
+**駅を削除するエンドポイントも持たない。** 同じく `stations → segments` は RESTRICT で、
+**使われている駅を消せてしまうと区間が壊れる。**
 
 **駅名が既存と重複したら 409。** `stations.UNIQUE (name)` に当たる。
 **`X鉄乙駅` と `Y鉄乙駅` は別の駅である**（F-15 / 要求分析 5.2）。
@@ -490,7 +509,7 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 
 **`PATCH` で `{ "checked": true }` を送る形にしない。** 操作が1つしかなく、
 **「確認済みにする」という意味がパスにそのまま出るほうが読める。**
-**未確認へ戻す操作は持たない**（`screens.md` 3.9 に無い）。
+**未確認へ戻す操作は持たない**（`screens.md` 3.10 に無い）。
 
 **要確認事項を作るエンドポイントを持たない**（7章）。
 `attentions` は**アプリが起こしたことの記録**であって、外から積むものではない。
@@ -503,7 +522,7 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 | GET | `/api/settings/config-backup` | 設定データを JSON で書き出す | NF-11 |
 | POST | `/api/settings/config-backup` | 読み込む | NF-11 |
 
-**`GET /api/settings` が返すのは名前だけである**（N-08 / `screens.md` 3.10）。
+**`GET /api/settings` が返すのは名前だけである**（N-08 / `screens.md` 3.11）。
 
 ```json
 { "spreadsheetName": "交通費精算", "sheetName": "（自分のシート）", "targetMonth": "2026-08",
@@ -594,6 +613,11 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 **`routes` が空なら `defaults.outboundRouteId` は `null` になる。**
 **クライアントは記録画面を出さず、会場とルートの画面へ導く**（`screens.md` 4.3）。
 
+**区間を `segments` へ独立させても、この応答の形は変わらない**（決定18）。
+`routes[].legs[]` は駅名と片道運賃を返しており、**サーバーが `segments` から引いて詰めるだけである。**
+`PUT` のリクエスト（5.3）も、送るのは選んだルートと `overrides` だけで変わらない。
+**3手の経路には、区間の共有化が一切出てこない。**
+
 **`record` が `null` でないときは、そちらが `defaults` に優先する**（記録済みの案件を開き直した場合）。
 
 ### 5.3 `PUT /api/projects/:id/expense-record`
@@ -665,7 +689,7 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 | **J / K / L を含めない** | 常に空（要件定義 5.3）。**書かない欄を応答に出すと、書くように見える** |
 | **M（領収書）は行ではなく `receiptCell`** | `M8:M32` は丸ごと1つの結合セルで、**月に1枠しかない**（要件定義 5.4） |
 | **`rowsToInsert` を返す** | 挿入はシートの構造を変える操作である（要件定義 5.2 手順5）。**実行する前に知らせる** |
-| **`片道` が現れる案件が分かる** | `cells.G` に出る。**まだ一度も起きていない書き方**なので、初めてのときは目視で確かめられる（要件定義 5.3 / `screens.md` 3.8） |
+| **`片道` が現れる案件が分かる** | `cells.G` に出る。**まだ一度も起きていない書き方**なので、初めてのときは目視で確かめられる（要件定義 5.3 / `screens.md` 3.9） |
 
 **中止するときは 200 を返さない**（2.6 / 要件定義 5.5）。
 
@@ -788,7 +812,7 @@ sequenceDiagram
 | **依頼メールの本文を返すエンドポイント** | `screens.md` 5章。取り出した5項目で足りる。**リンクは叩かない**（要件定義 7.2） |
 | **要確認事項を作るエンドポイント** | `attentions` は**アプリが起こしたことの記録**である。外から積むものではない |
 | **月度切替を起こすエンドポイント** | F-32 は**確認を挟まない**（決定10）。**操作の入口が要らない。** 検知は `POST /api/sync` の中（4.3） |
-| **会場・駅を削除するエンドポイント** | `screens.md` 3.6 / 3.7 に操作が無い。`database.md` 6.2 が RESTRICT にしている。**設定データを巻き込みで消さない** |
+| **会場・区間・駅を削除するエンドポイント** | `screens.md` 3.6 / 3.7 / 3.8 に操作が無い。`database.md` 6.2 が RESTRICT にしている。**設定データを巻き込みで消さない** |
 | **提出済みデータを読むエンドポイント** | 要件定義 11章。**正本は提出シートにある**（N-05） |
 | **ドライブのファイルを消すエンドポイント** | 要件定義 6.4 / 11章。**アプリが消してよいものではない** |
 | **`scheduler` 専用のエンドポイント** | `scheduler` は `backend` と**同じイメージを別コマンドで起動する**（`architecture.md` 3.8）。**HTTP を経由しないので、外から叩ける入口が生まれない** |
@@ -804,7 +828,7 @@ sequenceDiagram
 
 ## 8. 画面とエンドポイントの対応
 
-**`screens.md` 2.1 の10画面すべてを埋める。**
+**`screens.md` 2.1 の11画面すべてを埋める。**
 
 | 画面 | 開いたときに叩く | 操作で叩く |
 | --- | --- | --- |
@@ -814,7 +838,8 @@ sequenceDiagram
 | 案件の追加 | `GET /api/venues` | `POST /api/projects` |
 | **交通費の記録** | **`GET /api/projects/:id/expense-record`** | `PUT …/expense-record`／`POST …/taxi-rides`／`DELETE /api/taxi-rides/:id` |
 | 会場とルート | `GET /api/venues` | `POST /api/venues`／`POST /api/venues/import`／`DELETE /api/routes/:id` |
-| ルートの編集 | `GET /api/routes/:id`／`GET /api/stations` | `POST` / `PUT /api/routes/:id`／`POST /api/stations` |
+| ルートの編集 | `GET /api/routes/:id`／`GET /api/segments` | `POST` / `PUT /api/routes/:id` |
+| **区間と運賃** | `GET /api/segments`／`GET /api/stations` | `POST /api/segments`／`PUT /api/segments/:id`／`POST /api/stations` |
 | 提出 | `POST /api/submissions/preview` | `POST /api/submissions` |
 | 要確認事項 | `GET /api/attentions?checked=false` | `POST /api/attentions/:id/check` |
 | 設定 | `GET /api/settings` | `GET /api/google/authorization/start`／`GET`・`POST /api/settings/config-backup`／`POST /api/auth/logout`／`POST /api/auth/logout-all` |
@@ -823,8 +848,12 @@ sequenceDiagram
 **`GET` の結果を待たずに `POST` を投げ、`POST` が返ったら `GET` をやり直す。**
 **一覧は先に出る。** 取り込み中はその旨を出す。
 
-**ルートの編集で `GET /api/stations` を先に取るのは、駅を選ばせるためである**（`screens.md` 3.7）。
-**新しい駅は `POST /api/stations` で足してから区間に使う。**
+**ルートの編集で `GET /api/segments` を先に取るのは、区間を選ばせるためである**（`screens.md` 3.7）。
+**駅を選ばせるのは「区間と運賃」の側へ移った**（`screens.md` 3.8）。
+
+**足す順は「駅 → 区間 → ルート」で固定である。**
+新しい駅は `POST /api/stations`、新しい区間は `POST /api/segments` で足してから、
+ルートの `segmentIds` に載せる。**途中を飛ばせる経路を作らない。**
 
 ## 9. 要件とのトレーサビリティ
 
@@ -845,6 +874,7 @@ sequenceDiagram
 | F-15 | 4.7 `GET` / `POST /api/stations` |
 | F-16 | 4.7 `POST` / `GET` / `PUT` / `DELETE /api/routes/:id` |
 | F-17 | 4.7（ルートは `venueId` を持つ） |
+| **F-37** | 4.7 `GET` / `POST /api/segments`／`PUT /api/segments/:id` |
 | F-18 / F-19 | 4.5 / 5.2（`defaults`） |
 | F-20 | 5.3（`overrides`） |
 | F-21 | 5.1（`recorded`） |
