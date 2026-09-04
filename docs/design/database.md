@@ -74,13 +74,17 @@ erDiagram
         int venue_id FK
         varchar name
     }
-    route_legs {
+    segments {
         int id PK
-        int route_id FK
-        smallint sort_order
         int from_station_id FK
         int to_station_id FK
         int one_way_fare "片道運賃"
+    }
+    route_segments {
+        int id PK
+        int route_id FK
+        smallint sort_order
+        int segment_id FK
     }
     imported_mails {
         varchar id PK "Gmail の message id"
@@ -153,8 +157,9 @@ erDiagram
     }
 
     venues     ||--o{ routes              : "会場ごとに複数"
-    routes     ||--o{ route_legs          : "区間の並び"
-    stations   ||--o{ route_legs          : "出発駅・到着駅"
+    routes     ||--o{ route_segments      : "使う区間の並び"
+    segments   ||--o{ route_segments      : "複数のルートで共有される"
+    stations   ||--o{ segments            : "出発駅・到着駅"
     routes     |o--o{ expense_records     : "往路・復路（表示用）"
 
     imported_mails |o--o| projects             : "1通が1案件"
@@ -297,23 +302,93 @@ erDiagram
 **会場1対多ルート**（要件定義 6.1 / R-07）。**ルートは「自宅→会場」の1方向で持つ**（決定9）。
 復路は区間の並びを逆順にし、出発駅と到着駅を入れ替えて使う。
 
-#### `route_legs` — 区間
+#### `segments` — 区間
+
+| 列 | 型 | NULL | 既定 | 説明 |
+| --- | --- | --- | --- | --- |
+| `id` | `INT UNSIGNED` | NO | AUTO_INCREMENT | 主キー |
+| `from_station_id` | `INT UNSIGNED` | NO | — | → `stations.id`（**RESTRICT**） |
+| `to_station_id` | `INT UNSIGNED` | NO | — | → `stations.id`（**RESTRICT**） |
+| `one_way_fare` | `INT UNSIGNED` | NO | — | **片道運賃**（要件定義 6.1） |
+| `created_at` / `updated_at` | `DATETIME` | NO | — | |
+
+- `UNIQUE (from_station_id, to_station_id)`
+- `CHECK (from_station_id <> to_station_id)`
+
+**区間は複数のルートで共有する**（要件定義 6.1 / R-23 / F-37）。
+最寄り駅が同じ会場が複数あるとき、「自宅最寄り駅→乗換駅」は多くのルートに現れる。
+**ルートごとに運賃を持つと、運賃改定で直し漏れが起き、同じ区間なのに違う額が提出される。**
+記録画面はルートの登録運賃をそのまま既定値にするので（`screens.md` 3.5）、
+**壊れ方が「静かに違う額が出る」になる。**
+
+**出発駅と到着駅を独立して持つ。**「駅を N 個並べて、その間を区間とみなす」形にしない
+（要件定義 6.1）。**前の区間の到着駅と次の区間の出発駅は、乗り継ぐ同じ場所でも一致しない。**
+
+**`UNIQUE` を張るのは、同じ駅ペアに運賃を2つ持たせないためである。**
+2つあると、**どちらが正か決まらない。** 実額とのずれは**実績側で上書きする**（F-20）。
+
+**逆向きの区間は登録しない。** ルートは「自宅→会場」の1方向で持ち（決定9）、
+出発駅は常に自宅の最寄り駅である（要求分析 10章）。**逆向きが往路に現れることがない。**
+復路は同じ区間を逆順にし、出発駅と到着駅を入れ替えて使う。
+**運賃はその区間の `one_way_fare` をそのまま使う。**
+
+**採らなかった案**
+
+- **区間をルートに専有させ、重複を許す** — 同じ定義がルートの数だけ増える。
+  **運賃改定の直し漏れが、記録画面の既定値を通って提出額を壊す**
+- **同じ駅ペアに複数の運賃を許す**（`UNIQUE` を張らない） — どれが正か決まらない。
+  **実額とのずれは F-20 が実績側で吸収する。** 設定データを2つに割る理由にならない
+
+#### `route_segments` — ルートが使う区間の並び
 
 | 列 | 型 | NULL | 既定 | 説明 |
 | --- | --- | --- | --- | --- |
 | `id` | `INT UNSIGNED` | NO | AUTO_INCREMENT | 主キー |
 | `route_id` | `INT UNSIGNED` | NO | — | → `routes.id`（**CASCADE**） |
 | `sort_order` | `SMALLINT UNSIGNED` | NO | — | ルート内の順序。1 始まり |
-| `from_station_id` | `INT UNSIGNED` | NO | — | → `stations.id`（**RESTRICT**） |
-| `to_station_id` | `INT UNSIGNED` | NO | — | → `stations.id`（**RESTRICT**） |
-| `one_way_fare` | `INT UNSIGNED` | NO | — | **片道運賃**（要件定義 6.1） |
+| `segment_id` | `INT UNSIGNED` | NO | — | → `segments.id`（**RESTRICT**） |
+| `created_at` / `updated_at` | `DATETIME` | NO | — | |
 
 - `UNIQUE (route_id, sort_order)`
 
-**出発駅と到着駅を独立して持つ。**「駅を N 個並べて、その間を区間とみなす」形にしない
-（要件定義 6.1）。**前の区間の到着駅と次の区間の出発駅は、乗り継ぐ同じ場所でも一致しない。**
+**`segments` を独立させた時点で、ルートと区間は多対多になる。** 置く場所が要るのはその結び付きである。
+
+```
+segments                              routes
+| id | from    | to      | fare |     | id | venue | name     |
+| 1  | X鉄甲駅 | X鉄乙駅 | 320  |     | 1  | AAA   | 乙駅乗換 |
+| 2  | Y鉄乙駅 | Y鉄丙駅 | 210  |     | 2  | BBB   | 乙駅乗換 |
+| 3  | Y鉄乙駅 | Y鉄戊駅 | 260  |     | 3  | CCC   | 乙駅経由 |
+
+route_segments                ← 区間 1 が3本のルートから参照されている
+| route_id | sort_order | segment_id |
+| 1        | 1          | 1          |
+| 1        | 2          | 2          |
+| 2        | 1          | 1          |
+| 2        | 2          | 2          |
+| 3        | 1          | 1          |
+| 3        | 2          | 3          |
+```
 
 **上限を設けない**（要件定義 6.1）。乗り換え無しなら1行、1回なら2行、2回なら3行。
+
+**`route_legs` から改名した。** 変更前は区間そのものを持っていたので名前と中身が一致していたが、
+**いまは「ルートが何番目にどの区間を使うか」しか持たない。**
+`route_legs` のままだと、**区間そのものを持っているように読める。**
+
+**採らなかった案** — `routes` に並びを直接持たせる
+
+- **`routes.segment_ids` に配列（JSON）で持つ** — **外部キーが張れない。**
+  `segments → route_segments` の RESTRICT が消え、**「使われている区間を消せない」を
+  DB で担保できなくなる**（6.2）。それは今回の変更でいちばん効かせたい保証である。
+  あわせて「この区間を何本のルートが使っているか」（`screens.md` 3.8）が JSON 検索になり、
+  **MySQL 固有の機能に寄りかからない**（`architecture.md` 6.1 の縛り4）に反する。
+  4.3 の「順序を持つ子は `(親, sort_order)` を UNIQUE」からも外れる
+- **`routes.segment1_id` / `segment2_id` … と固定カラムで持つ** —
+  要件定義 6.1 の**「区間はいくつでも並べられる。上限を設けない」に反する**
+- **`UNIQUE (route_id, segment_id)` も張る** — 同じ区間を1ルートに2回入れる事故は防げるが、
+  **想定していない経路を DB が先に禁じることになる。**「上限を設けない」「名寄せをしない」
+  （要件定義 6.1）と同じ理由で、**設定データを機械が狭めにいかない。**
 
 ### 5.2 実績データ — 月度切替で消える
 
@@ -548,7 +623,7 @@ F-29 が提出について言う「何度でも実行できて、結果が同じ
 **`scopes` を持つのは、スコープが増えたときに気づくためである。**
 `gmail.send` は後から足したものであり（`google-cloud-basics.md` 8節）、
 **古いトークンのままだとアラートの送信だけが失敗する。** 失敗してから気づくより、
-**保持しているスコープを見て再認可へ導けるほうがよい**（F-02 / `screens.md` 3.10）。
+**保持しているスコープを見て再認可へ導けるほうがよい**（F-02 / `screens.md` 3.11）。
 
 > **端末ごとのセッションのテーブルは持たない。**
 > セッションは署名付き Cookie で、有効期限は90日・使うたび延びる（`architecture.md` 3.7）。
@@ -584,7 +659,7 @@ F-29 が提出について言う「何度でも実行できて、結果が同じ
 
 | 区分 | いつ消えるか | 出典 |
 | --- | --- | --- |
-| **設定データ**（`stations` / `venues` / `routes` / `route_legs`） | **消えない。** 本人が消したときだけ | N-06 / 要件定義 6.4 |
+| **設定データ**（`stations` / `segments` / `venues` / `routes` / `route_segments`） | **消えない。** 本人が消したときだけ | N-06 / 要件定義 6.4 |
 | **実績データ**（`projects` とその子） | **月度の切り替わりを検知したとき。** ただし**切り替わった先より前で、かつ提出が済んだ月度のものだけ** | F-32 / 要件定義 6.4 |
 | **`submissions`** | **消さない**（下記） | 要件定義 6.4 |
 | **`imported_mails`** | **消さない。** 再取り込みを防ぐため | 要件定義 6.3 / 6.4 |
@@ -605,14 +680,21 @@ F-29 が提出について言う「何度でも実行できて、結果が同じ
 | `projects` → `expense_records` / `taxi_rides` | **CASCADE** | 案件を消せば記録も消える（F-12 / 要件定義 4.3） |
 | `expense_records` → `expense_record_legs` | **CASCADE** | 区間の行は記録の部品 |
 | `taxi_rides` → `receipts` | **CASCADE** | 乗車が消えれば領収書の**行**も消える。**ファイル実体は消さない** |
-| `routes` → `route_legs` | **CASCADE** | 区間はルートの部品。単独では意味を持たない |
+| `routes` → `route_segments` | **CASCADE** | **並びはルートの部品。** 区間の定義そのものは `segments` にあり、**消えない** |
 | **`routes` → `expense_records`** | **SET NULL** | **ルートは実績より長く生きる。** 消えても実績は自立している（7章） |
 | **`venues` → `routes`** | **RESTRICT** | 設定データを巻き込みで消さない。**会場の削除は画面に無い**（`screens.md` 3.6） |
-| **`stations` → `route_legs`** | **RESTRICT** | 使われている駅を消せない。**消せてしまうとルートが壊れる** |
+| **`segments` → `route_segments`** | **RESTRICT** | **使われている区間を消せない。** 他のルートがまだ使っている |
+| **`stations` → `segments`** | **RESTRICT** | 使われている駅を消せない。**消せてしまうとルートが壊れる** |
 | **`imported_mails` → `projects`** | **RESTRICT** | **そもそもメールを消さない**（6.1）。RESTRICT は「消さない」を機械で言い直したもの |
 
 **CASCADE と RESTRICT の境目は、寿命の境目と同じである。**
 実績の内側は CASCADE で落ちてよい。**設定データへ跨いだ線は、CASCADE にしない。**
+
+**ルートを消しても、区間は消えない。**
+最寄り駅が同じ会場が複数あるとき、「自宅最寄り駅→乗換駅」は多くのルートに現れる。
+**以前は区間をルート専有の行として持っていたため、同じ定義がルートの数だけ重複し、
+運賃改定の直し漏れが提出額を壊しうる形になっていた**（5.1）。
+`segments` を独立させたことで、**運賃は1か所にあり、ルートの削除はその並びしか落とさない。**
 
 ### 6.3 月度切替の削除をどう引くか
 
@@ -691,7 +773,7 @@ DELETE FROM projects
 | J / K / L | **常に空**（要件定義 5.3） |
 | M 領収書 | `receipts.drive_url` を日付見出し付きで並べる（要件定義 5.4）。**月に1つの結合セル** |
 
-**`routes` と `route_legs` は、ここに一度も出てこない。**
+**`routes` / `segments` / `route_segments` は、ここに一度も出てこない。**
 **実績は設定データから切り離されている。** ルートを直しても消しても、過去の記録は動かない。
 
 ### 7.3 要件定義 5.6 の例を、行として書き下す
@@ -859,7 +941,8 @@ backend/
 > **ここは `auth_state` を足すときに数え直した。** それまで「3行」と書いていたが、
 > `google_credentials` は投入できないので、**元から2行だった。**
 
-**`stations` / `routes` / `route_legs` も空で始まる。** 本人が登録する（F-15 / F-16）。
+**`stations` / `segments` / `routes` / `route_segments` も空で始まる。**
+本人が登録する（F-15 / F-16 / F-37）。
 **設定データの控えから読み込むこともできる**（NF-11 / `architecture.md` 8章）。
 
 ## 11. 要件とのトレーサビリティ
@@ -871,7 +954,7 @@ backend/
 | 駅 | `stations` | |
 | 会場 | `venues` | |
 | ルート | `routes` | |
-| 区間 | `route_legs` | |
+| 区間 | **`segments`** | **複数のルートで共有する。** ルートとの結び付きは `route_segments`（5.1） |
 | 案件 | `projects` | |
 | 交通費記録 | `expense_records` + **`expense_record_legs`** | **「区間ごとの金額」を独立させた**（7章） |
 | タクシー乗車 | `taxi_rides` | |
@@ -899,7 +982,8 @@ backend/
 | `F-12` 案件を手で削除する | 6.2 の CASCADE |
 | `F-13` / `F-14` 会場マスタの取り込みと追加 | `venues.source` |
 | `F-15` 駅を鉄道会社の略称込みで持つ | `stations.name` |
-| `F-16` / `F-17` ルートの管理と複数紐付け | `routes` / `route_legs` |
+| `F-16` / `F-17` ルートの管理と複数紐付け | `routes` / `route_segments` |
+| `F-37` 区間の登録・編集。複数のルートで共有 | `segments` / `UNIQUE (from_station_id, to_station_id)` |
 | `F-19` 往路と復路で違うルート | `expense_records` の2本の外部キー / 7.3 の例 |
 | `F-20` 金額をその場で上書きする | `expense_record_legs.amount` |
 | `F-22` / `F-23` タクシー乗車と領収書 | `taxi_rides` / `receipts.UNIQUE (taxi_ride_id)` |

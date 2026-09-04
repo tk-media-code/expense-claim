@@ -386,21 +386,26 @@ const STATIONS = {
   teiX:"X鉄丁駅", teiY:"Y鉄丁駅", boY:"Y鉄戊駅", boZ:"Z鉄戊駅"
 };
 
-/* ルートは「自宅→会場」の1方向で持つ（決定9）。区間は片道運賃を持つ（6.1） */
+/* 区間は出発駅・到着駅・片道運賃を持ち、複数のルートで共有する（6.1 / 決定18）。
+   運賃はここが1か所の正で、直すと使っている全ルートに効く */
+const SEGMENTS = {
+  s1:{ from:STATIONS.kou,   to:STATIONS.otsuX, fare:320 },
+  s2:{ from:STATIONS.otsuY, to:STATIONS.hei,   fare:210 },
+  s3:{ from:STATIONS.kou,   to:STATIONS.teiX,  fare:380 },
+  s4:{ from:STATIONS.teiY,  to:STATIONS.boY,   fare:210 },
+  s5:{ from:STATIONS.kou,   to:STATIONS.boZ,   fare:520 },
+  s6:{ from:STATIONS.kou,   to:STATIONS.hei,   fare:310 },
+  s7:{ from:STATIONS.otsuY, to:STATIONS.boY,   fare:260 }
+};
+
+/* ルートは「自宅→会場」の1方向で持ち（決定9）、使う区間を並べて持つ（6.1）。
+   AAA と DDD は最寄り駅が同じで、先頭区間 s1 を共有している */
 const ROUTES = {
-  r1:{ name:"乙駅乗換", venue:"AAA", legs:[
-        {from:STATIONS.kou,  to:STATIONS.otsuX, fare:320},
-        {from:STATIONS.otsuY,to:STATIONS.hei,   fare:210}]},
-  r2:{ name:"丁駅乗換", venue:"BBB", legs:[
-        {from:STATIONS.kou,  to:STATIONS.teiX,  fare:380},
-        {from:STATIONS.teiY, to:STATIONS.boY,   fare:210}]},
-  r3:{ name:"戊駅直通", venue:"BBB", legs:[
-        {from:STATIONS.kou,  to:STATIONS.boZ,   fare:520}]},
-  r4:{ name:"丙駅直通", venue:"CCC", legs:[
-        {from:STATIONS.kou,  to:STATIONS.hei,   fare:310}]},
-  r5:{ name:"乙駅乗換", venue:"DDD", legs:[
-        {from:STATIONS.kou,  to:STATIONS.otsuX, fare:320},
-        {from:STATIONS.otsuY,to:STATIONS.boY,   fare:260}]}
+  r1:{ name:"乙駅乗換", venue:"AAA", segIds:["s1","s2"] },
+  r2:{ name:"丁駅乗換", venue:"BBB", segIds:["s3","s4"] },
+  r3:{ name:"戊駅直通", venue:"BBB", segIds:["s5"] },
+  r4:{ name:"丙駅直通", venue:"CCC", segIds:["s6"] },
+  r5:{ name:"乙駅乗換", venue:"DDD", segIds:["s1","s7"] }
 };
 
 const PROJECTS = [
@@ -430,7 +435,8 @@ const yen = n => "¥" + n.toLocaleString("ja-JP");
 const project = id => PROJECTS.find(p => p.id === id);
 const routesFor = code => Object.entries(ROUTES)
   .filter(([,r]) => r.venue === code).map(([k,r]) => ({ key:k, ...r }));
-const oneWay = r => r.legs.reduce((a,l) => a + l.fare, 0);
+const segsOf = r => r.segIds.map(id => SEGMENTS[id]);
+const oneWay = r => segsOf(r).reduce((a,s) => a + s.fare, 0);
 
 function freshDraft(p){
   const rs = routesFor(p.code);
@@ -445,12 +451,13 @@ function freshDraft(p){
 /* 交通費記録の合計。往復なら区間ごとに ×2 して書く（5.3） */
 function legsOf(d){
   const out = [];
-  if (d.out) ROUTES[d.out].legs.forEach(l =>
-    out.push({ from:l.from, to:l.to, fare: d.round ? l.fare*2 : l.fare }));
+  if (d.out) segsOf(ROUTES[d.out]).forEach(s =>
+    out.push({ from:s.from, to:s.to, fare: d.round ? s.fare*2 : s.fare }));
   if (!d.round && d.back)
-    /* 復路は区間の並びを逆順にし、出発駅と到着駅を入れ替える（決定9） */
-    ROUTES[d.back].legs.slice().reverse().forEach(l =>
-      out.push({ from:l.to, to:l.from, fare:l.fare }));
+    /* 復路は区間の並びを逆順にし、出発駅と到着駅を入れ替える（決定9）。
+       運賃はその区間の片道運賃をそのまま使う */
+    segsOf(ROUTES[d.back]).slice().reverse().forEach(s =>
+      out.push({ from:s.to, to:s.from, fare:s.fare }));
   return out;
 }
 
@@ -619,7 +626,7 @@ function screenRecord(){
             data-label="${kind === "out" ? "往路" : "復路"}ルート「${esc(r.name)}」を選ぶ">
       <span class="mark"></span>
       <span class="name">${esc(r.name)}
-        <span class="meta">${r.legs.length}区間 / ${r.legs.map(l=>esc(l.to)).join(" ・ ")}</span>
+        <span class="meta">${r.segIds.length}区間 / ${segsOf(r).map(s=>esc(s.to)).join(" ・ ")}</span>
       </span>
       <span class="fare">片道 ${yen(oneWay(r))}</span>
     </button>`).join("");
