@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>帰り道の記録は3手で終わるか</title>
+<title>交通費精算アプリ 画面モック</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -50,21 +50,22 @@ body{
   -webkit-font-smoothing:antialiased;
 }
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;text-align:left}
+input,select,textarea{font:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
 [hidden]{display:none !important}
 .mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
 .num{font-family:var(--font-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
 
-/* ---------- 計測パネル ---------- */
+/* ---------- 台 ---------- */
 .harness{
   display:grid; gap:24px; padding:24px 20px 64px;
   grid-template-columns:minmax(0,1fr); justify-items:center;
 }
 @media (min-width:1000px){
-  .harness{grid-template-columns:340px minmax(0,auto);justify-items:start;align-items:start;
-    max-width:820px;margin:0 auto;gap:40px;padding-top:40px}
+  .harness{grid-template-columns:360px minmax(0,auto);justify-items:start;align-items:start;
+    max-width:860px;margin:0 auto;gap:40px;padding-top:40px}
 }
-.panel{width:100%;max-width:420px;display:flex;flex-direction:column;gap:16px}
+.panel{width:100%;max-width:420px;display:flex;flex-direction:column;gap:18px}
 .panel h1{
   font-size:22px;line-height:1.35;margin:0;font-weight:700;text-wrap:balance;
   letter-spacing:.01em;
@@ -74,45 +75,63 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--accent);margin:0 0 6px;font-weight:500;
 }
-.meter{
+.pblock{
   background:var(--surface);border:1px solid var(--line);border-radius:10px;
-  padding:16px 18px;display:flex;flex-direction:column;gap:14px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:11px;
 }
-.meter-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.meter-count{display:flex;align-items:baseline;gap:8px}
-.meter-count b{font-family:var(--font-mono);font-size:40px;line-height:1;font-weight:500}
-.meter-count span{font-size:13px;color:var(--ink-2)}
-.meter-target{font-size:12px;color:var(--ink-2);text-align:right;line-height:1.5}
-.meter-target b{font-family:var(--font-mono);font-weight:500;color:var(--ink)}
-.verdict{
-  font-size:12.5px;padding:7px 10px;border-radius:6px;font-weight:500;
-  background:var(--surface-2);color:var(--ink-2);
+.pblock h2{
+  margin:0;font-size:11px;font-family:var(--font-mono);letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);font-weight:500;
 }
-.verdict[data-state="ok"]{background:var(--ok-soft);color:var(--ok)}
-.verdict[data-state="over"]{background:var(--warn-soft);color:var(--warn)}
-.trace{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;
-  max-height:200px;overflow-y:auto}
-.trace li{
-  display:grid;grid-template-columns:26px 1fr;gap:10px;align-items:baseline;
-  font-size:12.5px;padding:4px 0;border-top:1px solid var(--line);color:var(--ink-2);
+.pnote{margin:0;font-size:12px;color:var(--ink-2);line-height:1.65}
+.pnote b{color:var(--ink);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  border:1px solid var(--line-strong);border-radius:20px;padding:5px 11px;
+  font-size:12px;color:var(--ink-2);white-space:nowrap;
 }
-.trace li:first-child{border-top:none}
-.trace li i{font-family:var(--font-mono);font-style:normal;color:var(--ink-3);font-size:11px}
-.trace li b{font-weight:500;color:var(--ink)}
-.trace-empty{font-size:12.5px;color:var(--ink-3);padding:4px 0}
-.meter-actions{display:flex;gap:8px}
-.btn-ghost{
-  border:1px solid var(--line-strong);border-radius:7px;padding:7px 12px;
-  font-size:12.5px;font-weight:500;color:var(--ink-2);
+.chip:hover{background:var(--surface-2);color:var(--ink)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
+  color:var(--accent-ink);font-weight:500}
+.switches{display:flex;flex-direction:column;gap:1px}
+.switch{
+  display:grid;grid-template-columns:1fr 34px;gap:10px;align-items:center;
+  padding:9px 0;border-top:1px solid var(--line);font-size:12.5px;width:100%;
 }
-.btn-ghost:hover{background:var(--surface-2);color:var(--ink)}
+.switch:first-child{border-top:none}
+.switch .sw-name{line-height:1.5}
+.switch .sw-name small{display:block;font-size:11px;color:var(--ink-3);line-height:1.5}
+.switch .sw-box{
+  width:34px;height:20px;border-radius:20px;background:var(--surface-3);
+  border:1px solid var(--line-strong);position:relative;transition:background .12s;
+}
+.switch .sw-box::after{
+  content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:var(--ink-3);transition:transform .12s,background .12s;
+}
+.switch[aria-pressed="true"] .sw-box{background:var(--alert-soft);border-color:var(--alert)}
+.switch[aria-pressed="true"] .sw-box::after{transform:translateX(14px);background:var(--alert)}
+.index{display:flex;flex-direction:column;gap:1px}
+.index button{
+  display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;
+  padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;width:100%;
+}
+.index button:first-child{border-top:none}
+.index button:hover{color:var(--accent)}
+.index button[aria-current="true"]{color:var(--accent);font-weight:700}
+.index .req{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)}
 .checklist{
-  border-top:1px solid var(--line);padding-top:14px;margin:0;
+  margin:0;padding:0;list-style:none;
   display:flex;flex-direction:column;gap:9px;font-size:12.5px;line-height:1.6;
 }
-.checklist div{display:grid;grid-template-columns:14px 1fr;gap:9px;color:var(--ink-2)}
+.checklist li{display:grid;grid-template-columns:14px 1fr;gap:9px;color:var(--ink-2)}
 .checklist i{font-style:normal;color:var(--accent);font-family:var(--font-mono);font-size:11px}
 .checklist b{color:var(--ink);font-weight:500}
+.btn-ghost{
+  border:1px solid var(--line-strong);border-radius:7px;padding:8px 12px;
+  font-size:12.5px;font-weight:500;color:var(--ink-2);text-align:center;
+}
+.btn-ghost:hover{background:var(--surface-2);color:var(--ink)}
 
 /* ---------- 端末枠 ---------- */
 .device{
@@ -125,27 +144,18 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   padding:0 16px;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);
   border-bottom:1px solid var(--line);background:var(--surface-2);
 }
-.viewport{flex:1;overflow-y:auto;overscroll-behavior:contain}
+.viewport{flex:1;overflow-y:auto;overscroll-behavior:contain;position:relative}
 @media (max-width:999px){
   .harness{padding:12px 12px 40px;gap:16px}
   .device{height:min(78vh,760px)}
 }
 @media (max-width:460px){
-  .harness{padding:0 0 200px}
+  .harness{padding:0 0 24px}
   .device{width:100%;border:none;border-radius:0;box-shadow:none;height:auto;min-height:100svh}
   .device-bar{display:none}
   .viewport{overflow:visible}
   .panel{order:2;padding:20px 16px;max-width:none}
-  .floating{display:flex}
 }
-/* 実機用の浮きチップ */
-.floating{
-  display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:50;
-  align-items:center;gap:12px;padding:10px 14px;border-radius:10px;
-  background:var(--surface);border:1px solid var(--line-strong);box-shadow:var(--shadow);
-}
-.floating b{font-family:var(--font-mono);font-size:22px;font-weight:500;line-height:1}
-.floating span{font-size:12px;color:var(--ink-2);flex:1;line-height:1.4}
 
 /* ---------- アプリ内部 ---------- */
 .app{display:flex;flex-direction:column;min-height:100%}
@@ -155,16 +165,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   display:flex;align-items:center;gap:10px;min-height:52px;
 }
 .appbar h2{margin:0;font-size:15.5px;font-weight:700;letter-spacing:.01em;flex:1}
-.back{
+.back,.icon-btn{
   width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:6px;
   color:var(--ink-2);font-size:17px;line-height:1;
 }
-.back:hover{background:var(--surface-2);color:var(--ink)}
-.appbar .icon-btn{
-  width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:6px;
-  color:var(--ink-2);font-size:16px;
-}
-.appbar .icon-btn:hover{background:var(--surface-2);color:var(--ink)}
+.back:hover,.icon-btn:hover{background:var(--surface-2);color:var(--ink)}
 .body{padding:16px;display:flex;flex-direction:column;gap:16px;flex:1}
 
 .sync{
@@ -172,17 +177,22 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   font-family:var(--font-mono);
 }
 .sync .dot{width:5px;height:5px;border-radius:50%;background:var(--ok);flex:none}
+.sync .dot[data-busy="1"]{background:var(--warn)}
+.sync .pull{margin-left:auto;font-family:var(--font-ui);font-size:11.5px;color:var(--accent)}
 
 .notice{
   display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:8px;
   background:var(--alert-soft);color:var(--alert);font-size:12.5px;line-height:1.6;
-  border:1px solid transparent;
+  border:1px solid transparent;width:100%;
 }
+.notice[data-tone="warn"]{background:var(--warn-soft);color:var(--warn)}
+.notice[data-tone="ok"]{background:var(--ok-soft);color:var(--ok)}
+.notice[data-tone="quiet"]{background:var(--surface-2);color:var(--ink-2)}
 .notice b{font-weight:700}
 .notice .arrow{margin-left:auto;flex:none;opacity:.65}
 
 .month{display:flex;flex-direction:column;gap:9px}
-.month-head{display:flex;align-items:baseline;gap:9px;padding-bottom:2px}
+.month-head{display:flex;align-items:baseline;gap:9px;padding-bottom:2px;flex-wrap:wrap}
 .month-head h3{margin:0;font-size:13.5px;font-weight:700;letter-spacing:.02em}
 .tag{
   font-size:10.5px;font-family:var(--font-mono);letter-spacing:.06em;padding:2.5px 7px;
@@ -191,6 +201,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .tag[data-kind="due"]{background:var(--warn-soft);color:var(--warn)}
 .tag[data-kind="upcoming"]{background:var(--surface-3);color:var(--ink-2)}
 .tag[data-kind="done"]{background:var(--ok-soft);color:var(--ok)}
+.tag[data-kind="alert"]{background:var(--alert-soft);color:var(--alert)}
 
 .card{
   width:100%;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;
@@ -231,12 +242,15 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   background:var(--accent);color:var(--accent-ink);letter-spacing:.02em;
 }
 .btn:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.45;cursor:default;filter:none}
 .btn[data-variant="quiet"]{background:var(--surface-2);color:var(--ink-2);
   border:1px solid var(--line);font-weight:500;font-size:13.5px;padding:11px 14px}
 .btn[data-variant="quiet"]:hover{color:var(--ink);background:var(--surface-3)}
 .btn[data-variant="danger"]{background:transparent;color:var(--alert);font-weight:500;
   font-size:13px;padding:10px}
 .btn[data-variant="danger"]:hover{background:var(--alert-soft)}
+.btn-row{display:flex;gap:8px}
+.btn-row .btn{flex:1}
 
 .seg{display:flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
 .seg button{
@@ -248,13 +262,19 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .field{display:flex;flex-direction:column;gap:7px}
 .label{font-size:11.5px;font-family:var(--font-mono);letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3)}
-.picker{
-  display:flex;flex-direction:column;gap:7px;
+.label .opt-mark{text-transform:none;letter-spacing:0;color:var(--ink-3);font-family:var(--font-ui)}
+.input,select.input,textarea.input{
+  width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:11px 13px;
+  background:var(--surface);font-size:15px;min-width:0;
 }
+.input:focus{outline:none;border-color:var(--accent)}
+.input[disabled]{background:var(--surface-2);color:var(--ink-3)}
+textarea.input{font-family:var(--font-mono);font-size:12px;line-height:1.6;resize:vertical}
+.picker{display:flex;flex-direction:column;gap:7px}
 .opt{
   display:grid;grid-template-columns:18px 1fr auto;gap:11px;align-items:center;
   padding:12px 14px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;
-  background:var(--surface);
+  background:var(--surface);width:100%;
 }
 .opt:hover{border-color:var(--line-strong)}
 .opt[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
@@ -278,6 +298,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .leg .path .arrow{color:var(--ink-3);margin:0 6px}
 .leg .fare{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums}
 .leg .fare small{color:var(--ink-3);font-size:11px;margin-left:1px}
+.leg .fare-edit{width:96px;text-align:right;padding:7px 9px;font-family:var(--font-mono);
+  font-size:14px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface)}
 .total{display:flex;justify-content:space-between;align-items:baseline;
   padding:13px 14px;background:var(--surface-2);border-top:1px solid var(--line)}
 .total span{font-size:12.5px;color:var(--ink-2)}
@@ -306,17 +328,96 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 .upload:hover{border-color:var(--accent);color:var(--accent)}
 .upload[data-done="1"]{border-style:solid;border-color:var(--ok);color:var(--ok);
   background:var(--ok-soft)}
+.taxi-ride{border:1px solid var(--line);border-radius:8px;padding:12px;
+  display:flex;flex-direction:column;gap:10px;background:var(--surface-2)}
+.taxi-ride .head{display:flex;align-items:baseline;gap:8px;font-size:12px;color:var(--ink-2)}
+.taxi-ride .head button{margin-left:auto;font-size:11.5px;color:var(--alert)}
 .hint{font-size:11.5px;color:var(--ink-3);line-height:1.65;margin:0}
+.hint b{color:var(--ink-2);font-weight:500}
 .spacer{flex:1}
-.done-mark{
-  display:grid;place-items:center;gap:14px;padding:56px 24px;text-align:center;
-}
-.done-mark .ring{width:56px;height:56px;border-radius:50%;background:var(--ok-soft);
-  color:var(--ok);display:grid;place-items:center;font-size:26px}
-.done-mark h3{margin:0;font-size:17px;font-weight:700}
-.done-mark p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}
 .footnote{font-size:11.5px;color:var(--ink-3);line-height:1.7;margin:0;
   padding-top:4px;border-top:1px solid var(--line)}
+.footnote b{color:var(--ink-2);font-weight:500}
+.section-head{display:flex;align-items:baseline;gap:8px;margin:0}
+.section-head h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em}
+.section-head .more{margin-left:auto;font-size:12px;color:var(--accent)}
+
+/* 一覧 */
+.list{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
+.item{display:block;width:100%;padding:12px 14px;border-top:1px solid var(--line);font-size:13.5px}
+.item:first-child{border-top:none}
+button.item:hover{background:var(--surface-2)}
+.item .top{display:flex;align-items:baseline;gap:8px}
+.item .top .name{font-weight:500}
+.item .top .right{margin-left:auto;font-family:var(--font-mono);font-size:12.5px;color:var(--ink-2)}
+.item .sub{font-size:11.5px;color:var(--ink-3);line-height:1.6;display:block;margin-top:2px}
+.item[data-flag="alert"]{background:var(--alert-soft)}
+.item[data-flag="alert"] .sub{color:var(--alert)}
+.pill{font-size:10.5px;font-family:var(--font-mono);padding:2px 6px;border-radius:4px;
+  background:var(--surface-3);color:var(--ink-2);white-space:nowrap}
+.pill[data-tone="manual"]{background:var(--warn-soft);color:var(--warn)}
+.pill[data-tone="ok"]{background:var(--ok-soft);color:var(--ok)}
+
+/* 提出シートの表 */
+.grid-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+table.grid{border-collapse:collapse;font-size:11.5px;white-space:nowrap;min-width:100%}
+table.grid th,table.grid td{
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:6px 8px;text-align:left;font-weight:400;
+}
+table.grid thead th{
+  background:var(--surface-2);color:var(--ink-3);font-family:var(--font-mono);
+  font-size:10.5px;letter-spacing:.05em;position:sticky;top:0;
+}
+table.grid tbody tr[data-head="1"] td{border-top:2px solid var(--line-strong)}
+table.grid td.n{font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums}
+table.grid td.rowno{font-family:var(--font-mono);color:var(--ink-3);background:var(--surface-2)}
+table.grid td.oneway{color:var(--warn);font-weight:700}
+.receipt-cell{
+  border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  padding:11px 13px;font-family:var(--font-mono);font-size:11px;line-height:1.8;
+  white-space:pre-wrap;word-break:break-all;color:var(--ink-2);
+}
+
+/* 進行状況 */
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:20px 1fr;gap:11px;align-items:start;
+  padding:9px 0;font-size:13px;color:var(--ink-3)}
+.step i{font-style:normal;font-family:var(--font-mono);font-size:12px;text-align:center}
+.step[data-s="done"]{color:var(--ink)}
+.step[data-s="done"] i{color:var(--ok)}
+.step[data-s="now"]{color:var(--ink);font-weight:500}
+.step[data-s="now"] i{color:var(--accent)}
+.done-mark{display:grid;place-items:center;gap:14px;padding:40px 24px 16px;text-align:center}
+.done-mark .ring{width:56px;height:56px;border-radius:50%;background:var(--ok-soft);
+  color:var(--ok);display:grid;place-items:center;font-size:26px}
+.done-mark[data-tone="alert"] .ring{background:var(--alert-soft);color:var(--alert)}
+.done-mark h3{margin:0;font-size:17px;font-weight:700}
+.done-mark p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}
+
+/* オーバーレイ */
+.backdrop{
+  position:absolute;inset:0;z-index:20;background:rgba(22,32,43,.38);
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.sheet{
+  width:100%;background:var(--surface);border-radius:14px 14px 0 0;
+  max-height:88%;display:flex;flex-direction:column;box-shadow:var(--shadow);
+}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;flex:none}
+.sheet-head h3{margin:0;font-size:14.5px;font-weight:700;flex:1}
+.sheet-head .close{width:28px;height:28px;display:grid;place-items:center;border-radius:6px;
+  color:var(--ink-3);font-size:18px}
+.sheet-head .close:hover{background:var(--surface-2);color:var(--ink)}
+.sheet-body{padding:0 16px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.menu-item{display:flex;align-items:center;gap:12px;width:100%;padding:13px 4px;
+  border-top:1px solid var(--line);font-size:14px}
+.menu-item:first-child{border-top:none}
+.menu-item:hover{color:var(--accent)}
+.menu-item .req{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)}
+@media (max-width:460px){
+  .backdrop{position:fixed}
+}
 @media (prefers-reduced-motion:no-preference){
   .viewport [data-screen]{animation:in .18s ease-out}
   @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -330,35 +431,45 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
   <div class="panel">
     <div>
       <p class="eyebrow">画面設計 / モック</p>
-      <h1>帰り道の記録は3手で終わるか</h1>
+      <h1>交通費精算アプリ 画面モック</h1>
     </div>
     <p class="lede">
-      要件定義 8.1 が定めた「ホーム → 案件の詳細 → 交通費の記録」の経路を、
-      実際にタップして数えます。データはすべて架空です（要件定義 5.6 の例）。
-      <br><b>想定している場面</b>：2026年9月5日（土）の帰り道。移動中のスマートフォン。
+      画面設計（<code>docs/design/screens.md</code>）の11画面を、実際に触って確かめるためのモックです。
+      <b>データはすべて架空です</b>（要件定義 5.6 の例）。
+      左の「場面」を切り替えると、4章の状態と分岐がそのまま現れます。
     </p>
 
-    <div class="meter">
-      <div class="meter-top">
-        <div class="meter-count">
-          <b id="tapCount">0</b><span>手</span>
-        </div>
-        <div class="meter-target">
-          目標 <b>3手</b><br>タクシーがある日 <b>+2手</b>
-        </div>
-      </div>
-      <p class="verdict" id="verdict" data-state="idle">案件カードをタップして始めます</p>
-      <ol class="trace" id="trace"></ol>
-      <p class="trace-empty" id="traceEmpty">まだタップがありません</p>
-      <div class="meter-actions">
-        <button class="btn-ghost" id="reset">最初から数え直す</button>
-      </div>
-      <div class="checklist">
-        <div><i>1</i><span><b>3手で保存まで終わるか。</b>ルートが1本の会場は選択済みで開きます（要件定義 8.1）</span></div>
-        <div><i>2</i><span><b>キーボード入力が現れないか。</b>屋外・移動中に文字を打たせない</span></div>
-        <div><i>3</i><span><b>2つの月が並んでも混乱しないか。</b>8月度は提出待ち、9月度は稼働中です（9.2）</span></div>
-      </div>
-    </div>
+    <section class="pblock">
+      <h2>場面 — 時期</h2>
+      <div class="chips" id="scenes"></div>
+      <p class="pnote" id="sceneNote"></p>
+      <p class="pnote"><b>切り替えると、それまでの操作は消えます。</b></p>
+    </section>
+
+    <section class="pblock">
+      <h2>場面 — わざと壊す</h2>
+      <div class="switches" id="faults"></div>
+    </section>
+
+    <section class="pblock">
+      <h2>画面の索引</h2>
+      <div class="index" id="index"></div>
+    </section>
+
+    <section class="pblock">
+      <h2>確かめること</h2>
+      <ol class="checklist">
+        <li><i>1</i><span><b>帰り道の記録は3手で終わるか。</b>ホーム → 案件の詳細 → 交通費の記録 →
+          保存。ルートが1本の会場は選択済みで開きます（2.2 / 4.3）</span></li>
+        <li><i>2</i><span><b>そこにキーボード入力が現れないか。</b>屋外・移動中に文字を打たせない</span></li>
+        <li><i>3</i><span><b>2つの月が並んでも混乱しないか</b>（4.2）</span></li>
+        <li><i>4</i><span><b>区間の運賃を直すと、使っている全ルートに効くか</b>（決定18）。
+          <b>済んだ記録は動かないか</b>（要件定義 6.2）</span></li>
+        <li><i>5</i><span><b>提出前の行が、提出シートの列そのままの形で読めるか</b>（F-27）</span></li>
+      </ol>
+    </section>
+
+    <button class="btn-ghost" id="reset">この場面を最初の状態へ戻す</button>
   </div>
 
   <div class="device">
@@ -368,438 +479,1792 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;tex
 
 </div>
 
-<div class="floating">
-  <b id="tapCountMobile">0</b>
-  <span id="verdictMobile">目標 3手（タクシーがある日 +2手）</span>
-  <button class="btn-ghost" id="resetMobile">数え直す</button>
-</div>
-
 <script>
 "use strict";
 
-/* ------------------------------------------------------------------
+/* ==================================================================
    架空データ（要件定義 5.6 の例をそのまま使う）
-   会場コード・会場名・ご両家名・駅名・運賃はすべて架空
-------------------------------------------------------------------- */
-const STATIONS = {
-  kou:"X鉄甲駅", otsuX:"X鉄乙駅", otsuY:"Y鉄乙駅", hei:"Y鉄丙駅",
-  teiX:"X鉄丁駅", teiY:"Y鉄丁駅", boY:"Y鉄戊駅", boZ:"Z鉄戊駅"
-};
+   会場コード・会場名・ご両家名・駅名・運賃・URL はすべて架空である。
+   public リポジトリなので実値は置かない（N-08 / N-18）。
+================================================================== */
 
-/* 区間は出発駅・到着駅・片道運賃を持ち、複数のルートで共有する（6.1 / 決定18）。
-   運賃はここが1か所の正で、直すと使っている全ルートに効く */
-const SEGMENTS = {
-  s1:{ from:STATIONS.kou,   to:STATIONS.otsuX, fare:320 },
-  s2:{ from:STATIONS.otsuY, to:STATIONS.hei,   fare:210 },
-  s3:{ from:STATIONS.kou,   to:STATIONS.teiX,  fare:380 },
-  s4:{ from:STATIONS.teiY,  to:STATIONS.boY,   fare:210 },
-  s5:{ from:STATIONS.kou,   to:STATIONS.boZ,   fare:520 },
-  s6:{ from:STATIONS.kou,   to:STATIONS.hei,   fare:310 },
-  s7:{ from:STATIONS.otsuY, to:STATIONS.boY,   fare:260 }
-};
-
-/* ルートは「自宅→会場」の1方向で持ち（決定9）、使う区間を並べて持つ（6.1）。
-   AAA と DDD は最寄り駅が同じで、先頭区間 s1 を共有している */
-const ROUTES = {
-  r1:{ name:"乙駅乗換", venue:"AAA", segIds:["s1","s2"] },
-  r2:{ name:"丁駅乗換", venue:"BBB", segIds:["s3","s4"] },
-  r3:{ name:"戊駅直通", venue:"BBB", segIds:["s5"] },
-  r4:{ name:"丙駅直通", venue:"CCC", segIds:["s6"] },
-  r5:{ name:"乙駅乗換", venue:"DDD", segIds:["s1","s7"] }
-};
-
-const PROJECTS = [
-  { id:"p1", date:"2026-08-22", w:"土", code:"CCC", venue:"丙会館",   couple:"▲▲様▼▼様", no:"250812001",
-    month:"2026-08", recorded:{ routes:["r4"], round:true, total:620 }, taxi:[] },
-  { id:"p2", date:"2026-08-23", w:"日", code:"DDD", venue:"丁ガーデン", couple:"◎◎様☆☆様", no:"250812002",
-    month:"2026-08", recorded:{ routes:["r5"], round:true, total:1160 }, taxi:[{amount:2400}] },
-  { id:"p3", date:"2026-09-05", w:"土", code:"AAA", venue:"甲ホール",   couple:"〇〇様△△様", no:"250901001",
-    month:"2026-09", recorded:null, taxi:[] },
-  { id:"p4", date:"2026-09-05", w:"土", code:"BBB", venue:"乙迎賓館",   couple:"□□様◇◇様", no:"250901002",
-    month:"2026-09", recorded:null, taxi:[] },
-  { id:"p5", date:"2026-09-12", w:"土", code:"AAA", venue:"甲ホール",   couple:"××様＋＋様", no:"250901003",
-    month:"2026-09", recorded:null, taxi:[] }
+/* 駅は鉄道会社の略称込みで持つ（F-15）。
+   乗換駅は会社ごとに別の駅として書かれるので、乙駅・丁駅・戊駅は2行ある */
+const SEED_STATIONS = [
+  { id:"kou",   name:"X鉄甲駅" },
+  { id:"otsuX", name:"X鉄乙駅" },
+  { id:"otsuY", name:"Y鉄乙駅" },
+  { id:"hei",   name:"Y鉄丙駅" },
+  { id:"teiX",  name:"X鉄丁駅" },
+  { id:"teiY",  name:"Y鉄丁駅" },
+  { id:"boY",   name:"Y鉄戊駅" },
+  { id:"boZ",   name:"Z鉄戊駅" }
 ];
 
-const TODAY = "2026-09-05";
-/* 対象月度は提出シートの A1 が決める（決定13）。切替（翌月4〜7日）はまだ済んでいない */
-const TARGET_MONTH = "2026-08";
-const ATTENTION = 1; /* 要確認事項の件数。0 なら出さない（4.4） */
+/* 区間は出発駅・到着駅・片道運賃を持ち、複数のルートで共有する（6.1 / 決定18）。
+   運賃はここが1か所の正で、直すと使っている全ルートに効く。
+   s1 は「乙駅乗換」2本（AAA 用と DDD 用）が共有している */
+const SEED_SEGMENTS = [
+  { id:"s1", from:"kou",   to:"otsuX", fare:320 },
+  { id:"s2", from:"otsuY", to:"hei",   fare:210 },
+  { id:"s3", from:"kou",   to:"teiX",  fare:380 },
+  { id:"s4", from:"teiY",  to:"boY",   fare:210 },
+  { id:"s5", from:"kou",   to:"boZ",   fare:520 },
+  { id:"s6", from:"kou",   to:"hei",   fare:310 },
+  { id:"s7", from:"otsuY", to:"boY",   fare:260 }
+];
 
-/* ------------------------------------------------------------------
+/* ルートは「自宅→会場」の1方向で持ち（決定9）、使う区間を並べて持つ（6.1）。
+   BBB だけルートが2本ある。EEE はルートが0本（4.3） */
+const SEED_ROUTES = [
+  { id:"r1", name:"乙駅乗換", venue:"AAA", segIds:["s1","s2"] },
+  { id:"r2", name:"丁駅乗換", venue:"BBB", segIds:["s3","s4"] },
+  { id:"r3", name:"戊駅直通", venue:"BBB", segIds:["s5"] },
+  { id:"r4", name:"丙駅直通", venue:"CCC", segIds:["s6"] },
+  { id:"r5", name:"乙駅乗換", venue:"DDD", segIds:["s1","s7"] }
+];
+
+/* 会場マスタ由来（F-13）と自分で追加（F-14）が混ざる。
+   DDD はマスタに無いので、提出前の照合で警告が出る（N-14 / F-27） */
+const SEED_VENUES = [
+  { code:"AAA", name:"甲ホール",   source:"master" },
+  { code:"BBB", name:"乙迎賓館",   source:"master" },
+  { code:"CCC", name:"丙会館",     source:"master" },
+  { code:"DDD", name:"丁ガーデン", source:"manual" },
+  { code:"EEE", name:"戊スタジオ", source:"manual" }
+];
+
+/* 会場マスタを取り込むと増えるぶん（F-13） */
+const MASTER_EXTRA = [
+  { code:"FFF", name:"己迎賓館", source:"master" },
+  { code:"GGG", name:"庚ホール", source:"master" }
+];
+
+/* 案件。appearedAt は「アプリの中に現れた日」で、自動取込なら依頼メールの到着日である。
+   依頼は月曜に届く（要求分析2章 / 要件定義 9.2）ので、月末の最終月曜には
+   翌月第1週ぶんが既に入っている。場面ごとの絞り込みはこの日付だけで決まる */
+const SEED_PROJECTS = [
+  { id:"p1", no:"250812001", date:"2026-08-22", code:"CCC", couple:"▲▲様▼▼様",
+    source:"mail",   appearedAt:"2026-08-17" },
+  { id:"p2", no:"250812002", date:"2026-08-23", code:"DDD", couple:"◎◎様☆☆様",
+    source:"mail",   appearedAt:"2026-08-17" },
+  { id:"p3", no:"250901001", date:"2026-09-05", code:"AAA", couple:"〇〇様△△様",
+    source:"mail",   appearedAt:"2026-08-31" },
+  { id:"p4", no:"250901002", date:"2026-09-05", code:"BBB", couple:"□□様◇◇様",
+    source:"mail",   appearedAt:"2026-08-31" },
+  { id:"p5", no:null,        date:"2026-09-06", code:"EEE", couple:"◆◆様◇◇様",
+    source:"manual", appearedAt:"2026-08-31" },
+  { id:"p6", no:"250901003", date:"2026-09-12", code:"AAA", couple:"××様＋＋様",
+    source:"mail",   appearedAt:"2026-09-07" }
+];
+
+/* 要確認事項。種別は7つ（要件定義 4.9 / 3.10）。
+   「提出せずに月度が切り替わった」は場面から導出するので、ここには置かない */
+const SEED_ATTENTIONS = [
+  { id:"a1", kind:"venue_code_unknown",  occurredAt:"2026-09-01T00:12:00Z",
+    detail:"会場コード DDD が会場マスタにありません。警告を出したうえで、そのまま書き込みます" },
+  { id:"a2", kind:"mail_parse_failed",   occurredAt:"2026-08-24T07:31:00Z",
+    detail:"8/24 に届いたメールから項目を取り出せませんでした。1行目の日付が施行日と一致しません" },
+  { id:"a3", kind:"drive_upload_failed", occurredAt:"2026-08-23T11:04:00Z",
+    detail:"8/23 の領収書をドライブへ保存できませんでした。乗車の記録は残していません" },
+  { id:"a4", kind:"rows_inserted",       occurredAt:"2026-08-02T01:22:00Z",
+    detail:"2026年7月度の提出で本文行が2行足りず、書き込める範囲の内側に2行挿入しました" },
+  { id:"a5", kind:"sheet_unreachable",   occurredAt:"2026-08-29T03:47:00Z",
+    detail:"提出シートを読めませんでした。委託元のリンク共有が一時的に外れていたようです" },
+  { id:"a6", kind:"alert_send_failed",   occurredAt:"2026-09-01T22:05:00Z",
+    detail:"9月1日の提出アラートを送れませんでした。提出そのものは妨げられません" }
+];
+
+const ATTENTION_LABEL = {
+  mail_parse_failed:             "メールの解析に失敗",
+  venue_code_unknown:            "会場コードがマスタに無い",
+  sheet_unreachable:             "提出シートへアクセスできない",
+  drive_upload_failed:           "ドライブへの保存に失敗",
+  rows_inserted:                 "行を挿入した",
+  month_rolled_over_unsubmitted: "提出せずに月度が切り替わった",
+  alert_send_failed:             "提出アラートを送れなかった"
+};
+
+/* 提出シート。ID は持たない（N-08）。名前だけで足りる */
+const SEED_SHEET = { spreadsheetName:"交通費精算", sheetName:"（自分のシート）", writableRows:25 };
+
+/* Google API の認可（F-02）。ログインの認可とは別物（architecture.md 3.7） */
+const SEED_AUTH = {
+  authorized:true, authorizedAt:"2026-09-01T02:00:00Z", missingScopes:[],
+  scopes:["gmail.readonly","gmail.send","drive","spreadsheets"]
+};
+
+const SCOPE_WHY = {
+  "gmail.readonly":"依頼メールを読む",
+  "gmail.send":"提出アラートを送る",
+  "drive":"領収書を保存し、共有を付ける",
+  "spreadsheets":"提出シートを読み書きする"
+};
+
+/* 場面。要件定義 9.2 / 画面設計 4.2 の表に1対1で対応させる。
+   recorded は「その時点で記録が済んでいる案件」、submitted は「提出記録がある月度」 */
+const SCENES = [
+  { id:"during",  label:"当月中",       today:"2026-08-20", a1:"2026-08",
+    recorded:[], submitted:[], lastImportedAt:"2026-08-20T09:31:00Z",
+    note:"当月分だけが並びます。8/22・8/23 はまだ施行前なので、未記録でも目立たせません（4.1）" },
+  { id:"lastMon", label:"月末の最終月曜", today:"2026-08-31", a1:"2026-08",
+    recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-08-31T04:02:00Z",
+    note:"翌月第1週ぶんが月末のうちに入ってきます（9.2）。ここから2つの月が並びます" },
+  { id:"early",   label:"翌月1〜3日",    today:"2026-09-02", a1:"2026-08",
+    recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-09-02T00:14:00Z",
+    note:"8月度が提出待ちです。提出を開くと、書き込む行がシートの列のまま見られます（F-27）" },
+  { id:"trip",    label:"稼働日の帰り道", today:"2026-09-05", a1:"2026-08",
+    recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-09-05T09:42:00Z",
+    note:"9/5 の2件が施行済み・未記録です。ここが 2.2 の3手の経路になります" },
+  { id:"rolled",  label:"切り替わった後", today:"2026-09-06", a1:"2026-09",
+    recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-09-06T09:12:00Z",
+    note:"A1 が9月度へ切り替わりました。8月度は提出が済んでいないので消えず、要確認事項に出ます（F-32 / 4.4）" },
+  { id:"ready",   label:"提出の直前",     today:"2026-09-14", a1:"2026-09",
+    recorded:["p1","p2","p3","p4","p6"], submitted:["2026-08"], lastImportedAt:"2026-09-14T00:20:00Z",
+    note:"8月度は提出済みで、切り替わりのときに消えました（F-32）。9月度の提出行は要件定義 5.6 の例と同じ形になります" }
+];
+
+/* 記録の作り方。場面が「記録済み」と言う案件に、この内容で記録を入れておく */
+const PRESET_RECORDS = {
+  p1:{ tripType:"round", out:"r4", back:null, taxi:[] },
+  p2:{ tripType:"round", out:"r5", back:null,
+       taxi:[{ amount:2400, url:"https://drive.google.com/file/d/AAAAA00001/view" }] },
+  p3:{ tripType:"round", out:"r1", back:null,
+       taxi:[{ amount:1800, url:"https://drive.google.com/file/d/AAAAA00002/view" },
+             { amount:1400, url:"https://drive.google.com/file/d/AAAAA00003/view" }] },
+  p4:{ tripType:"one_way", out:"r2", back:"r3", taxi:[] },
+  p6:{ tripType:"round", out:"r1", back:null, taxi:[] }
+};
+
+/* 「わざと壊す」トグル。異常系を触って確かめるためのもので、アプリの機能ではない */
+const FAULTS = [
+  { id:"authRevoked",   name:"Google API の認可が切れている",
+    sub:"設定で目立ち、提出は書く前に止まります（F-02 / N-13）" },
+  { id:"formatChanged", name:"提出シートの様式が変わっている",
+    sub:"7行目のヘッダーが想定と違う。書く前に中止します（NF-10 / 5.5）" },
+  { id:"tightSheet",    name:"提出シートの本文行が足りない",
+    sub:"書ける行を2行に減らします。足りないぶんを挿入します（5.2 手順5）" },
+  { id:"driveFail",     name:"ドライブへの保存に失敗する",
+    sub:"領収書を選んだ時点で失敗し、乗車を記録しません（F-26）" }
+];
+
+/* 画面の索引。左パネルから直接開ける */
+const INDEX = [
+  { screen:"login",      label:"ログイン",       req:"F-01",      doc:"3.1" },
+  { screen:"home",       label:"ホーム",         req:"F-03/09/21", doc:"3.2" },
+  { screen:"detail",     label:"案件の詳細",     req:"F-11/12",   doc:"3.3" },
+  { screen:"add",        label:"案件の追加",     req:"F-10",      doc:"3.4" },
+  { screen:"record",     label:"交通費の記録",   req:"F-18〜26",  doc:"3.5" },
+  { screen:"venues",     label:"会場とルート",   req:"F-13/14/17", doc:"3.6" },
+  { screen:"routeEdit",  label:"ルートの編集",   req:"F-16",      doc:"3.7" },
+  { screen:"segments",   label:"区間と運賃",     req:"F-15/37",   doc:"3.8" },
+  { screen:"submit",     label:"提出",           req:"F-27〜30",  doc:"3.9" },
+  { screen:"attentions", label:"要確認事項",     req:"F-33/34",   doc:"3.10" },
+  { screen:"settings",   label:"設定",           req:"F-02/NF-11", doc:"3.11" }
+];
+
+/* ==================================================================
    状態
-------------------------------------------------------------------- */
-const state = { screen:"home", projectId:null, draft:null, taps:0, trace:[] };
+================================================================== */
 
-const yen = n => "¥" + n.toLocaleString("ja-JP");
-const project = id => PROJECTS.find(p => p.id === id);
-const routesFor = code => Object.entries(ROUTES)
-  .filter(([,r]) => r.venue === code).map(([k,r]) => ({ key:k, ...r }));
-const segsOf = r => r.segIds.map(id => SEGMENTS[id]);
-const oneWay = r => segsOf(r).reduce((a,s) => a + s.fare, 0);
+const SUBMITTED_META = { "2026-08":{ executedAt:"2026-09-02T01:14:00Z", writtenRows:3 } };
 
-function freshDraft(p){
-  const rs = routesFor(p.code);
+let db = null;
+
+const state = {
+  sceneId:"trip",
+  faults:{ authRevoked:false, formatChanged:false, tightSheet:false, driveFail:false },
+  screen:"home",
+  projectId:null, routeId:null, venueCode:null,
+  overlay:null,        /* menu / deleteProject / addVenue / addSegment / addStation / pickSegment */
+  form:{},             /* 画面ごとの入力の置き場。再描画で消えないようにここへ書く */
+  editing:false,       /* 案件の詳細の編集モード（F-11） */
+  importing:false,     /* 取り込み中（F-03 / 3.2） */
+  submitStage:"confirm",
+  submitResult:null,
+  banner:null,         /* { tone, text } 一時的な知らせ */
+  configJson:null      /* 設定データの書き出し（NF-11） */
+};
+
+/* ---------- 小道具 ---------- */
+const esc = s => String(s == null ? "" : s)
+  .replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
+const clone = o => JSON.parse(JSON.stringify(o));
+const monthOf = iso => iso.slice(0, 7);
+const md = iso => `${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
+const ymd = iso => `${+iso.slice(0,4)}年${+iso.slice(5,7)}月${+iso.slice(8,10)}日`;
+const monthLabel = m => `${m.slice(0,4)}年${+m.slice(5,7)}月度`;
+const WDAY = ["日","月","火","水","木","金","土"];
+const wday = iso => WDAY[new Date(+iso.slice(0,4), +iso.slice(5,7) - 1, +iso.slice(8,10)).getDay()];
+/* 提出シートの A列は日付として書く（要件定義 7.4） */
+const sheetDate = iso => `${+iso.slice(0,4)}/${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
+/* 日時は UTC で持ち、表示のときだけ JST へ直す（api.md 2.4） */
+const jst = iso => new Date(iso).toLocaleString("ja-JP",
+  { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
+
+/* 「今」は場面の今日に合わせる。実時計を混ぜると、場面の説明と日付が食い違う。
+   呼ぶたびに1分進めて、2回目の操作が1回目より後になるようにする */
+let clockTick = 0;
+const nowIso = () =>
+  new Date(Date.parse(db.today + "T09:30:00Z") + (clockTick++) * 60000).toISOString();
+
+const scene      = () => SCENES.find(s => s.id === state.sceneId);
+const station    = id => (db.stations.find(s => s.id === id) || {}).name || "";
+const segment    = id => db.segments.find(s => s.id === id);
+const route      = id => db.routes.find(r => r.id === id);
+const venue      = code => db.venues.find(v => v.code === code);
+const venueName  = code => (venue(code) || {}).name || "（未登録の会場）";
+const project    = id => db.projects.find(p => p.id === id);
+const routesFor  = code => db.routes.filter(r => r.venue === code);
+const segsOf     = r => r.segIds.map(segment).filter(Boolean);
+const oneWayFare = r => segsOf(r).reduce((a, s) => a + s.fare, 0);
+const usedBy     = segId => db.routes.filter(r => r.segIds.includes(segId)).length;
+const openAttentions = () => db.attentions.filter(a => !a.checkedAt);
+
+/* 交通費記録の区間行を組み立てる。
+   往復なら区間ごとに片道運賃 ×2、片道なら往路に続けて復路を反転して並べる（要件定義 5.3 / 決定9）。
+   ここで作った行がそのまま提出シートの E〜H 列になる。提出時には何も加工しない */
+function buildLegs(tripType, outId, backId){
+  const legs = [];
+  const out = route(outId);
+  if (out) segsOf(out).forEach(s => legs.push({
+    from:station(s.from), to:station(s.to),
+    amount: tripType === "round" ? s.fare * 2 : s.fare
+  }));
+  if (tripType === "one_way"){
+    const back = route(backId);
+    if (back) segsOf(back).slice().reverse().forEach(s => legs.push({
+      from:station(s.to), to:station(s.from), amount:s.fare
+    }));
+  }
+  return legs;
+}
+
+function makeRecord(pid){
+  const pre = PRESET_RECORDS[pid];
+  if (!pre) return null;
   return {
-    round:true,                                   /* 既定は往復（5.3 の実測） */
-    out: rs.length === 1 ? rs[0].key : null,      /* 1本なら選択済み（8.1） */
-    back:null,
-    taxiOpen:false, taxiAmount:"", taxiReceipt:false
+    tripType:pre.tripType, out:pre.out, back:pre.back,
+    legs:buildLegs(pre.tripType, pre.out, pre.back),
+    recordedAt:"2026-09-01T09:00:00Z"
   };
 }
 
-/* 交通費記録の合計。往復なら区間ごとに ×2 して書く（5.3） */
-function legsOf(d){
-  const out = [];
-  if (d.out) segsOf(ROUTES[d.out]).forEach(s =>
-    out.push({ from:s.from, to:s.to, fare: d.round ? s.fare*2 : s.fare }));
-  if (!d.round && d.back)
-    /* 復路は区間の並びを逆順にし、出発駅と到着駅を入れ替える（決定9）。
-       運賃はその区間の片道運賃をそのまま使う */
-    segsOf(ROUTES[d.back]).slice().reverse().forEach(s =>
-      out.push({ from:s.to, to:s.from, fare:s.fare }));
-  return out;
+/* ==================================================================
+   場面から db を組み立てる
+================================================================== */
+function buildDb(){
+  const sc = scene();
+  const submittedMonths = new Set(sc.submitted);
+
+  const projects = SEED_PROJECTS
+    /* 依頼は月曜に届く。まだ届いていない案件はアプリの中に居ない（9.2） */
+    .filter(p => p.appearedAt <= sc.today)
+    /* F-32 — 切り替わった先より前で、かつ提出が済んだ月度の実績は自動で消える */
+    .filter(p => !(monthOf(p.date) < sc.a1 && submittedMonths.has(monthOf(p.date))))
+    .map(p => {
+      const pre = sc.recorded.includes(p.id) ? PRESET_RECORDS[p.id] : null;
+      return Object.assign(clone(p), {
+        record: pre ? null : null,   /* 下で入れる。db.segments が要るため */
+        taxi: pre ? clone(pre.taxi) : []
+      });
+    });
+
+  db = {
+    stations: clone(SEED_STATIONS),
+    segments: clone(SEED_SEGMENTS),
+    routes:   clone(SEED_ROUTES),
+    venues:   clone(SEED_VENUES),
+    projects,
+    attentions: clone(SEED_ATTENTIONS),
+    submissions: sc.submitted.map(m => Object.assign({ targetMonth:m }, SUBMITTED_META[m])),
+    sheet: Object.assign(clone(SEED_SHEET), { a1:sc.a1 }),
+    auth: clone(SEED_AUTH),
+    sync: { lastImportedAt:sc.lastImportedAt },
+    today: sc.today,
+    seq: 100
+  };
+
+  db.projects.forEach(p => { if (sc.recorded.includes(p.id)) p.record = makeRecord(p.id); });
+
+  /* F-32 で消せなかったぶん — 切替先より前の月度に、提出されていない実績が残っている（4.4）。
+     切替先以降の月度は出さない。出しても本人にできることが何も無い */
+  const stale = [...new Set(db.projects
+    .filter(p => p.record && monthOf(p.date) < sc.a1 && !submittedMonths.has(monthOf(p.date)))
+    .map(p => monthOf(p.date)))];
+  stale.forEach(m => db.attentions.push({
+    id:"gen-" + m, kind:"month_rolled_over_unsubmitted",
+    occurredAt:sc.today + "T00:00:00Z",
+    detail:`${monthLabel(m)}の実績が、提出されないまま残っています。提出シートの運用に従って手で入力してください`
+  }));
+
+  applyFaults();
 }
 
-/* ------------------------------------------------------------------
-   タップの計測
-------------------------------------------------------------------- */
-function tap(label){
-  state.taps++;
-  state.trace.push(label);
-  paintMeter();
-}
-function paintMeter(){
-  const n = state.taps;
-  document.getElementById("tapCount").textContent = n;
-  document.getElementById("tapCountMobile").textContent = n;
-
-  const t = document.getElementById("trace");
-  t.innerHTML = state.trace
-    .map((s,i) => `<li><i>${i+1}</i><b>${s}</b></li>`).join("");
-  document.getElementById("traceEmpty").hidden = state.trace.length > 0;
-  t.scrollTop = t.scrollHeight;
-
-  const v = document.getElementById("verdict");
-  const vm = document.getElementById("verdictMobile");
-  let msg, kind;
-  if (state.screen === "saved"){
-    const taxi = state.trace.some(s => s.includes("タクシー") || s.includes("領収書"));
-    const limit = taxi ? 5 : 3;
-    if (n <= limit){ msg = `${n}手で保存まで到達。目標の${limit}手に収まっています`; kind = "ok"; }
-    else { msg = `${n}手かかりました。目標は${limit}手です`; kind = "over"; }
-  } else if (n === 0){
-    msg = "案件カードをタップして始めます"; kind = "idle";
-  } else {
-    msg = `${n}手。保存するまで数え続けます`; kind = "idle";
-  }
-  v.textContent = msg; v.dataset.state = kind;
-  vm.textContent = msg;
-}
-function reset(){
-  state.screen = "home"; state.projectId = null; state.draft = null;
-  state.taps = 0; state.trace = [];
-  paintMeter(); render();
-  document.getElementById("viewport").scrollTop = 0;
+/* 「わざと壊す」を db へ反映する */
+function applyFaults(){
+  db.auth.authorized = !state.faults.authRevoked;
+  db.sheet.writableRows = state.faults.tightSheet ? 2 : SEED_SHEET.writableRows;
 }
 
-/* ------------------------------------------------------------------
-   画面
-------------------------------------------------------------------- */
-const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-const md = iso => `${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
-const monthLabel = m => `${m.slice(0,4)}年${+m.slice(5,7)}月度`;
+function addAttention(kind, detail){
+  db.attentions.push({
+    id:"x" + (db.seq++), kind, detail,
+    occurredAt:nowIso()
+  });
+}
 
+/* ==================================================================
+   画面 — ログイン / ホーム / 案件の詳細 / 案件の追加
+================================================================== */
+
+function bannerHtml(){
+  if (!state.banner) return "";
+  return `<div class="notice" data-tone="${state.banner.tone}" role="status">
+    <span>${state.banner.text}</span></div>`;
+}
+
+/* --- 3.1 ログイン（F-01） --- */
+function screenLogin(){
+  return `<div class="app" data-screen="login">
+    <div class="appbar"><h2>交通費精算</h2></div>
+    <div class="body">
+      <div class="spacer"></div>
+      <div class="done-mark">
+        <span class="ring" style="background:var(--accent-soft);color:var(--accent)">↗</span>
+        <h3>Google アカウントでログイン</h3>
+        <p>許可されたアカウントだけが使えます（N-03 / 決定5）。</p>
+      </div>
+      ${state.form.denied ? `
+      <div class="notice" role="alert">
+        <span><b>このアカウントでは利用できません</b><br>
+        許可されているのは本人のアカウントだけです。別のアカウントでログインしてください</span>
+      </div>` : ""}
+      <button class="btn" data-act="login">Google でログイン</button>
+      <button class="btn" data-variant="quiet" data-act="loginDenied">
+        許可されていないアカウントで試す
+      </button>
+      <div class="spacer"></div>
+      <p class="footnote">
+        ここで確かめるのは<b>本人かどうかだけ</b>です。
+        ログインに Gmail・ドライブ・スプレッドシートのスコープを求めません
+        （<code>architecture.md</code> 3.7）。それらの認可は設定画面で別に持ちます（F-02）。
+      </p>
+    </div>
+  </div>`;
+}
+
+/* --- 3.2 ホーム（F-03 / F-09 / F-21） --- */
 function screenHome(){
-  const months = [...new Set(PROJECTS.map(p => p.month))].sort().reverse();
+  const a1 = db.sheet.a1;
+  const months = [...new Set(db.projects.map(p => monthOf(p.date)))].sort().reverse();
+
   const blocks = months.map(m => {
-    const list = PROJECTS.filter(p => p.month === m)
-      .sort((a,b) => a.date.localeCompare(b.date));
-    const isTarget = m === TARGET_MONTH;
-    const tag = isTarget
-      ? `<span class="tag" data-kind="due">提出待ち</span>`
-      : `<span class="tag" data-kind="upcoming">稼働中</span>`;
+    const list = db.projects.filter(p => monthOf(p.date) === m)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const sub = db.submissions.filter(s => s.targetMonth === m)
+      .sort((a, b) => b.executedAt.localeCompare(a.executedAt))[0];
+    let tag;
+    if (m === a1)      tag = sub ? `<span class="tag" data-kind="done">提出済み ${jst(sub.executedAt)}</span>`
+                                 : `<span class="tag" data-kind="due">提出待ち</span>`;
+    else if (m > a1)   tag = `<span class="tag" data-kind="upcoming">これから稼働</span>`;
+    else               tag = `<span class="tag" data-kind="alert">提出せずに切り替わり</span>`;
+
     const cards = list.map(p => {
-      /* 施行前は未記録でも目立たせない（4.1） */
-      const future = p.date > TODAY;
-      const s = p.recorded ? "done" : (future ? "future" : "todo");
-      const sLabel = p.recorded ? "記録済み" : (future ? "施行前" : "未記録");
-      const amount = p.recorded
-        ? `<span class="amt">${yen(p.recorded.total + p.taxi.reduce((a,t)=>a+t.amount,0))}</span>`
-        : "";
-      return `<button class="card" data-go="detail" data-id="${p.id}"
-                 data-today="${p.date === TODAY ? 1 : 0}"
-                 data-label="案件カード（${esc(p.venue)}）をタップ">
-          <span class="card-date"><span class="d">${md(p.date)}</span><span class="w">${p.w}</span></span>
+      /* 施行前は未記録でも目立たせない（4.1）。月末には翌月第1週の案件が既に入っている */
+      const future = p.date > db.today;
+      const s = p.record ? "done" : (future ? "future" : "todo");
+      const label = p.record ? "記録済み" : (future ? "施行前" : "未記録");
+      const taxiSum = p.taxi.reduce((a, t) => a + t.amount, 0);
+      const total = p.record ? p.record.legs.reduce((a, l) => a + l.amount, 0) + taxiSum : 0;
+      return `<button class="card" data-act="openDetail" data-id="${p.id}"
+                 data-today="${p.date === db.today ? 1 : 0}">
+          <span class="card-date"><span class="d">${md(p.date)}</span><span class="w">${wday(p.date)}</span></span>
           <span class="card-main">
-            <span class="venue">${esc(p.venue)}</span>
+            <span class="venue">${esc(venueName(p.code))}</span>
             <span class="couple">${esc(p.couple)}</span>
           </span>
           <span class="card-side">
-            <span class="state" data-s="${s}">${sLabel}</span>${amount}
+            <span class="state" data-s="${s}">${label}</span>
+            ${p.record ? `<span class="amt">${yen(total)}${taxiSum ? " 🚕" : ""}</span>` : ""}
           </span>
         </button>`;
     }).join("");
+
     return `<section class="month">
         <div class="month-head"><h3>${monthLabel(m)}</h3>${tag}</div>
         <div>${cards}</div>
       </section>`;
   }).join("");
 
-  const attention = ATTENTION > 0 ? `
-    <div class="notice" role="status">
-      <span><b>要確認事項が ${ATTENTION} 件</b><br>会場コードがマスタにありません</span>
+  const open = openAttentions().length;
+  const attention = open > 0 ? `
+    <button class="notice" data-act="go" data-screen="attentions">
+      <span><b>要確認事項が ${open} 件</b><br>${esc(ATTENTION_LABEL[openAttentions()[0].kind])} ほか</span>
       <span class="arrow">›</span>
-    </div>` : "";
+    </button>` : "";
 
   return `<div class="app" data-screen="home">
     <div class="appbar"><h2>交通費</h2>
-      <span class="icon-btn" aria-hidden="true">＋</span>
-      <span class="icon-btn" aria-hidden="true">≡</span>
+      <button class="icon-btn" data-act="go" data-screen="add" aria-label="案件を追加">＋</button>
+      <button class="icon-btn" data-act="overlay" data-overlay="menu" aria-label="メニュー">≡</button>
     </div>
     <div class="body">
-      <div class="sync"><span class="dot"></span>最後の取り込み 9/5 18:42</div>
+      <div class="sync">
+        <span class="dot" data-busy="${state.importing ? 1 : 0}"></span>
+        ${state.importing ? "依頼メールを取り込んでいます…"
+                          : `最後の取り込み ${jst(db.sync.lastImportedAt)}`}
+        ${state.importing ? "" : `<button class="pull" data-act="import">取り込む</button>`}
+      </div>
+      ${bannerHtml()}
       ${attention}
-      ${blocks}
+      ${blocks || `<p class="hint">この場面では、まだ案件が入っていません。</p>`}
+      <button class="btn" data-act="go" data-screen="submit">
+        ${monthLabel(a1)}を提出する
+      </button>
       <p class="footnote">
-        月度ごとに区切って並べています。8月度は提出待ち、9月度はこれからの稼働分です。
-        <b>月末から月初にかけて、2つの月が同時に存在します</b>（要件定義 9.2）。
+        月度ごとに区切って並べています。<b>月末から月初にかけて、2つの月が同時に存在します</b>（9.2 / 4.2）。
+        <b>最後の取り込み日時を出すのは、静かな故障に気づくためです</b>（要件定義10章）。
+        差出人が変わると、エラーは何も出ずに案件が入ってこなくなります。
       </p>
     </div>
   </div>`;
 }
 
+/* --- 3.3 案件の詳細（F-11 / F-12） --- */
 function screenDetail(){
   const p = project(state.projectId);
+  if (!p) return screenMissing("案件の詳細", "この場面には、その案件がありません。");
   const rs = routesFor(p.code);
-  const rec = p.recorded
-    ? `${ROUTES[p.recorded.routes[0]].name} / ${yen(p.recorded.total)}`
+
+  if (state.editing) return `<div class="app" data-screen="detail">
+    <div class="appbar">
+      <button class="back" data-act="cancelEdit">‹</button>
+      <h2>項目を直す</h2>
+    </div>
+    <div class="body">
+      <div class="field"><span class="label">施行日</span>
+        <input class="input" type="date" data-model="date" value="${esc(state.form.date)}"></div>
+      <p class="hint"><b>施行日を直すと、所属する月度が変わります</b>（決定12）。
+        月度は施行日から導出していて、案件が持つ値ではありません。</p>
+      <div class="field"><span class="label">会場コード</span>
+        <select class="input" data-model="code">
+          ${db.venues.map(v => `<option value="${v.code}" ${v.code === state.form.code ? "selected" : ""}>
+            ${v.code} — ${esc(v.name)}</option>`).join("")}
+        </select></div>
+      <div class="field"><span class="label">ご両家名</span>
+        <input class="input" data-model="couple" value="${esc(state.form.couple)}"></div>
+      <div class="field"><span class="label">案件番号 <span class="opt-mark">任意</span></span>
+        <input class="input" data-model="no" value="${esc(state.form.no)}"></div>
+      <div class="spacer"></div>
+      <button class="btn" data-act="saveEdit">この内容で直す</button>
+      <button class="btn" data-variant="quiet" data-act="cancelEdit">やめる</button>
+    </div>
+  </div>`;
+
+  const taxiSum = p.taxi.reduce((a, t) => a + t.amount, 0);
+  const rec = p.record
+    ? `${esc(route(p.record.out) ? route(p.record.out).name : "（消えたルート）")}${
+        p.record.tripType === "one_way" && p.record.back
+          ? " → " + esc(route(p.record.back) ? route(p.record.back).name : "（消えたルート）") : ""}
+       <span class="sub">${p.record.tripType === "round" ? "往復" : "片道"}・
+       ${p.record.legs.length}行・${yen(p.record.legs.reduce((a, l) => a + l.amount, 0))}${
+         taxiSum ? ` ／ タクシー ${p.taxi.length}回 ${yen(taxiSum)}` : ""}</span>`
     : "まだ記録がありません";
+
   return `<div class="app" data-screen="detail">
     <div class="appbar">
-      <button class="back" data-go="home" data-label="ホームへ戻る">‹</button>
+      <button class="back" data-act="go" data-screen="home">‹</button>
       <h2>案件の詳細</h2>
     </div>
     <div class="body">
+      ${bannerHtml()}
       <dl class="rows">
-        <div class="row"><dt>施行日</dt><dd>2026年${md(p.date)}（${p.w}）</dd></div>
-        <div class="row"><dt>会場</dt><dd>${esc(p.venue)}<span class="sub">${p.code}</span></dd></div>
+        <div class="row"><dt>施行日</dt><dd>${ymd(p.date)}（${wday(p.date)}）
+          <span class="sub">${monthLabel(monthOf(p.date))}に属します</span></dd></div>
+        <div class="row"><dt>会場</dt><dd>${esc(venueName(p.code))}<span class="sub">${p.code}</span></dd></div>
         <div class="row"><dt>ご両家名</dt><dd>${esc(p.couple)}</dd></div>
-        <div class="row"><dt>案件番号</dt><dd class="mono">${p.no}</dd></div>
-        <div class="row"><dt>出どころ</dt><dd>自動取込</dd></div>
+        <div class="row"><dt>案件番号</dt><dd class="mono">${p.no ? esc(p.no) : "—"}
+          ${p.no ? "" : `<span class="sub">手で足した案件なので空です（F-10）</span>`}</dd></div>
+        <div class="row"><dt>出どころ</dt><dd>${p.source === "mail" ? "自動取込" : "手動追加"}</dd></div>
         <div class="row"><dt>交通費</dt><dd>${rec}</dd></div>
       </dl>
 
-      <button class="btn" data-go="record" data-label="「記録する」をタップ">
-        ${p.recorded ? "記録を直す" : "記録する"}
+      <button class="btn" data-act="openRecord">
+        ${p.record ? "記録を直す" : "記録する"}
       </button>
 
       <p class="hint">
         この会場には ${rs.length} 本のルートが登録されています。${
-          rs.length === 1
+          rs.length === 0
+            ? "<b>0本なので記録できません。</b>会場とルートの画面でルートを登録します（4.3）。"
+          : rs.length === 1
             ? "1本なので、記録画面は<b>選択済みの状態で開きます</b>（要件定義 8.1）。"
             : "<b>複数あるので、記録画面でルートを選びます</b>（+1手）。"}
       </p>
 
       <div class="spacer"></div>
-      <button class="btn" data-variant="quiet">項目を直す</button>
-      <button class="btn" data-variant="danger">この案件を削除する</button>
-      <p class="footnote">
-        削除すると、交通費記録・タクシー乗車・領収書のレコードも消えます。
-        <b>ドライブ上のファイル実体は消しません</b>（要件定義 6.4）。
-      </p>
+      <button class="btn" data-variant="quiet" data-act="startEdit">項目を直す</button>
+      <button class="btn" data-variant="danger" data-act="overlay" data-overlay="deleteProject">
+        この案件を削除する
+      </button>
     </div>
   </div>`;
 }
 
-function screenRecord(){
-  const p = project(state.projectId);
-  const d = state.draft;
-  const rs = routesFor(p.code);
-  const legs = legsOf(d);
-  const total = legs.reduce((a,l) => a + l.fare, 0);
-  const taxiAmt = parseInt(d.taxiAmount || "0", 10) || 0;
-
-  const routeOpts = (sel, kind) => rs.map(r => `
-    <button class="opt" aria-pressed="${sel === r.key}"
-            data-pick="${kind}" data-route="${r.key}"
-            data-label="${kind === "out" ? "往路" : "復路"}ルート「${esc(r.name)}」を選ぶ">
-      <span class="mark"></span>
-      <span class="name">${esc(r.name)}
-        <span class="meta">${r.segIds.length}区間 / ${segsOf(r).map(s=>esc(s.to)).join(" ・ ")}</span>
-      </span>
-      <span class="fare">片道 ${yen(oneWay(r))}</span>
-    </button>`).join("");
-
-  const legRows = legs.length ? legs.map(l => `
-    <div class="leg">
-      <span class="path">${esc(l.from)}<span class="arrow">→</span>${esc(l.to)}</span>
-      <span class="fare">${yen(l.fare)}${d.round ? '<small>×2済</small>' : ""}</span>
-    </div>`).join("") + `
-    <div class="total"><span>合計</span><b>${yen(total)}</b></div>`
-    : `<div class="leg"><span class="path" style="color:var(--ink-3)">ルートを選ぶと区間が出ます</span><span></span></div>`;
-
-  const canSave = legs.length > 0 && (d.round || d.back);
-
-  return `<div class="app" data-screen="record">
+/* --- 3.4 案件の追加（F-10） --- */
+function screenAdd(){
+  const f = state.form;
+  return `<div class="app" data-screen="add">
     <div class="appbar">
-      <button class="back" data-go="detail" data-label="案件の詳細へ戻る">‹</button>
-      <h2>交通費の記録</h2>
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>案件の追加</h2>
     </div>
     <div class="body">
-      <dl class="rows">
-        <div class="row"><dt>案件</dt><dd>${esc(p.venue)}
-          <span class="sub">2026年${md(p.date)}（${p.w}）・${esc(p.couple)}</span></dd></div>
-      </dl>
+      <p class="hint">自動で拾えなかった案件を手で足します。<b>出どころは「手動追加」で固定です。</b></p>
+      <div class="field"><span class="label">施行日</span>
+        <input class="input" type="date" data-model="date" value="${esc(f.date)}"></div>
+      <div class="field"><span class="label">会場</span>
+        <select class="input" data-model="code">
+          <option value="">選んでください</option>
+          ${db.venues.map(v => `<option value="${v.code}" ${v.code === f.code ? "selected" : ""}>
+            ${v.code} — ${esc(v.name)}</option>`).join("")}
+        </select></div>
+      <div class="field"><span class="label">ご両家名</span>
+        <input class="input" data-model="couple" placeholder="〇〇様△△様" value="${esc(f.couple)}"></div>
+      <div class="field"><span class="label">案件番号 <span class="opt-mark">任意</span></span>
+        <input class="input" data-model="no" placeholder="空のままでもかまいません" value="${esc(f.no)}"></div>
+      <p class="hint">
+        <b>案件番号が空だと、二重取り込みの防止が効きません</b>（要件定義 6.2 / F-08）。
+        後からメールで同じ案件が入ってくることがあり、そのときは重複を手で消してください（F-12）。
+      </p>
+      <div class="spacer"></div>
+      <button class="btn" data-act="addProject">この内容で足す</button>
+    </div>
+  </div>`;
+}
+
+function screenMissing(title, text){
+  return `<div class="app" data-screen="missing">
+    <div class="appbar"><button class="back" data-act="go" data-screen="home">‹</button><h2>${title}</h2></div>
+    <div class="body"><p class="hint">${text}</p>
+      <button class="btn" data-variant="quiet" data-act="go" data-screen="home">ホームへ戻る</button></div>
+  </div>`;
+}
+
+/* ==================================================================
+   3.5 交通費の記録（F-18〜F-26 / 4.3）
+   この画面が 2.2 の3手目である。開いた時点で保存できる状態になっていること
+================================================================== */
+function freshRecordForm(p){
+  const rs = routesFor(p.code);
+  const r = p.record;
+  return {
+    tripType: r ? r.tripType : "round",              /* 既定は往復（要件定義 5.3 の実測） */
+    out:  r ? r.out  : (rs.length === 1 ? rs[0].id : null),  /* 1本なら選択済み（要件定義 8.1） */
+    back: r ? r.back : null,
+    amounts:{},                                       /* 添字 → 上書きした金額（F-20） */
+    taxiOpen: !!(r && p.taxi.length),
+    taxi: r ? p.taxi.map(t => ({ amount:String(t.amount), url:t.url })) : []
+  };
+}
+
+function currentLegs(){
+  const f = state.form;
+  const legs = buildLegs(f.tripType, f.out, f.back);
+  legs.forEach((l, i) => {
+    const v = f.amounts[i];
+    if (v !== undefined && v !== "" && !isNaN(+v)) l.amount = Math.max(0, parseInt(v, 10));
+  });
+  return legs;
+}
+
+function screenRecord(){
+  const p = project(state.projectId);
+  if (!p) return screenMissing("交通費の記録", "この場面には、その案件がありません。");
+  const f = state.form;
+  const rs = routesFor(p.code);
+
+  const head = `<div class="appbar">
+      <button class="back" data-act="openDetail" data-id="${p.id}">‹</button>
+      <h2>交通費の記録</h2>
+    </div>`;
+  const summary = `<dl class="rows">
+      <div class="row"><dt>案件</dt><dd>${esc(venueName(p.code))}
+        <span class="sub">${ymd(p.date)}（${wday(p.date)}）・${esc(p.couple)}</span></dd></div>
+    </dl>`;
+
+  /* 4.3 — ルートが0本の会場では記録できない。黙って空の画面を出さず、登録へ導く */
+  if (rs.length === 0) return `<div class="app" data-screen="record">
+    ${head}
+    <div class="body">
+      ${summary}
+      <div class="notice" role="alert">
+        <span><b>${esc(venueName(p.code))}（${p.code}）にはルートが登録されていません</b><br>
+        ルートが1本も無いと、区間も金額も決まらないので記録できません（4.3）</span>
+      </div>
+      <button class="btn" data-act="go" data-screen="venues">会場とルートを開く</button>
+      <div class="spacer"></div>
+      <p class="footnote">
+        <b>マスタに無い会場を追加できることが要ります</b>（F-14 / 要求分析 6.5）。
+        マスタだけを使う作りにすると、その会場にルートを紐付けられず、記録そのものができません。
+      </p>
+    </div>
+  </div>`;
+
+  const legs = currentLegs();
+  const total = legs.reduce((a, l) => a + l.amount, 0);
+  const taxiTotal = f.taxi.reduce((a, t) => a + (parseInt(t.amount, 10) || 0), 0);
+
+  const routeOpts = (sel, kind) => rs.map(r => `
+    <button class="opt" aria-pressed="${sel === r.id}" data-act="pickRoute"
+            data-kind="${kind}" data-route="${r.id}">
+      <span class="mark"></span>
+      <span class="name">${esc(r.name)}
+        <span class="meta">${r.segIds.length}区間 / ${segsOf(r).map(s => esc(s.to ? station(s.to) : "")).join(" ・ ")}</span>
+      </span>
+      <span class="fare">片道 ${yen(oneWayFare(r))}</span>
+    </button>`).join("");
+
+  const legRows = legs.length ? legs.map((l, i) => `
+    <div class="leg">
+      <span class="path">${esc(l.from)}<span class="arrow">→</span>${esc(l.to)}</span>
+      <input class="fare-edit" inputmode="numeric" data-model="amount:${i}"
+             value="${f.amounts[i] !== undefined ? esc(f.amounts[i]) : l.amount}"
+             aria-label="${esc(l.from)}から${esc(l.to)}の金額">
+    </div>`).join("") + `
+    <div class="total"><span>合計${f.tripType === "round" ? "（往復ぶん）" : ""}</span><b>${yen(total)}</b></div>`
+    : `<div class="leg"><span class="path" style="color:var(--ink-3)">ルートを選ぶと区間が出ます</span><span></span></div>`;
+
+  const taxiRows = f.taxi.map((t, i) => `
+    <div class="taxi-ride">
+      <div class="head"><span>${i + 1}回目</span>
+        <button data-act="dropTaxi" data-i="${i}">消す</button></div>
+      <label class="fare-input"><span>¥</span>
+        <input inputmode="numeric" placeholder="1800" data-model="taxi:${i}"
+               value="${esc(t.amount)}" aria-label="${i + 1}回目のタクシー代"></label>
+      <button class="upload" data-act="upload" data-i="${i}" data-done="${t.url ? 1 : 0}">
+        ${t.url ? "✓ 領収書を添付しました" : "領収書を選ぶ（画像 / PDF）"}
+      </button>
+    </div>`).join("");
+
+  /* 領収書は保存が済んで初めて乗車を確定する（F-26）。金額だけの乗車は残さない */
+  const taxiIncomplete = f.taxi.some(t => !(parseInt(t.amount, 10) > 0) || !t.url);
+
+  return `<div class="app" data-screen="record">
+    ${head}
+    <div class="body">
+      ${bannerHtml()}
+      ${summary}
 
       <div class="field">
         <span class="label">往復 / 片道</span>
         <div class="seg">
-          <button aria-pressed="${d.round}" data-set="round" data-value="1"
-                  data-label="「往復」を選ぶ">往復</button>
-          <button aria-pressed="${!d.round}" data-set="round" data-value="0"
-                  data-label="「片道」を選ぶ">往路と復路で別のルート</button>
+          <button aria-pressed="${f.tripType === "round"}" data-act="setTrip" data-v="round">往復</button>
+          <button aria-pressed="${f.tripType === "one_way"}" data-act="setTrip" data-v="one_way">往路と復路で別のルート</button>
         </div>
       </div>
 
       <div class="field">
-        <span class="label">${d.round ? "ルート" : "往路のルート"}</span>
-        <div class="picker">${routeOpts(d.out, "out")}</div>
+        <span class="label">${f.tripType === "round" ? "ルート" : "往路のルート"}</span>
+        <div class="picker">${routeOpts(f.out, "out")}</div>
       </div>
 
-      ${!d.round ? `
+      ${f.tripType === "one_way" ? `
       <div class="field">
         <span class="label">復路のルート</span>
-        <div class="picker">${routeOpts(d.back, "back")}</div>
-        <p class="hint">復路は登録された区間を反転して使います（決定9）。</p>
+        <div class="picker">${routeOpts(f.back, "back")}</div>
+        <p class="hint">復路は登録された区間の並びを逆順にし、出発駅と到着駅を入れ替えて使います（決定9）。
+          <b>提出シートには <code>片道</code> と書かれます</b>（要件定義 5.3）。</p>
       </div>` : ""}
 
       <div class="field">
         <span class="label">区間と金額</span>
         <div class="legs">${legRows}</div>
-        <p class="hint">金額は登録した運賃が入っています。<b>直す必要が無ければ触りません</b>（F-20）。</p>
+        <p class="hint">金額は登録した運賃が入っています${f.tripType === "round" ? "（片道運賃 ×2）" : ""}。
+          <b>直す必要が無ければ触りません</b>（F-20）。ここを直しても区間の運賃は変わりません。</p>
       </div>
 
       <div class="disclose">
-        <button data-set="taxiOpen" data-value="${d.taxiOpen ? 0 : 1}"
-                data-label="「タクシーに乗った」をタップ">
-          タクシーに乗った<span class="chev">${d.taxiOpen ? "−" : "＋"}</span>
+        <button data-act="toggleTaxi">
+          タクシーに乗った${f.taxi.length ? `（${f.taxi.length}回・${yen(taxiTotal)}）` : ""}
+          <span class="chev">${f.taxiOpen ? "−" : "＋"}</span>
         </button>
-        ${d.taxiOpen ? `
+        ${f.taxiOpen ? `
         <div class="disclose-body">
-          <div class="field">
-            <span class="label">1回目の金額</span>
-            <label class="fare-input"><span>¥</span>
-              <input id="taxiAmount" inputmode="numeric" placeholder="1800"
-                     value="${esc(d.taxiAmount)}" aria-label="タクシーの金額"></label>
-          </div>
-          <button class="upload" data-set="taxiReceipt" data-value="${d.taxiReceipt ? 0 : 1}"
-                  data-done="${d.taxiReceipt ? 1 : 0}"
-                  data-label="領収書をアップロード">
-            ${d.taxiReceipt ? "✓ 領収書を添付しました" : "領収書を選ぶ（画像 / PDF）"}
+          ${taxiRows}
+          <button class="btn" data-variant="quiet" data-act="addTaxi">
+            ${f.taxi.length ? "もう1回ぶんを足す" : "1回目を足す"}
           </button>
           <p class="hint">
-            アップロードと同時にドライブへ保存し、共有を付けます（F-24 / F-25）。
+            <b>乗車は1回ずつ記録します</b>（F-22）。1日に複数回乗ることがあります。
+            領収書は乗車1回につき1件で、<b>アップロードと同時にドライブへ保存し、
+            ファイル単位で共有を付けます</b>（F-24 / F-25 / 決定6）。
             <b>保存に失敗したら乗車の記録は残しません</b>（F-26）。
           </p>
         </div>` : ""}
       </div>
 
       <div class="spacer"></div>
-      <button class="btn" data-go="save" data-label="「保存」をタップ" ${canSave ? "" : "disabled style=opacity:.45"}>
-        保存${taxiAmt > 0 ? `（交通費 ${yen(total)} ＋ タクシー ${yen(taxiAmt)}）` : ""}
+      ${taxiIncomplete ? `<p class="hint" style="color:var(--warn)">
+        <b>金額と領収書がそろっていない乗車があります。</b>そろうまで保存できません（F-23 / F-26）。</p>` : ""}
+      <button class="btn" data-act="save">
+        保存${taxiTotal > 0 ? `（交通費 ${yen(total)} ＋ タクシー ${yen(taxiTotal)}）` : ""}
       </button>
     </div>
   </div>`;
 }
 
-function screenSaved(){
-  const p = project(state.projectId);
-  const taxi = state.trace.some(s => s.includes("タクシー") || s.includes("領収書"));
-  const limit = taxi ? 5 : 3;
-  const ok = state.taps <= limit;
-  return `<div class="app" data-screen="saved">
-    <div class="appbar"><h2>保存しました</h2></div>
-    <div class="body">
-      <div class="done-mark">
-        <span class="ring">✓</span>
-        <h3>${esc(p.venue)}の交通費を記録しました</h3>
-        <p>2026年${md(p.date)}（${p.w}）・${esc(p.couple)}</p>
+/* ==================================================================
+   3.6 会場とルート（F-13 / F-14 / F-17）
+================================================================== */
+function screenVenues(){
+  const blocks = db.venues.map(v => {
+    const rs = routesFor(v.code);
+    const routeRows = rs.map(r => `
+      <button class="item" data-act="openRoute" data-id="${r.id}">
+        <span class="top"><span class="name">${esc(r.name)}</span>
+          <span class="right">片道 ${yen(oneWayFare(r))}</span></span>
+        <span class="sub">${r.segIds.length}区間 ／ ${
+          segsOf(r).map(s => esc(station(s.from) + "→" + station(s.to))).join(" ・ ")}</span>
+      </button>`).join("");
+    return `<section class="month">
+      <div class="section-head">
+        <h3>${v.code} ${esc(v.name)}</h3>
+        <span class="pill" data-tone="${v.source === "master" ? "ok" : "manual"}">${
+          v.source === "master" ? "マスタ由来" : "自分で追加"}</span>
+        <span class="more">${rs.length}本</span>
       </div>
-      <dl class="rows">
-        <div class="row"><dt>かかった手数</dt><dd><b class="num">${state.taps}手</b>
-          <span class="sub">目標は${limit}手${taxi ? "（タクシーの +2手を含む）" : ""}</span></dd></div>
-        <div class="row"><dt>判定</dt><dd style="color:var(--${ok ? "ok" : "warn"})">
-          ${ok ? "収まっています" : "超えています"}</dd></div>
-      </dl>
-      <button class="btn" data-variant="quiet" data-go="home" data-label="ホームへ戻る">ホームへ戻る</button>
+      <div class="list">
+        ${routeRows || `<div class="item" data-flag="alert">
+          <span class="top"><span class="name">ルートが1本もありません</span></span>
+          <span class="sub">この会場では交通費を記録できません（4.3）</span></div>`}
+        <button class="item" data-act="newRoute" data-venue="${v.code}"
+          style="color:var(--accent)">＋ ルートを追加</button>
+      </div>
+    </section>`;
+  }).join("");
+
+  return `<div class="app" data-screen="venues">
+    <div class="appbar">
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>会場とルート</h2>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addVenue">会場を追加</button>
+      <button class="btn" data-variant="quiet" data-act="importMaster">会場マスタを取り込む</button>
+      ${blocks}
       <p class="footnote">
-        この画面は<b>計測のためにモックへ足したもの</b>で、要件定義 8章の画面ではありません。
-        実装では保存後に案件の詳細へ戻ります。
+        <b>マスタに無い会場を追加できることが要ります</b>（F-14 / 要求分析 6.5）。
+        マスタだけを使う作りにすると、その会場にルートを紐付けられず、記録そのものができません。
+        <b>会場を削除する操作は置いていません。</b>ルートを巻き込みで消さないためです
+        （<code>database.md</code> 6.2 の RESTRICT）。
       </p>
     </div>
   </div>`;
 }
 
-const SCREENS = { home:screenHome, detail:screenDetail, record:screenRecord, saved:screenSaved };
-const NAMES = { home:"ホーム", detail:"案件の詳細", record:"交通費の記録", saved:"保存しました" };
+/* ==================================================================
+   3.7 ルートの編集（F-16）
+================================================================== */
+function screenRouteEdit(){
+  const f = state.form;
+  const isNew = !state.routeId;
+  const segRows = f.segIds.map((sid, i) => {
+    const s = segment(sid);
+    if (!s) return "";
+    return `<div class="leg">
+      <span class="path">${esc(station(s.from))}<span class="arrow">→</span>${esc(station(s.to))}
+        <span class="sub" style="display:block;font-size:11.5px;color:var(--ink-3)">片道 ${yen(s.fare)}</span></span>
+      <span style="display:flex;gap:2px;align-items:center">
+        <button class="icon-btn" data-act="moveSeg" data-i="${i}" data-d="-1"
+          ${i === 0 ? "disabled style=opacity:.3" : ""} aria-label="上へ">↑</button>
+        <button class="icon-btn" data-act="moveSeg" data-i="${i}" data-d="1"
+          ${i === f.segIds.length - 1 ? "disabled style=opacity:.3" : ""} aria-label="下へ">↓</button>
+        <button class="icon-btn" data-act="dropSeg" data-i="${i}"
+          style="color:var(--alert)" aria-label="外す">✕</button>
+      </span>
+    </div>`;
+  }).join("");
+
+  return `<div class="app" data-screen="routeEdit">
+    <div class="appbar">
+      <button class="back" data-act="go" data-screen="venues">‹</button>
+      <h2>${isNew ? "ルートの追加" : "ルートの編集"}</h2>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      <p class="hint"><b>ルートは「自宅 → 会場」の向きで登録します</b>（決定9）。
+        復路に使うときは、区間の並びを逆順にし、出発駅と到着駅を入れ替えます。</p>
+
+      <div class="field"><span class="label">ルート名</span>
+        <input class="input" data-model="name" placeholder="乙駅乗換" value="${esc(f.name)}"></div>
+
+      <div class="field"><span class="label">紐づく会場</span>
+        <select class="input" data-model="venue">
+          ${db.venues.map(v => `<option value="${v.code}" ${v.code === f.venue ? "selected" : ""}>
+            ${v.code} — ${esc(v.name)}</option>`).join("")}
+        </select></div>
+
+      <div class="field">
+        <span class="label">区間の並び</span>
+        <div class="legs">${segRows || `<div class="leg">
+          <span class="path" style="color:var(--ink-3)">まだ区間がありません</span><span></span></div>`}
+          <div class="total"><span>片道の合計</span>
+            <b>${yen(f.segIds.reduce((a, id) => a + ((segment(id) || {}).fare || 0), 0))}</b></div>
+        </div>
+        <div class="btn-row">
+          <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="pickSegment">
+            区間を足す</button>
+          <button class="btn" data-variant="quiet" data-act="go" data-screen="segments">
+            区間を登録する</button>
+        </div>
+        <p class="hint"><b>区間は登録済みのものから選びます。</b>
+          一覧に無ければ「区間と運賃」で作ってから戻ります。
+          <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。
+          <b>区間はいくつでも並べられます</b>（要件定義 6.1）。上限はありません。</p>
+      </div>
+
+      <p class="hint"><b>この画面では運賃を直せません。</b>
+        片道運賃は区間が持っていて（決定18）、直すとその区間を使っている全ルートに効きます。
+        <b>波及するものを、1本のルートを編集している最中に触らせません。</b>直す場所は「区間と運賃」だけです。</p>
+
+      <div class="spacer"></div>
+      <button class="btn" data-act="saveRoute">
+        ${isNew ? "このルートを登録する" : "この内容で直す"}</button>
+      ${isNew ? "" : `<button class="btn" data-variant="danger" data-act="deleteRoute">
+        このルートを削除する</button>
+        <p class="footnote">削除すると<b>使う区間の並びだけが消えます。</b>
+        区間そのものは残り、他のルートは影響を受けません（<code>database.md</code> 6.2）。</p>`}
+    </div>
+  </div>`;
+}
+
+/* ==================================================================
+   3.8 区間と運賃（F-15 / F-37）
+   運賃改定はこの画面だけで終わる（R-23 / 決定18）
+================================================================== */
+function screenSegments(){
+  const rows = db.segments.map(s => {
+    const n = usedBy(s.id);
+    return `<button class="item" data-act="editFare" data-id="${s.id}">
+      <span class="top"><span class="name">${esc(station(s.from))} → ${esc(station(s.to))}</span>
+        <span class="right">${yen(s.fare)}</span></span>
+      <span class="sub">${n > 0 ? `${n}本のルートが使っています` : "まだどのルートも使っていません"}</span>
+    </button>`;
+  }).join("");
+
+  return `<div class="app" data-screen="segments">
+    <div class="appbar">
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>区間と運賃</h2>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      <p class="hint"><b>片道運賃は区間が1か所だけ持ちます</b>（決定18）。
+        ここで直すと、<b>その区間を使っている全ルートに効きます。</b>
+        運賃改定はこの画面だけで終わります（R-23）。
+        <b>済んだ記録の金額は動きません</b>（要件定義 6.2）。記録した時点の金額を実績側に持つためです。</p>
+
+      <div class="list">${rows}</div>
+
+      <div class="btn-row">
+        <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addSegment">区間を追加</button>
+        <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addStation">駅を登録</button>
+      </div>
+
+      <div class="section-head"><h3>登録済みの駅</h3><span class="more">${db.stations.length}件</span></div>
+      <div class="list">
+        ${db.stations.map(s => `<div class="item"><span class="top">
+          <span class="name">${esc(s.name)}</span>
+          <span class="right">${db.segments.filter(g => g.from === s.id || g.to === s.id).length}区間</span>
+        </span></div>`).join("")}
+      </div>
+
+      <p class="footnote">
+        <b>駅名は鉄道会社の略称込みで持ちます</b>（F-15）。乗換駅は鉄道会社ごとに別の駅として書かれるので、
+        <code>X鉄乙駅</code> と <code>Y鉄乙駅</code> は<b>別の駅として登録します</b>（要求分析 5.2）。
+        <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。<br>
+        <b>区間・駅を削除する操作は置いていません。</b>使われていれば消せず、
+        使われていない区間が残っても困らないためです（<code>database.md</code> 6.2 の RESTRICT）。
+      </p>
+    </div>
+  </div>`;
+}
+
+/* ==================================================================
+   3.9 提出（F-27〜F-30）
+   確認 → 実行 → 結果。書き込む形のまま見せる
+================================================================== */
+
+/* 案件番号の昇順。手で足した案件は番号を持たないことがあり、その場合は後ろへ置く（要件定義 5.3） */
+const noKey = p => (p.no ? "0" + p.no : "1" + p.id);
+
+function preview(){
+  const month = db.sheet.a1;
+  const ps = db.projects
+    .filter(p => monthOf(p.date) === month)   /* 施行日が対象月度に属する案件だけ（決定12 / 決定13） */
+    .sort((a, b) => a.date.localeCompare(b.date) || noKey(a).localeCompare(noKey(b)));
+
+  const rows = [], warnings = [], receipts = [];
+  ps.forEach(p => {
+    const v = venue(p.code);
+    /* 会場コードがマスタに無くても止めない。警告を出してそのまま書く（N-14 / 5.5） */
+    if (!v || v.source !== "master")
+      warnings.push({ code:"VENUE_CODE_UNKNOWN", text:`会場コード ${p.code} が会場マスタにありません。警告を出したうえで書き込みます` });
+    if (!p.record){
+      warnings.push({ code:"NO_EXPENSE_RECORD", text:`${md(p.date)} ${venueName(p.code)} は交通費の記録がありません。この案件は書き込みません` });
+      return;
+    }
+    const taxiTotal = p.taxi.reduce((a, t) => a + t.amount, 0);
+    p.record.legs.forEach((l, i) => rows.push({
+      pid:p.id,
+      A:i === 0 ? sheetDate(p.date) : null,
+      B:i === 0 ? p.code : null,
+      C:i === 0 ? "婚礼案件" : null,      /* 目的は常に婚礼案件。先頭行にだけ書く（要件定義 5.3） */
+      D:i === 0 ? p.couple : null,
+      E:l.from, F:l.to,
+      G:p.record.tripType === "round" ? "往復" : "片道",
+      H:l.amount,
+      I:i === 0 && taxiTotal > 0 ? taxiTotal : null
+    }));
+    p.taxi.forEach(t => { if (t.url) receipts.push({ date:p.date, url:t.url }); });
+  });
+
+  /* M8 は月に1つの結合セル。日付の見出しを付けて改行で並べる（要件定義 5.4） */
+  const byDate = {};
+  receipts.forEach(r => (byDate[r.date] = byDate[r.date] || []).push(r.url));
+  const receiptCell = Object.keys(byDate).sort()
+    .map(d => `(${md(d)})\n` + byDate[d].join("\n")).join("\n");
+
+  return { month, rows, warnings, receiptCell,
+    rowsToInsert:Math.max(0, rows.length - db.sheet.writableRows) };
+}
+
+const SUBMIT_STEPS = [
+  "対象月度を読む（自分のシートの A1）",
+  "構造を読む（グリッドのサイズと保護範囲）",
+  "様式を確かめる（7行目のヘッダー）",
+  "行を組み立てる（対象月度の案件だけ）",
+  "行数を照らす（足りなければ挿入する）",
+  "会場コードを照合する",
+  "書き込む（本文行を1回の書き込みで送る）"
+];
+
+function screenSubmit(){
+  const head = `<div class="appbar">
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>提出</h2>
+    </div>`;
+
+  /* --- 実行 --- */
+  if (state.submitStage === "running"){
+    const now = state.form.step || 0;
+    return `<div class="app" data-screen="submit">${head}
+      <div class="body">
+        <p class="hint">${monthLabel(db.sheet.a1)}を提出しています。</p>
+        <div class="steps">
+          ${SUBMIT_STEPS.map((s, i) => `<div class="step" data-s="${
+            i < now ? "done" : i === now ? "now" : "todo"}">
+            <i>${i < now ? "✓" : i + 1}</i><span>${s}</span></div>`).join("")}
+        </div>
+        <p class="footnote"><b>途中で条件を満たさなければ、何も書かずに中止します</b>（5.5）。
+          クリアと書き込みは1回の呼び出しにまとめてあり、
+          <b>「消えたまま書かれない」状態が作れません</b>（<code>integration.md</code> 8.2）。</p>
+      </div>
+    </div>`;
+  }
+
+  /* --- 結果 --- */
+  if (state.submitStage === "result"){
+    const r = state.submitResult;
+    if (r.aborted) return `<div class="app" data-screen="submit">${head}
+      <div class="body">
+        <div class="done-mark" data-tone="alert">
+          <span class="ring">!</span>
+          <h3>書く前に中止しました</h3>
+          <p>提出シートには<b>1行も書いていません</b>。</p>
+        </div>
+        <div class="notice" role="alert"><span><b>${esc(r.code)}</b><br>${esc(r.reason)}</span></div>
+        <p class="hint">${esc(r.how)}</p>
+        <div class="spacer"></div>
+        ${r.code === "GOOGLE_UNAUTHORIZED"
+          ? `<button class="btn" data-act="go" data-screen="settings">設定を開いて再認可する</button>` : ""}
+        <button class="btn" data-variant="quiet" data-act="go" data-screen="home">ホームへ戻る</button>
+        <p class="footnote"><b>様式が変わったら、書き込む前に気づいて止まります</b>（NF-10 / 5.5）。
+          列の意味が変わったことに気づかずに書けば、別の欄へ値を書き込むことになります。
+          <b>金額の欄にご両家名が入るような壊れ方は、書いた側からは見えません。</b></p>
+      </div>
+    </div>`;
+
+    return `<div class="app" data-screen="submit">${head}
+      <div class="body">
+        <div class="done-mark">
+          <span class="ring">✓</span>
+          <h3>${monthLabel(r.month)}を提出しました</h3>
+          <p>${jst(r.executedAt)}</p>
+        </div>
+        <dl class="rows">
+          <div class="row"><dt>書き込んだ行数</dt><dd><b class="num">${r.writtenRows}行</b></dd></div>
+          <div class="row"><dt>行の挿入</dt><dd>${r.rowsInserted
+            ? `<b style="color:var(--warn)">${r.rowsInserted}行を挿入しました</b>
+               <span class="sub">シートの構造を変えたので、要確認事項に残しました（5.2 手順5）</span>`
+            : "していません"}</dd></div>
+          <div class="row"><dt>警告</dt><dd>${r.warnings.length
+            ? r.warnings.map(w => esc(w.text)).join("<br>")
+            : "ありません"}</dd></div>
+        </dl>
+        <div class="spacer"></div>
+        <button class="btn" data-variant="quiet" data-act="go" data-screen="home">ホームへ戻る</button>
+        <p class="footnote"><b>何度でも実行できます</b>（F-29）。
+          本文行を全消ししてから全部を書き直すので、実行するたびにシートはアプリの内容と一致します。
+          <b>差し戻しにも同じ操作で応じられます。</b></p>
+      </div>
+    </div>`;
+  }
+
+  /* --- 確認 --- */
+  /* 認可が切れていれば、確認そのものが成り立たない（api.md 5.4 の 503） */
+  if (!db.auth.authorized) return `<div class="app" data-screen="submit">${head}
+    <div class="body">
+      <div class="notice" role="alert">
+        <span><b>GOOGLE_UNAUTHORIZED</b><br>
+        Google API の認可が切れています。提出シートを読めないので、書き込む内容を組み立てられません</span>
+      </div>
+      <button class="btn" data-act="go" data-screen="settings">設定を開いて再認可する</button>
+      <div class="spacer"></div>
+      <p class="footnote"><b>失われ方は2つあります</b>（要件定義 7.1）。
+        アプリの認可が切れた場合は再認可へ導けますが、
+        <b>委託元が提出シートの共有を締めた場合はアプリ側では直せません</b>（N-13）。</p>
+    </div>
+  </div>`;
+
+  const pv = preview();
+  const last = db.submissions.filter(s => s.targetMonth === pv.month)
+    .sort((a, b) => b.executedAt.localeCompare(a.executedAt))[0];
+  const open = openAttentions().length;
+
+  const body = pv.rows.map((r, i) => `
+    <tr data-head="${r.A ? 1 : 0}">
+      <td class="rowno">${8 + i}</td>
+      <td>${esc(r.A)}</td><td>${esc(r.B)}</td><td>${esc(r.C)}</td><td>${esc(r.D)}</td>
+      <td>${esc(r.E)}</td><td>${esc(r.F)}</td>
+      <td class="${r.G === "片道" ? "oneway" : ""}">${esc(r.G)}</td>
+      <td class="n">${r.H == null ? "" : r.H.toLocaleString("ja-JP")}</td>
+      <td class="n">${r.I == null ? "" : r.I.toLocaleString("ja-JP")}</td>
+    </tr>`).join("");
+
+  const hasOneWay = pv.rows.some(r => r.G === "片道");
+
+  return `<div class="app" data-screen="submit">${head}
+    <div class="body">
+      <dl class="rows">
+        <div class="row"><dt>対象月度</dt><dd><b>${monthLabel(pv.month)}</b>
+          <span class="sub">提出シートの A1 が決めます（決定13）。カレンダーの前月ではありません</span></dd></div>
+        <div class="row"><dt>提出先</dt><dd>${esc(db.sheet.spreadsheetName)}
+          <span class="sub">${esc(db.sheet.sheetName)}</span></dd></div>
+        <div class="row"><dt>前回の提出</dt><dd>${last
+          ? `${jst(last.executedAt)}<span class="sub">${last.writtenRows}行</span>`
+          : "まだ提出していません"}</dd></div>
+        <div class="row"><dt>要確認事項</dt><dd>${open ? `${open}件` : "0件"}
+          <span class="sub">要確認事項があっても提出はできます（5.5）</span></dd></div>
+      </dl>
+
+      ${pv.warnings.map(w => `<div class="notice" data-tone="warn" role="status">
+        <span><b>${esc(w.code)}</b><br>${esc(w.text)}</span></div>`).join("")}
+
+      ${pv.rowsToInsert > 0 ? `<div class="notice" data-tone="warn" role="status">
+        <span><b>本文行が足りません</b><br>
+        書ける行は ${db.sheet.writableRows} 行で、組み立てた行は ${pv.rows.length} 行です。
+        <b>${pv.rowsToInsert}行を挿入します。</b>シートの構造を変える操作なので、要確認事項に残します</span>
+      </div>` : ""}
+
+      <div class="section-head"><h3>書き込む行</h3>
+        <span class="more">${pv.rows.length}行 / A〜I列</span></div>
+      ${pv.rows.length ? `<div class="grid-scroll">
+        <table class="grid">
+          <thead><tr><th>行</th><th>A 日付</th><th>B 目的地</th><th>C 目的</th><th>D 案件名</th>
+            <th>E 出発駅</th><th>F 到着駅</th><th>G 往復</th><th>H 金額</th><th>I タクシー</th></tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+      <p class="hint"><b>提出シートの列そのままの形で出しています</b>（F-27 / R-17）。
+        画面が組み立て直しません。<b>2行目以降の A〜D 列が空であることまで確認の対象です</b>（要件定義 5.3）。
+        J（高速代/駐車場）・K（車両）・L（備考）は常に空なので、出していません。
+        ${hasOneWay ? `<br><b style="color:var(--warn)">この提出には <code>片道</code> が含まれます。</b>
+        実測では全行が <code>往復</code> で、<b>まだ一度も起きていない書き方です</b>（要件定義 5.3）。
+        目で確かめてください。` : ""}</p>`
+      : `<p class="hint">この月度に書き込む行はありません。</p>`}
+
+      ${pv.receiptCell ? `
+      <div class="section-head"><h3>領収書欄（M8）</h3><span class="more">結合セル</span></div>
+      <div class="receipt-cell">${esc(pv.receiptCell)}</div>
+      <p class="hint"><code>M8:M32</code> は丸ごと1つの結合セルで、<b>月に1枠しかありません</b>（要件定義 5.4）。
+        日付の見出しを付けて改行で並べ、<b>1行に URL は1本だけ</b>にします。
+        <b>乗車の数と行の数は一致しません</b>（領収書は乗車ごとに1件）。</p>` : ""}
+
+      <div class="spacer"></div>
+      <button class="btn" data-act="runSubmit" ${pv.rows.length ? "" : "disabled"}>提出する</button>
+      <p class="footnote"><b>本文行を全消ししてから、全部を書き直します</b>（決定2 / F-28）。
+        <b>提出シートを手で直しても、次の提出で消えます</b>（決定11）。
+        直したいことがあれば、シートではなくアプリ側を直してから提出してください。</p>
+    </div>
+  </div>`;
+}
+
+/* ==================================================================
+   3.10 要確認事項（F-33 / F-34）
+================================================================== */
+function screenAttentions(){
+  const open = openAttentions()
+    .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
+  return `<div class="app" data-screen="attentions">
+    <div class="appbar">
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>要確認事項</h2>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      ${open.length ? `<div class="list">${open.map(a => `
+        <div class="item">
+          <span class="top"><span class="name">${esc(ATTENTION_LABEL[a.kind])}</span>
+            <span class="right">${jst(a.occurredAt)}</span></span>
+          <span class="sub">${esc(a.detail)}</span>
+          <button class="btn" data-variant="quiet" data-act="checkAttention" data-id="${a.id}"
+            style="margin-top:10px">確認済みにする</button>
+        </div>`).join("")}</div>`
+      : `<div class="done-mark"><span class="ring">✓</span>
+          <h3>未確認のものはありません</h3>
+          <p>0件のとき、ホームには件数を出しません（4.4）。<br>
+          常時「0件」を出すと、<b>件数があること自体に慣れてしまい、増えたことに気づけなくなります。</b></p>
+        </div>`}
+      <div class="spacer"></div>
+      <p class="footnote">
+        知らせる相手は<b>本人であって、委託元ではありません</b>（N-14）。
+        種別は7つあります（要件定義 4.9）。
+        <b>確認済みへ戻す操作は持ちません</b>（<code>api.md</code> 4.9）。
+        <b>「提出せずに月度が切り替わった」は、切り替わった先より前の月度だけ出します</b>（F-32 / 4.4）。
+        これから稼働する月度に提出記録が無いのは当たり前で、報せても本人にできることが何もありません。
+      </p>
+    </div>
+  </div>`;
+}
+
+/* ==================================================================
+   3.11 設定（F-02 / NF-11）
+================================================================== */
+function screenSettings(){
+  const a = db.auth;
+  return `<div class="app" data-screen="settings">
+    <div class="appbar">
+      <button class="back" data-act="go" data-screen="home">‹</button>
+      <h2>設定</h2>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      ${a.authorized
+        ? `<div class="notice" data-tone="ok" role="status">
+            <span><b>Google API の認可は有効です</b><br>認可したのは ${jst(a.authorizedAt)}</span></div>`
+        : `<div class="notice" role="alert">
+            <span><b>Google API の認可が切れています</b><br>
+            案件の取り込み・領収書の保存・提出のすべてが止まります（F-02 / N-13）</span></div>`}
+
+      <div class="list">
+        ${a.scopes.map(s => `<div class="item">
+          <span class="top"><span class="name mono">${esc(s)}</span>
+            <span class="right">${a.missingScopes.includes(s) ? "未取得" : "取得済み"}</span></span>
+          <span class="sub">${esc(SCOPE_WHY[s] || "")}</span></div>`).join("")}
+      </div>
+      <p class="hint">保持しているスコープを出すのは、<b>スコープが増えたときに気づくため</b>です
+        （<code>api.md</code> 4.2）。<code>gmail.send</code> は後から足したもので、
+        <b>古いままだとアラートの送信だけが失敗します。</b></p>
+      ${a.authorized ? "" : `<button class="btn" data-act="reauth">再認可する</button>`}
+
+      <div class="section-head"><h3>提出先</h3></div>
+      <dl class="rows">
+        <div class="row"><dt>スプレッドシート</dt><dd>${esc(db.sheet.spreadsheetName)}</dd></div>
+        <div class="row"><dt>シート</dt><dd>${esc(db.sheet.sheetName)}</dd></div>
+        <div class="row"><dt>対象月度</dt><dd>${monthLabel(db.sheet.a1)}
+          <span class="sub">提出シートの A1（F-31）。手で切り替える操作は持ちません（決定13）</span></dd></div>
+      </dl>
+      <p class="hint"><b>スプレッドシートID・フォルダID は画面に出しません</b>（N-08）。名前で足ります。</p>
+
+      <div class="section-head"><h3>設定データの控え</h3><span class="more">NF-11</span></div>
+      <div class="btn-row">
+        <button class="btn" data-variant="quiet" data-act="exportConfig">書き出す</button>
+        <button class="btn" data-variant="quiet" data-act="showImport">読み込む</button>
+      </div>
+      ${state.configJson != null ? `
+        <textarea class="input" rows="8" readonly>${esc(state.configJson)}</textarea>
+        <p class="hint">この JSON をファイルとして保存します。
+          <b>控えは駅・会場・ルート・区間だけを含みます</b>（<code>architecture.md</code> 8章）。
+          実績データは含めません。消えてよいものだからです（N-05）。</p>` : ""}
+      ${state.form.importOpen ? `
+        <div class="field"><span class="label">控えの JSON</span>
+          <textarea class="input" rows="6" data-model="importText"
+            placeholder='{"stations":[…],"venues":[…],"segments":[…],"routes":[…]}'>${esc(state.form.importText || "")}</textarea></div>
+        <button class="btn" data-act="importConfig">この内容で置き換える</button>
+        <p class="hint"><b>読み込みは追加ではなく置き換えです</b>（<code>api.md</code> 4.10）。
+          控えは丸ごと1つで、<b>部分的に混ぜると元の形に戻りません。</b></p>` : ""}
+      <p class="hint"><b>NF-11 を落とすと、このアプリの前提が崩れます。</b>
+        設定データが消えると「登録済みルートを選ぶだけで済む」（R-05〜R-07）が成立せず、
+        すべてを登録し直すことになります。</p>
+
+      <div class="spacer"></div>
+      <button class="btn" data-variant="danger" data-act="logout">ログアウト</button>
+    </div>
+  </div>`;
+}
+
+/* ==================================================================
+   オーバーレイ（画面ではない）
+================================================================== */
+function overlayHtml(){
+  const o = state.overlay;
+  if (!o) return "";
+  const f = state.form;
+  const wrap = (title, inner) => `<div class="backdrop" data-act="closeOverlay">
+    <div class="sheet" data-stop="1">
+      <div class="sheet-head"><h3>${title}</h3>
+        <button class="close" data-act="closeOverlay" aria-label="閉じる">✕</button></div>
+      <div class="sheet-body">${inner}</div>
+    </div>
+  </div>`;
+
+  if (o === "menu") return wrap("メニュー", `
+    ${[["venues","会場とルート","F-13 / F-14 / F-17"],
+       ["segments","区間と運賃","F-15 / F-37"],
+       ["attentions","要確認事項","F-33 / F-34"],
+       ["settings","設定","F-02 / NF-11"]]
+      .map(([s, n, r]) => `<button class="menu-item" data-act="go" data-screen="${s}">
+        <span>${n}</span><span class="req">${r}</span></button>`).join("")}`);
+
+  if (o === "deleteProject"){
+    const p = project(state.projectId);
+    return wrap("この案件を削除しますか", `
+      <p class="hint">${p ? `${ymd(p.date)}（${wday(p.date)}）・
+        ${esc(venueName(p.code))}・${esc(p.couple)}` : ""}</p>
+      <div class="notice" data-tone="warn" role="status"><span>
+        <b>交通費記録・タクシー乗車・領収書のレコードも消えます</b>（要件定義 4.3）。<br>
+        <b>ドライブ上のファイル実体は消しません</b>（要件定義 6.4）。
+        提出後の正本はドライブにあり、アプリが消してよいものではありません</span></div>
+      <button class="btn" data-variant="danger" data-act="deleteProject">削除する</button>
+      <button class="btn" data-variant="quiet" data-act="closeOverlay">やめる</button>`);
+  }
+
+  if (o === "addVenue") return wrap("会場を追加", `
+    <div class="field"><span class="label">会場コード</span>
+      <input class="input" data-model="vCode" placeholder="HHH" value="${esc(f.vCode || "")}"></div>
+    <div class="field"><span class="label">会場名</span>
+      <input class="input" data-model="vName" placeholder="辛ホール" value="${esc(f.vName || "")}"></div>
+    <p class="hint">出どころは<b>「自分で追加」</b>になります（F-14）。
+      <b>提出前の照合では、マスタに無い会場として警告が出ます</b>（N-14）。止めはしません。</p>
+    <button class="btn" data-act="addVenue">追加する</button>`);
+
+  if (o === "addStation") return wrap("駅を登録", `
+    <div class="field"><span class="label">駅名</span>
+      <input class="input" data-model="stName" placeholder="X鉄辛駅" value="${esc(f.stName || "")}"></div>
+    <p class="hint"><b>鉄道会社の略称込みで入れます</b>（F-15）。
+      乗換駅は会社ごとに別の駅として書かれるので、<code>X鉄乙駅</code> と <code>Y鉄乙駅</code> は
+      <b>別の駅として登録します</b>（要求分析 5.2）。名寄せはしません。</p>
+    <button class="btn" data-act="addStation">登録する</button>`);
+
+  if (o === "addSegment"){
+    const opts = sel => db.stations.map(s =>
+      `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+    return wrap("区間を追加", `
+      <div class="field"><span class="label">出発駅</span>
+        <select class="input" data-model="sgFrom"><option value="">選んでください</option>
+          ${opts(f.sgFrom)}</select></div>
+      <div class="field"><span class="label">到着駅</span>
+        <select class="input" data-model="sgTo"><option value="">選んでください</option>
+          ${opts(f.sgTo)}</select></div>
+      <div class="field"><span class="label">片道運賃</span>
+        <input class="input" inputmode="numeric" data-model="sgFare" placeholder="320"
+          value="${esc(f.sgFare || "")}"></div>
+      <p class="hint"><b>同じ駅ペアの区間は1つだけです</b>（決定18）。
+        2つ持たせると、どちらが正か決まりません。
+        <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。</p>
+      <button class="btn" data-act="addSegment">追加する</button>`);
+  }
+
+  if (o === "editFare"){
+    const s = segment(f.segId);
+    if (!s) return "";
+    return wrap("片道運賃を直す", `
+      <dl class="rows">
+        <div class="row"><dt>出発駅</dt><dd>${esc(station(s.from))}</dd></div>
+        <div class="row"><dt>到着駅</dt><dd>${esc(station(s.to))}</dd></div>
+        <div class="row"><dt>使用中</dt><dd>${usedBy(s.id)}本のルート</dd></div>
+      </dl>
+      <div class="field"><span class="label">片道運賃</span>
+        <input class="input" inputmode="numeric" data-model="fare" value="${esc(f.fare)}"></div>
+      <div class="notice" data-tone="warn" role="status"><span>
+        <b>直すと、この区間を使っている全ルートに効きます</b>（決定18）。
+        済んだ記録の金額は動きません（要件定義 6.2）</span></div>
+      <p class="hint"><b>出発駅と到着駅は、登録したあと変えられません。</b>
+        変えたいならそれは別の区間です（<code>api.md</code> 4.7）。
+        駅を差し替えられると、<b>その区間を使っている全ルートの経路が黙って変わります。</b></p>
+      <button class="btn" data-act="saveFare">この運賃で直す</button>`);
+  }
+
+  if (o === "pickSegment") return wrap("区間を足す", `
+    <div class="list">
+      ${db.segments.map(s => `<button class="item" data-act="addSegToRoute" data-id="${s.id}">
+        <span class="top"><span class="name">${esc(station(s.from))} → ${esc(station(s.to))}</span>
+          <span class="right">${yen(s.fare)}</span></span>
+        <span class="sub">${usedBy(s.id)}本のルートが使っています</span></button>`).join("")}
+    </div>
+    <p class="hint"><b>登録済みの区間から選びます。</b>一覧に無ければ「区間と運賃」で作ってから戻ります。
+      <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。
+      入力補助でそこを揃えにいきません。</p>`);
+
+  return "";
+}
+
+/* ==================================================================
+   描画
+================================================================== */
+const SCREENS = {
+  login:screenLogin, home:screenHome, detail:screenDetail, add:screenAdd, record:screenRecord,
+  venues:screenVenues, routeEdit:screenRouteEdit, segments:screenSegments,
+  submit:screenSubmit, attentions:screenAttentions, settings:screenSettings
+};
+const NAMES = {
+  login:"ログイン", home:"ホーム", detail:"案件の詳細", add:"案件の追加", record:"交通費の記録",
+  venues:"会場とルート", routeEdit:"ルートの編集", segments:"区間と運賃",
+  submit:"提出", attentions:"要確認事項", settings:"設定"
+};
 
 function render(){
-  document.getElementById("viewport").innerHTML = SCREENS[state.screen]();
+  document.getElementById("viewport").innerHTML = SCREENS[state.screen]() + overlayHtml();
   document.getElementById("screenName").textContent = NAMES[state.screen];
 }
 
-/* ------------------------------------------------------------------
-   操作
-------------------------------------------------------------------- */
-document.getElementById("viewport").addEventListener("click", e => {
-  const el = e.target.closest("[data-go],[data-set],[data-pick]");
-  if (!el || el.hasAttribute("disabled")) return;
+function paintPanel(){
+  document.getElementById("scenes").innerHTML = SCENES.map(s =>
+    `<button class="chip" data-scene="${s.id}" aria-pressed="${s.id === state.sceneId}">
+      ${s.label}</button>`).join("");
+  const sc = scene();
+  document.getElementById("sceneNote").innerHTML =
+    `<b>${ymd(sc.today)}（${wday(sc.today)}）・シートの A1 は ${
+      monthLabel(sc.a1)}。</b><br>${sc.note}`;
+  document.getElementById("faults").innerHTML = FAULTS.map(f =>
+    `<button class="switch" data-fault="${f.id}" aria-pressed="${state.faults[f.id]}">
+      <span class="sw-name">${f.name}<small>${f.sub}</small></span>
+      <span class="sw-box"></span></button>`).join("");
+  document.getElementById("index").innerHTML = INDEX.map(i =>
+    `<button data-index="${i.screen}" aria-current="${i.screen === state.screen}">
+      <span>${i.label}</span><span class="req">${i.req} · ${i.doc}</span></button>`).join("");
+}
 
-  const label = el.dataset.label;
-  if (label) tap(label);
+function paint(){ render(); paintPanel(); }
 
-  if (el.dataset.go){
-    const go = el.dataset.go;
-    if (go === "detail" && el.dataset.id){
-      state.projectId = el.dataset.id;
-      state.draft = freshDraft(project(state.projectId));
-    }
-    if (go === "record" && !state.draft) state.draft = freshDraft(project(state.projectId));
-    if (go === "save"){ state.screen = "saved"; }
-    else { state.screen = go; }
+function say(tone, text){ state.banner = { tone, text }; }
+function clearBanner(){ state.banner = null; }
+
+/* ==================================================================
+   画面に入るときの初期化
+================================================================== */
+function enterScreen(name){
+  clearBanner();
+  state.screen = name;
+  state.overlay = null;
+  state.editing = false;
+  const p = project(state.projectId);
+  if (name === "login")    state.form = { denied:false };
+  else if (name === "add") state.form = { date:db.today, code:"", couple:"", no:"" };
+  else if (name === "record") state.form = p ? freshRecordForm(p) : {};
+  else if (name === "submit"){ state.submitStage = "confirm"; state.submitResult = null; state.form = {}; }
+  else if (name === "settings"){ state.form = {}; state.configJson = null; }
+  else state.form = {};
+  document.getElementById("viewport").scrollTop = 0;
+}
+
+/* 索引から直接開くとき、対象が要る画面の既定を決める */
+function openFromIndex(name){
+  if (name === "detail" || name === "record"){
+    const p = db.projects.find(x => routesFor(x.code).length > 0) || db.projects[0];
+    state.projectId = p ? p.id : null;
   }
-
-  if (el.dataset.set){
-    const k = el.dataset.set, v = el.dataset.value;
-    if (k === "round"){
-      state.draft.round = v === "1";
-      if (state.draft.round) state.draft.back = null;
-    } else {
-      state.draft[k] = v === "1";
-    }
+  if (name === "routeEdit"){
+    const r = db.routes[0];
+    state.routeId = r ? r.id : null;
+    enterScreen("routeEdit");
+    state.form = r ? { name:r.name, venue:r.venue, segIds:r.segIds.slice() }
+                   : { name:"", venue:db.venues[0].code, segIds:[] };
+    return;
   }
+  enterScreen(name);
+}
 
-  if (el.dataset.pick){
-    /* 入力中のタクシー金額を失わないよう先に取り込む */
-    const inp = document.getElementById("taxiAmount");
-    if (inp) state.draft.taxiAmount = inp.value;
-    state.draft[el.dataset.pick] = el.dataset.route;
-  }
-
+/* 取り込みは画面を開いたときに走る（F-03 / 決定1）。完了を待たずに一覧を出す */
+function runImport(){
+  state.importing = true;
   render();
-  paintMeter();
+  setTimeout(() => {
+    state.importing = false;
+    db.sync.lastImportedAt = nowIso();
+    render();
+  }, 900);
+}
+
+/* ==================================================================
+   操作
+================================================================== */
+const ACTIONS = {
+  go(el){ enterScreen(el.dataset.screen); },
+  overlay(el){ state.overlay = el.dataset.overlay; },
+  closeOverlay(){ state.overlay = null; },
+
+  login(){ enterScreen("home"); runImport(); },
+  loginDenied(){ state.form.denied = true; },
+  logout(){ enterScreen("login"); },
+
+  import(){ runImport(); },
+
+  openDetail(el){ state.projectId = el.dataset.id; enterScreen("detail"); },
+  openRecord(){ enterScreen("record"); },
+
+  startEdit(){
+    const p = project(state.projectId);
+    state.editing = true;
+    state.form = { date:p.date, code:p.code, couple:p.couple, no:p.no || "" };
+  },
+  cancelEdit(){ state.editing = false; state.form = {}; },
+  saveEdit(){
+    const p = project(state.projectId), f = state.form;
+    if (!f.date || !f.couple.trim()){ say("warn", "施行日とご両家名は要ります"); return; }
+    const before = monthOf(p.date);
+    p.date = f.date; p.code = f.code; p.couple = f.couple.trim(); p.no = f.no.trim() || null;
+    state.editing = false; state.form = {};
+    say(monthOf(p.date) === before ? "ok" : "warn",
+      monthOf(p.date) === before ? "項目を直しました"
+        : `<b>所属する月度が ${monthLabel(before)} から ${monthLabel(monthOf(p.date))} へ変わりました</b>（決定12）`);
+  },
+
+  addProject(){
+    const f = state.form;
+    if (!f.date || !f.code || !f.couple.trim()){ say("warn", "施行日・会場・ご両家名は要ります"); return; }
+    const id = "n" + (db.seq++);
+    db.projects.push({ id, no:f.no.trim() || null, date:f.date, code:f.code,
+      couple:f.couple.trim(), source:"manual", appearedAt:db.today, record:null, taxi:[] });
+    state.projectId = id;
+    enterScreen("detail");
+    say("ok", "案件を足しました。出どころは<b>手動追加</b>です");
+  },
+
+  deleteProject(){
+    const p = project(state.projectId);
+    db.projects = db.projects.filter(x => x.id !== state.projectId);
+    state.projectId = null;
+    enterScreen("home");
+    say("quiet", `${p ? esc(venueName(p.code)) : ""}の案件を削除しました。
+      交通費記録・タクシー乗車・領収書のレコードも消えています。<b>ドライブ上のファイル実体は消していません</b>`);
+  },
+
+  /* --- 交通費の記録 --- */
+  setTrip(el){
+    state.form.tripType = el.dataset.v;
+    state.form.amounts = {};                       /* ルートが変われば既定値も変わる */
+    if (el.dataset.v === "round") state.form.back = null;
+  },
+  pickRoute(el){
+    state.form[el.dataset.kind] = el.dataset.route;
+    state.form.amounts = {};
+  },
+  toggleTaxi(){
+    state.form.taxiOpen = !state.form.taxiOpen;
+    if (state.form.taxiOpen && !state.form.taxi.length) state.form.taxi.push({ amount:"", url:null });
+  },
+  addTaxi(){ state.form.taxi.push({ amount:"", url:null }); },
+  dropTaxi(el){ state.form.taxi.splice(+el.dataset.i, 1); },
+  upload(el){
+    const i = +el.dataset.i;
+    if (state.faults.driveFail){
+      /* F-26 — 保存に失敗したら、乗車の記録を残さずに知らせる */
+      state.form.taxi.splice(i, 1);
+      addAttention("drive_upload_failed",
+        "領収書をドライブへ保存できませんでした。乗車の記録は残していません");
+      say("warn", "<b>ドライブへ保存できませんでした。</b>この乗車は記録しません（F-26）。要確認事項に残しました");
+      return;
+    }
+    state.form.taxi[i].url =
+      `https://drive.google.com/file/d/BBBBB0000${i + 1}/view`;
+  },
+  save(){
+    const p = project(state.projectId), f = state.form;
+    const legs = currentLegs();
+    if (!legs.length || (f.tripType === "one_way" && !f.back)){
+      say("warn", "ルートを選んでください"); return;
+    }
+    if (f.taxi.some(t => !(parseInt(t.amount, 10) > 0) || !t.url)){
+      say("warn", "金額と領収書がそろっていない乗車があります（F-23 / F-26）"); return;
+    }
+    p.record = { tripType:f.tripType, out:f.out, back:f.back, legs,
+      recordedAt:nowIso() };
+    p.taxi = f.taxi.map(t => ({ amount:parseInt(t.amount, 10), url:t.url }));
+    enterScreen("detail");
+    say("ok", "交通費を記録しました。<b>提出画面の行に、そのまま出ます</b>");
+  },
+
+  /* --- 会場とルート --- */
+  importMaster(){
+    const add = MASTER_EXTRA.filter(m => !venue(m.code));
+    add.forEach(m => db.venues.push(clone(m)));
+    say(add.length ? "ok" : "quiet", add.length
+      ? `会場マスタから ${add.length} 件を取り込みました（F-13）`
+      : "会場マスタに新しいものはありませんでした");
+  },
+  addVenue(){
+    const f = state.form;
+    const code = (f.vCode || "").trim().toUpperCase(), name = (f.vName || "").trim();
+    if (!code || !name){ state.overlay = null; say("warn", "会場コードと会場名は要ります"); return; }
+    if (venue(code)){ state.overlay = null; say("warn", `会場コード ${esc(code)} は既にあります`); return; }
+    db.venues.push({ code, name, source:"manual" });
+    state.overlay = null; state.form = {};
+    say("ok", `${esc(code)} ${esc(name)} を足しました。出どころは<b>自分で追加</b>です（F-14）`);
+  },
+  newRoute(el){
+    state.routeId = null;
+    enterScreen("routeEdit");
+    state.form = { name:"", venue:el.dataset.venue, segIds:[] };
+  },
+  openRoute(el){
+    const r = route(el.dataset.id);
+    state.routeId = r.id;
+    enterScreen("routeEdit");
+    state.form = { name:r.name, venue:r.venue, segIds:r.segIds.slice() };
+  },
+  moveSeg(el){
+    const i = +el.dataset.i, d = +el.dataset.d, a = state.form.segIds;
+    if (i + d < 0 || i + d >= a.length) return;
+    [a[i], a[i + d]] = [a[i + d], a[i]];
+  },
+  dropSeg(el){ state.form.segIds.splice(+el.dataset.i, 1); },
+  addSegToRoute(el){ state.form.segIds.push(el.dataset.id); state.overlay = null; },
+  saveRoute(){
+    const f = state.form;
+    if (!f.name.trim() || !f.venue || !f.segIds.length){
+      say("warn", "ルート名・会場・区間はどれも要ります"); return;
+    }
+    if (state.routeId){
+      const r = route(state.routeId);
+      r.name = f.name.trim(); r.venue = f.venue; r.segIds = f.segIds.slice();
+    } else {
+      state.routeId = "n" + (db.seq++);
+      db.routes.push({ id:state.routeId, name:f.name.trim(), venue:f.venue, segIds:f.segIds.slice() });
+    }
+    enterScreen("venues");
+    say("ok", "ルートを保存しました");
+  },
+  deleteRoute(){
+    db.routes = db.routes.filter(r => r.id !== state.routeId);
+    /* ルートが消えても実績は自立している（SET NULL）。区間は残る（CASCADE の外側） */
+    state.routeId = null;
+    enterScreen("venues");
+    say("quiet", "ルートを削除しました。<b>使う区間の並びだけが消え、区間そのものは残っています</b>");
+  },
+
+  /* --- 区間と運賃 --- */
+  editFare(el){
+    const s = segment(el.dataset.id);
+    state.overlay = "editFare";
+    state.form = { segId:s.id, fare:String(s.fare) };
+  },
+  saveFare(){
+    const f = state.form, s = segment(f.segId);
+    const v = parseInt(f.fare, 10);
+    if (!(v >= 0)){ say("warn", "運賃は0以上の数で入れてください"); return; }
+    const n = usedBy(s.id), before = s.fare;
+    s.fare = v;
+    state.overlay = null; state.form = {};
+    say("ok", `${esc(station(s.from))}→${esc(station(s.to))} を ${yen(before)} から ${yen(v)} へ直しました。
+      <b>${n}本のルートに効いています。</b>済んだ記録の金額は動きません`);
+  },
+  addStation(){
+    const name = (state.form.stName || "").trim();
+    if (!name){ state.overlay = null; say("warn", "駅名は要ります"); return; }
+    if (db.stations.some(s => s.name === name)){
+      state.overlay = null; say("warn", `${esc(name)} は既に登録されています`); return;
+    }
+    db.stations.push({ id:"st" + (db.seq++), name });
+    state.overlay = null; state.form = {};
+    say("ok", `${esc(name)} を登録しました（F-15）`);
+  },
+  addSegment(){
+    const f = state.form, fare = parseInt(f.sgFare, 10);
+    if (!f.sgFrom || !f.sgTo || !(fare >= 0)){
+      state.overlay = null; say("warn", "出発駅・到着駅・片道運賃はどれも要ります"); return;
+    }
+    if (f.sgFrom === f.sgTo){
+      state.overlay = null; say("warn", "出発駅と到着駅は同じにできません"); return;
+    }
+    if (db.segments.some(s => s.from === f.sgFrom && s.to === f.sgTo)){
+      state.overlay = null;
+      say("warn", "同じ駅ペアの区間が既にあります。<b>同じ区間に運賃を2つ持たせません</b>（決定18）");
+      return;
+    }
+    db.segments.push({ id:"sg" + (db.seq++), from:f.sgFrom, to:f.sgTo, fare });
+    state.overlay = null; state.form = {};
+    say("ok", "区間を登録しました（F-37）");
+  },
+
+  /* --- 提出 --- */
+  runSubmit(){
+    state.submitStage = "running";
+    state.form = { step:0 };
+    render();
+    const tick = setInterval(() => {
+      state.form.step++;
+      if (state.form.step >= SUBMIT_STEPS.length){
+        clearInterval(tick);
+        finishSubmit();
+      }
+      render();
+    }, 360);
+  },
+
+  /* --- 要確認事項 --- */
+  checkAttention(el){
+    const a = db.attentions.find(x => x.id === el.dataset.id);
+    if (a) a.checkedAt = nowIso();
+  },
+
+  /* --- 設定 --- */
+  reauth(){
+    state.faults.authRevoked = false;
+    applyFaults();
+    say("ok", "再認可しました。取り込み・保存・提出が動きます");
+  },
+  exportConfig(){
+    /* 控えは駅・会場・ルート・区間だけを含む。実績データは含めない（architecture.md 8章） */
+    state.configJson = JSON.stringify({
+      stations:db.stations, venues:db.venues, segments:db.segments, routes:db.routes
+    }, null, 2);
+  },
+  showImport(){ state.form.importOpen = true; },
+  importConfig(){
+    try {
+      const o = JSON.parse(state.form.importText || "");
+      if (!o.stations || !o.venues || !o.segments || !o.routes) throw new Error();
+      /* 読み込みは追加ではなく置き換え（api.md 4.10） */
+      db.stations = o.stations; db.venues = o.venues;
+      db.segments = o.segments; db.routes = o.routes;
+      state.form = {}; state.configJson = null;
+      say("ok", "設定データを<b>置き換えました</b>（NF-11）");
+    } catch (_){
+      say("warn", "控えとして読めませんでした。駅・会場・区間・ルートを含む JSON が要ります");
+    }
+  }
+};
+
+function finishSubmit(){
+  const pv = preview();
+  const now = nowIso();
+
+  if (!db.auth.authorized){
+    state.submitResult = { aborted:true, code:"GOOGLE_UNAUTHORIZED",
+      reason:"Google API の認可が切れています。提出シートを読み書きできません",
+      how:"設定から再認可してください。委託元が共有を締めた場合は、アプリ側では直せません（N-13）" };
+  } else if (state.faults.formatChanged){
+    /* 確認と実行の間にシートは変わりうる。だからプレビューの結果を持ち回さず、毎回読み直す（api.md 6.1） */
+    state.submitResult = { aborted:true, code:"SHEET_FORMAT_CHANGED",
+      reason:"7行目のヘッダーが想定と違います。様式が変わっています",
+      how:"実装を直すまでは手で入力してください。自動で合わせにいくと、間違った欄へ書く危険があります（NF-10）" };
+    addAttention("sheet_unreachable", "提出しようとしたところ、提出シートの様式が変わっていました。書き込まずに中止しました");
+  } else {
+    if (pv.rowsToInsert > 0){
+      db.sheet.writableRows += pv.rowsToInsert;
+      addAttention("rows_inserted",
+        `${monthLabel(pv.month)}の提出で本文行が ${pv.rowsToInsert} 行足りず、書き込める範囲の内側に挿入しました`);
+    }
+    db.submissions.push({ targetMonth:pv.month, executedAt:now, writtenRows:pv.rows.length });
+    state.submitResult = { aborted:false, month:pv.month, executedAt:now,
+      writtenRows:pv.rows.length, rowsInserted:pv.rowsToInsert, warnings:pv.warnings };
+  }
+  state.submitStage = "result";
+}
+
+/* ==================================================================
+   配線
+================================================================== */
+const viewport = document.getElementById("viewport");
+
+function setModel(key, value){
+  if (key.indexOf("amount:") === 0) state.form.amounts[+key.slice(7)] = value;
+  else if (key.indexOf("taxi:") === 0) state.form.taxi[+key.slice(5)].amount = value;
+  else state.form[key] = value;
+}
+
+viewport.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (!el || el.hasAttribute("disabled")) return;
+  /* シートの中を押したときに、背景のタップで閉じない */
+  if (el.classList.contains("backdrop") && e.target.closest("[data-stop]")) return;
+  const fn = ACTIONS[el.dataset.act];
+  if (!fn) return;
+  clearBanner();
+  fn(el);
+  paint();
 });
 
-document.getElementById("viewport").addEventListener("input", e => {
-  if (e.target.id === "taxiAmount") state.draft.taxiAmount = e.target.value;
+/* 入力は state.form へ書くだけにする。1文字ごとに描き直すと入力欄から離れてしまう */
+viewport.addEventListener("input", e => {
+  const el = e.target.closest("[data-model]");
+  if (el) setModel(el.dataset.model, el.value);
+});
+viewport.addEventListener("change", e => {
+  const el = e.target.closest("[data-model]");
+  if (!el) return;
+  const k = el.dataset.model;
+  setModel(k, el.value);
+  /* 選択と金額だけは、変えた結果（合計・分岐）をその場で出す */
+  if (el.tagName === "SELECT" || k.indexOf("amount:") === 0 || k.indexOf("taxi:") === 0) render();
 });
 
-document.getElementById("reset").addEventListener("click", reset);
-document.getElementById("resetMobile").addEventListener("click", reset);
+document.getElementById("scenes").addEventListener("click", e => {
+  const el = e.target.closest("[data-scene]");
+  if (!el) return;
+  state.sceneId = el.dataset.scene;
+  buildDb();
+  state.projectId = null; state.routeId = null;
+  enterScreen("home");
+  paint();
+  runImport();
+});
 
-render();
-paintMeter();
+document.getElementById("faults").addEventListener("click", e => {
+  const el = e.target.closest("[data-fault]");
+  if (!el) return;
+  state.faults[el.dataset.fault] = !state.faults[el.dataset.fault];
+  applyFaults();
+  paint();
+});
+
+document.getElementById("index").addEventListener("click", e => {
+  const el = e.target.closest("[data-index]");
+  if (!el) return;
+  openFromIndex(el.dataset.index);
+  paint();
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  buildDb();
+  state.projectId = null; state.routeId = null;
+  enterScreen("home");
+  paint();
+});
+
+/* ==================================================================
+   起動
+================================================================== */
+buildDb();
+enterScreen("home");
+paint();
+runImport();
 </script>
 
 </body>
