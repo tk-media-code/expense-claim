@@ -268,6 +268,7 @@ input,select,textarea{font:inherit;color:inherit}
   background:var(--surface);font-size:15px;min-width:0;
 }
 .input:focus{outline:none;border-color:var(--accent)}
+.input[type="search"]{-webkit-appearance:none;appearance:none}
 .input[disabled]{background:var(--surface-2);color:var(--ink-3)}
 textarea.input{font-family:var(--font-mono);font-size:12px;line-height:1.6;resize:vertical}
 .picker{display:flex;flex-direction:column;gap:7px}
@@ -898,6 +899,10 @@ function screenHome(){
       </section>`;
   }).join("");
 
+  /* 対象月度に記録済みの案件が1件も無ければ、提出しても書き込む行が0行になる。
+     提出画面の「提出する」も同じ条件で押せない。入口の側でも押させない */
+  const recorded = db.projects.filter(p => monthOf(p.date) === a1 && p.record).length;
+
   const open = openAttentions().length;
   const attention = open > 0 ? `
     <button class="notice" data-act="go" data-screen="attentions">
@@ -920,9 +925,11 @@ function screenHome(){
       ${bannerHtml()}
       ${attention}
       ${blocks || `<p class="hint">この場面では、まだ案件が入っていません。</p>`}
-      <button class="btn" data-act="go" data-screen="submit">
+      <button class="btn" data-act="go" data-screen="submit" ${recorded ? "" : "disabled"}>
         ${monthLabel(a1)}を提出する
       </button>
+      ${recorded ? "" : `<p class="hint">${monthLabel(a1)}には<b>記録済みの案件がまだありません。</b>
+        提出しても書き込む行が無いので、押せません。</p>`}
       <p class="footnote">
         月度ごとに区切って並べています。<b>月末から月初にかけて、2つの月が同時に存在します</b>（9.2 / 4.2）。
         <b>最後の取り込み日時を出すのは、静かな故障に気づくためです</b>（要件定義10章）。
@@ -963,6 +970,10 @@ function screenDetail(){
     </div>
   </div>`;
 
+  /* 施行前はまだ入力できる状態ではない（4.1）。ただし記録が既にあるなら直す道は塞がない。
+     施行日を後から未来へ直した案件が、直せないまま残ってしまう */
+  const notYet = p.date > db.today && !p.record;
+
   const taxiSum = p.taxi.reduce((a, t) => a + t.amount, 0);
   const rec = p.record
     ? `${esc(route(p.record.out) ? route(p.record.out).name : "（消えたルート）")}${
@@ -991,9 +1002,11 @@ function screenDetail(){
         <div class="row"><dt>交通費</dt><dd>${rec}</dd></div>
       </dl>
 
-      <button class="btn" data-act="openRecord">
+      <button class="btn" data-act="openRecord" ${notYet ? "disabled" : ""}>
         ${p.record ? "記録を直す" : "記録する"}
       </button>
+      ${notYet ? `<p class="hint">施行日は ${md(p.date)} で、<b>まだ稼働していません。</b>
+        稼働してから記録します（4.1）。</p>` : ""}
 
       <p class="hint">
         この会場には ${rs.length} 本のルートが登録されています。${
@@ -1220,7 +1233,13 @@ function screenRecord(){
    3.6 会場とルート（F-13 / F-14 / F-17）
 ================================================================== */
 function screenVenues(){
-  const blocks = db.venues.map(v => {
+  /* 会場マスタを取り込むと43件まで増える（要件定義 9.1）。
+     一覧は全件を持っているので、絞り込みはここで行う（api.md 4.7） */
+  const q = (state.form.q || "").trim().toLowerCase();
+  const hit = v => v.code.toLowerCase().includes(q) || v.name.toLowerCase().includes(q);
+  const shown = q ? db.venues.filter(hit) : db.venues;
+
+  const blocks = shown.map(v => {
     const rs = routesFor(v.code);
     const routeRows = rs.map(r => `
       <button class="item" data-act="openRoute" data-id="${r.id}">
@@ -1253,9 +1272,13 @@ function screenVenues(){
     </div>
     <div class="body">
       ${bannerHtml()}
+      <input class="input" type="search" data-model="q" data-live="1"
+        placeholder="会場コード・会場名で絞り込む" value="${esc(state.form.q || "")}"
+        aria-label="会場コード・会場名で絞り込む">
       <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addVenue">会場を追加</button>
       <button class="btn" data-variant="quiet" data-act="importMaster">会場マスタを取り込む</button>
-      ${blocks}
+      ${blocks || `<p class="hint">「${esc(state.form.q)}」に一致する会場はありません。
+        <b>会場コードでも会場名でも引けます。</b></p>`}
       <p class="footnote">
         <b>マスタに無い会場を追加できることが要ります</b>（F-14 / 要求分析 6.5）。
         マスタだけを使う作りにすると、その会場にルートを紐付けられず、記録そのものができません。
@@ -1886,7 +1909,10 @@ function enterScreen(name){
 /* 索引から直接開くとき、対象が要る画面の既定を決める */
 function openFromIndex(name){
   if (name === "detail" || name === "record"){
-    const p = db.projects.find(x => routesFor(x.code).length > 0) || db.projects[0];
+    /* 記録できる案件を選ぶ。ルートが1本以上あり、施行済みであること（施行前は記録できない） */
+    const ok = x => routesFor(x.code).length > 0;
+    const p = db.projects.find(x => ok(x) && x.date <= db.today)
+           || db.projects.find(ok) || db.projects[0];
     state.projectId = p ? p.id : null;
   }
   if (name === "routeEdit"){
@@ -1948,11 +1974,10 @@ const ACTIONS = {
   addProject(){
     const f = state.form;
     if (!f.date || !f.code || !f.couple.trim()){ say("warn", "施行日・会場・ご両家名は要ります"); return; }
-    const id = "n" + (db.seq++);
-    db.projects.push({ id, no:f.no.trim() || null, date:f.date, code:f.code,
+    db.projects.push({ id:"n" + (db.seq++), no:f.no.trim() || null, date:f.date, code:f.code,
       couple:f.couple.trim(), source:"manual", appearedAt:db.today, record:null, taxi:[] });
-    state.projectId = id;
-    enterScreen("detail");
+    /* 詳細ではなくホームへ戻す。足した後に確かめたいのは、一覧に並んでいるかどうかである */
+    enterScreen("home");
     say("ok", "案件を足しました。出どころは<b>手動追加</b>です");
   },
 
@@ -2214,7 +2239,15 @@ viewport.addEventListener("click", e => {
 /* 入力は state.form へ書くだけにする。1文字ごとに描き直すと入力欄から離れてしまう */
 viewport.addEventListener("input", e => {
   const el = e.target.closest("[data-model]");
-  if (el) setModel(el.dataset.model, el.value);
+  if (!el) return;
+  setModel(el.dataset.model, el.value);
+  /* 絞り込みの欄だけは例外にする。打ちながら結果が変わらなければ、絞り込む意味が無い。
+     描き直すとフォーカスが外れるので、同じ欄へ戻してキャレットの位置も復元する */
+  if (!el.dataset.live) return;
+  const key = el.dataset.model, pos = el.selectionStart;
+  render();
+  const back = viewport.querySelector(`[data-model="${key}"]`);
+  if (back){ back.focus(); back.setSelectionRange(pos, pos); }
 });
 viewport.addEventListener("change", e => {
   const el = e.target.closest("[data-model]");
