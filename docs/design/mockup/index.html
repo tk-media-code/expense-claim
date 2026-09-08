@@ -16,6 +16,7 @@
   --ok:#2E6B4F; --ok-soft:#E2F0E9;
   --warn:#9A5B00; --warn-soft:#F8EEDC;
   --alert:#A5342B; --alert-soft:#F8E5E3;
+  --scrim:rgba(22,32,43,.45);
   --shadow:0 1px 2px rgba(22,32,43,.06), 0 12px 32px rgba(22,32,43,.10);
   --font-ui:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
   --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -29,6 +30,7 @@
     --ok:#6FBF95; --ok-soft:#142C22;
     --warn:#DCA13F; --warn-soft:#2E2413;
     --alert:#E08078; --alert-soft:#301A18;
+    --scrim:rgba(0,0,0,.60);
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
   }
 }
@@ -40,6 +42,7 @@
   --ok:#6FBF95; --ok-soft:#142C22;
   --warn:#DCA13F; --warn-soft:#2E2413;
   --alert:#E08078; --alert-soft:#301A18;
+  --scrim:rgba(0,0,0,.60);
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.45);
 }
 *{box-sizing:border-box}
@@ -145,13 +148,18 @@ input,select,textarea{font:inherit;color:inherit}
   border-bottom:1px solid var(--line);background:var(--surface-2);
 }
 .viewport{flex:1;overflow-y:auto;overscroll-behavior:contain;position:relative}
+/* 中身は .backdrop だけで、それ自体は絶対配置。箱に高さを持たせない */
+#overlayRoot{display:contents}
 @media (max-width:999px){
   .harness{padding:12px 12px 40px;gap:16px}
   .device{height:min(78vh,760px)}
 }
 @media (max-width:460px){
   .harness{padding:0 0 24px}
-  .device{width:100%;border:none;border-radius:0;box-shadow:none;height:auto;min-height:100svh}
+  /* overflow:hidden を外す。残すと .device が sticky の受け皿になり、
+     ページを送っても見出しとタブが貼り付かず、そのまま流れていく */
+  .device{width:100%;border:none;border-radius:0;box-shadow:none;height:auto;
+    min-height:100svh;overflow:visible}
   .device-bar{display:none}
   .viewport{overflow:visible}
   .panel{order:2;padding:20px 16px;max-width:none}
@@ -165,6 +173,25 @@ input,select,textarea{font:inherit;color:inherit}
   display:flex;align-items:center;gap:10px;min-height:52px;
 }
 .appbar h2{margin:0;font-size:15.5px;font-weight:700;letter-spacing:.01em;flex:1}
+/* 2段の見出し。タブを .body の中へ置くと見出しの高さに依存した top を当てることになるので、
+   見出しごと固定させる */
+.appbar[data-stack]{flex-direction:column;align-items:stretch;gap:10px;padding-bottom:10px}
+.appbar[data-stack] .appbar-row{display:flex;align-items:center;gap:10px;min-height:30px}
+.tabs{
+  display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:9px;padding:3px;
+}
+.tab{
+  flex:1;text-align:center;padding:7px 10px;border-radius:6px;
+  font-size:13px;color:var(--ink-2);line-height:1.4;
+}
+.tab .n{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-3);margin-left:5px}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{
+  background:var(--surface);color:var(--ink);font-weight:500;
+  box-shadow:0 1px 2px rgba(22,32,43,.08);
+}
+.tab[aria-selected="true"] .n{color:var(--accent)}
 .back,.icon-btn{
   width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:6px;
   color:var(--ink-2);font-size:17px;line-height:1;
@@ -354,6 +381,13 @@ textarea.input{font-family:var(--font-mono);font-size:12px;line-height:1.6;resiz
 .section-head{display:flex;align-items:baseline;gap:8px;margin:0}
 .section-head h3{margin:0;font-size:13px;font-weight:700;letter-spacing:.02em}
 .section-head .more{margin-left:auto;font-size:12px;color:var(--accent)}
+/* 見出しの右端に置く操作。どの一覧に効くボタンかを、位置で言い切る */
+.head-btn{
+  margin-left:auto;border:1px solid var(--line-strong);border-radius:20px;
+  padding:4px 11px;font-size:12px;font-weight:500;color:var(--accent);
+  white-space:nowrap;line-height:1.5;
+}
+.head-btn:hover{background:var(--accent-soft)}
 
 /* 一覧 */
 .list{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--surface)}
@@ -408,16 +442,25 @@ table.grid td.oneway{color:var(--warn);font-weight:700}
 .done-mark h3{margin:0;font-size:17px;font-weight:700}
 .done-mark p{margin:0;font-size:13px;color:var(--ink-2);line-height:1.7}
 
-/* オーバーレイ */
+/* オーバーレイ
+   置き場は #overlayRoot（.viewport の外）。スクロールする箱の中に置くと、
+   絶対配置の基準がスクロール後の座標になり、スクロールした分だけ上へずれる */
 .backdrop{
-  position:absolute;inset:0;z-index:20;background:rgba(22,32,43,.38);
+  position:absolute;inset:0;z-index:20;background:var(--scrim);
+  backdrop-filter:blur(2px);
   display:flex;align-items:flex-end;justify-content:center;
 }
 .sheet{
   width:100%;background:var(--surface);border-radius:14px 14px 0 0;
+  border-top:1px solid var(--line);
   max-height:88%;display:flex;flex-direction:column;box-shadow:var(--shadow);
 }
-.sheet-head{display:flex;align-items:center;gap:10px;padding:14px 16px 10px;flex:none}
+/* つまみ。下から出るシートだと、読まずに分かる */
+.sheet::before{
+  content:"";flex:none;width:36px;height:4px;border-radius:2px;
+  background:var(--line-strong);margin:8px auto 0;
+}
+.sheet-head{display:flex;align-items:center;gap:10px;padding:10px 16px;flex:none}
 .sheet-head h3{margin:0;font-size:14.5px;font-weight:700;flex:1}
 .sheet-head .close{width:28px;height:28px;display:grid;place-items:center;border-radius:6px;
   color:var(--ink-3);font-size:18px}
@@ -434,6 +477,11 @@ table.grid td.oneway{color:var(--warn);font-weight:700}
 @media (prefers-reduced-motion:no-preference){
   .viewport [data-screen]{animation:in .18s ease-out}
   @keyframes in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  /* 開いたことが目に入るようにする。瞬間的に現れると、画面が変わったのか判じられない */
+  .backdrop{animation:scrim-in .16s ease-out}
+  .sheet{animation:sheet-up .22s cubic-bezier(.2,.8,.3,1)}
+  @keyframes scrim-in{from{opacity:0}to{opacity:1}}
+  @keyframes sheet-up{from{transform:translateY(16%);opacity:.5}to{transform:none;opacity:1}}
 }
 </style>
 </head>
@@ -485,9 +533,11 @@ table.grid td.oneway{color:var(--warn);font-weight:700}
     <button class="btn-ghost" id="reset">この場面を最初の状態へ戻す</button>
   </div>
 
-  <div class="device">
+  <div class="device" id="stage">
     <div class="device-bar"><span>390 × 760</span><span id="screenName">ホーム</span></div>
     <div class="viewport" id="viewport"></div>
+    <!-- オーバーレイは .viewport の外に出す。中に置くとスクロール量ぶん上へずれる -->
+    <div id="overlayRoot"></div>
   </div>
 
 </div>
@@ -691,6 +741,7 @@ const state = {
   projectId:null, routeId:null, venueCode:null,
   returnTo:"detail",   /* 交通費の記録を開いた画面。戻ると、そこへ帰る（3.5） */
   overlay:null,        /* menu / deleteProject / addVenue / addSegment / addStation / pickSegment */
+  overlayBack:null,    /* 重ねたシートを閉じたときに戻る先。駅 → 区間 の1段で足りる */
   form:{},             /* 画面ごとの入力の置き場。再描画で消えないようにここへ書く */
   editing:false,       /* 案件の詳細の編集モード（F-11） */
   importing:false,     /* 取り込み中（F-03 / 3.2） */
@@ -705,6 +756,9 @@ const esc = s => String(s == null ? "" : s)
   .replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 const yen = n => "¥" + Number(n).toLocaleString("ja-JP");
 const clone = o => JSON.parse(JSON.stringify(o));
+/* オーバーレイの入力欄だけを片付ける。state.form には画面側の入力（編集中のルートなど）も
+   同居しているので、丸ごと捨てるとシートを重ねた瞬間に下の作業を巻き込む */
+const dropKeys = (...ks) => ks.forEach(k => { delete state.form[k]; });
 const monthOf = iso => iso.slice(0, 7);
 const md = iso => `${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
 const ymd = iso => `${+iso.slice(0,4)}年${+iso.slice(5,7)}月${+iso.slice(8,10)}日`;
@@ -833,8 +887,11 @@ function addAttention(kind, detail){
    画面 — ログイン / ホーム / 案件の詳細 / 案件の追加
 ================================================================== */
 
-function bannerHtml(){
+/* 知らせは1か所にだけ出す。シートが開いている間、画面側は暗幕の裏で読めないので、
+   そのときはシートの中へ回す（overlayHtml の wrap が同じ関数を呼ぶ） */
+function bannerHtml(inSheet){
   if (!state.banner) return "";
+  if (!!state.overlay !== !!inSheet) return "";
   return `<div class="notice" data-tone="${state.banner.tone}" role="status">
     <span>${state.banner.text}</span></div>`;
 }
@@ -1351,11 +1408,11 @@ function screenRouteEdit(){
         <div class="btn-row">
           <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="pickSegment">
             区間を足す</button>
-          <button class="btn" data-variant="quiet" data-act="go" data-screen="segments">
+          <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addSegment">
             区間を登録する</button>
         </div>
-        <p class="hint"><b>区間は登録済みのものから選びます。</b>
-          一覧に無ければ「区間と運賃」で作ってから戻ります。
+        <p class="hint"><b>どちらもこの画面を離れません。</b>
+          一覧に無い区間は「区間を登録する」でその場で作り、<b>このルートの並びに入ります。</b>
           <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。
           <b>区間はいくつでも並べられます</b>（要件定義 6.1）。上限はありません。</p>
       </div>
@@ -1380,7 +1437,11 @@ function screenRouteEdit(){
    運賃改定はこの画面だけで終わる（R-23 / 決定18）
 ================================================================== */
 function screenSegments(){
-  const rows = db.segments.map(s => {
+  /* 区間が増えるほど駅の一覧が遠のく。1ページに縦に積むと、
+     区間側に居るあいだ駅が視界から消えるので、タブで並べて固定する */
+  const tab = state.form.segTab === "station" ? "station" : "seg";
+
+  const segRows = db.segments.map(s => {
     const n = usedBy(s.id);
     return `<button class="item" data-act="editFare" data-id="${s.id}">
       <span class="top"><span class="name">${esc(station(s.from))} → ${esc(station(s.to))}</span>
@@ -1389,40 +1450,61 @@ function screenSegments(){
     </button>`;
   }).join("");
 
-  return `<div class="app" data-screen="segments">
-    <div class="appbar">
-      <button class="back" data-act="go" data-screen="home">‹</button>
-      <h2>区間と運賃</h2>
-    </div>
-    <div class="body">
-      ${bannerHtml()}
+  const stationRows = db.stations.map(s => `<div class="item"><span class="top">
+    <span class="name">${esc(s.name)}</span>
+    <span class="right">${db.segments.filter(g => g.from === s.id || g.to === s.id).length}区間</span>
+  </span></div>`).join("");
+
+  const segPane = `
       <p class="hint"><b>片道運賃は区間が1か所だけ持ちます</b>（決定18）。
         ここで直すと、<b>その区間を使っている全ルートに効きます。</b>
         運賃改定はこの画面だけで終わります（R-23）。
         <b>済んだ記録の金額は動きません</b>（要件定義 6.2）。記録した時点の金額を実績側に持つためです。</p>
 
-      <div class="list">${rows}</div>
-
-      <div class="btn-row">
-        <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addSegment">区間を追加</button>
-        <button class="btn" data-variant="quiet" data-act="overlay" data-overlay="addStation">駅を登録</button>
-      </div>
-
-      <div class="section-head"><h3>登録済みの駅</h3><span class="more">${db.stations.length}件</span></div>
-      <div class="list">
-        ${db.stations.map(s => `<div class="item"><span class="top">
-          <span class="name">${esc(s.name)}</span>
-          <span class="right">${db.segments.filter(g => g.from === s.id || g.to === s.id).length}区間</span>
-        </span></div>`).join("")}
-      </div>
+      <div class="section-head"><h3>登録済みの区間</h3>
+        <button class="head-btn" data-act="overlay" data-overlay="addSegment">＋ 区間を追加</button></div>
+      <div class="list">${segRows}</div>
 
       <p class="footnote">
-        <b>駅名は鉄道会社の略称込みで持ちます</b>（F-15）。乗換駅は鉄道会社ごとに別の駅として書かれるので、
-        <code>X鉄乙駅</code> と <code>Y鉄乙駅</code> は<b>別の駅として登録します</b>（要求分析 5.2）。
-        <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。<br>
-        <b>区間・駅を削除する操作は置いていません。</b>使われていれば消せず、
+        <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。
+        入力補助でそこを揃えにいきません。<br>
+        <b>区間を削除する操作は置いていません。</b>使われていれば消せず、
         使われていない区間が残っても困らないためです（<code>database.md</code> 6.2 の RESTRICT）。
-      </p>
+      </p>`;
+
+  const stationPane = `
+      <p class="hint"><b>駅名は鉄道会社の略称込みで持ちます</b>（F-15）。
+        乗換駅は鉄道会社ごとに別の駅として書かれるので、<code>X鉄乙駅</code> と <code>Y鉄乙駅</code> は
+        <b>別の駅として登録します</b>（要求分析 5.2）。名寄せはしません。</p>
+
+      <div class="section-head"><h3>登録済みの駅</h3>
+        <button class="head-btn" data-act="overlay" data-overlay="addStation">＋ 駅を登録</button></div>
+      <div class="list">${stationRows}</div>
+
+      <p class="footnote">
+        <b>駅は区間より先に登録します。</b>足す順は「駅 → 区間 → ルート」で固定です
+        （<code>api.md</code> 8章）。<b>「区間を追加」の中からも登録できます。</b><br>
+        <b>駅を削除する操作は置いていません。</b>区間から使われていれば消せないためです
+        （<code>database.md</code> 6.2 の RESTRICT）。
+      </p>`;
+
+  const tabBtn = (id, label, n) => `<button class="tab" data-act="segTab" data-tab="${id}"
+    role="tab" aria-selected="${tab === id}">${label}<span class="n">${n}</span></button>`;
+
+  return `<div class="app" data-screen="segments">
+    <div class="appbar" data-stack="1">
+      <div class="appbar-row">
+        <button class="back" data-act="go" data-screen="home">‹</button>
+        <h2>区間と運賃</h2>
+      </div>
+      <div class="tabs" role="tablist">
+        ${tabBtn("seg", "区間", db.segments.length)}
+        ${tabBtn("station", "駅", db.stations.length)}
+      </div>
+    </div>
+    <div class="body">
+      ${bannerHtml()}
+      ${tab === "seg" ? segPane : stationPane}
     </div>
   </div>`;
 }
@@ -1759,10 +1841,13 @@ function overlayHtml(){
   if (!o) return "";
   const f = state.form;
   const wrap = (title, inner) => `<div class="backdrop" data-act="closeOverlay">
-    <div class="sheet" data-stop="1">
-      <div class="sheet-head"><h3>${title}</h3>
+    <div class="sheet" data-stop="1" role="dialog" aria-modal="true" aria-label="${title}">
+      <div class="sheet-head">
+        ${state.overlayBack
+          ? `<button class="close" data-act="backOverlay" aria-label="戻る">‹</button>` : ""}
+        <h3>${title}</h3>
         <button class="close" data-act="closeOverlay" aria-label="閉じる">✕</button></div>
-      <div class="sheet-body">${inner}</div>
+      <div class="sheet-body">${bannerHtml(true)}${inner}</div>
     </div>
   </div>`;
 
@@ -1814,12 +1899,15 @@ function overlayHtml(){
       <div class="field"><span class="label">到着駅</span>
         <select class="input" data-model="sgTo"><option value="">選んでください</option>
           ${opts(f.sgTo)}</select></div>
+      <button class="btn" data-variant="quiet" data-act="overlay"
+        data-overlay="addStation" data-back="addSegment">一覧に無い駅を登録する</button>
       <div class="field"><span class="label">片道運賃</span>
         <input class="input" inputmode="numeric" data-model="sgFare" placeholder="320"
           value="${esc(f.sgFare || "")}"></div>
       <p class="hint"><b>同じ駅ペアの区間は1つだけです</b>（決定18）。
         2つ持たせると、どちらが正か決まりません。
-        <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。</p>
+        <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。
+        <b>駅が無ければ、ここから登録して戻れます。</b>打ちかけの内容は残ります。</p>
       <button class="btn" data-act="addSegment">追加する</button>`);
   }
 
@@ -1850,7 +1938,8 @@ function overlayHtml(){
           <span class="right">${yen(s.fare)}</span></span>
         <span class="sub">${usedBy(s.id)}本のルートが使っています</span></button>`).join("")}
     </div>
-    <p class="hint"><b>登録済みの区間から選びます。</b>一覧に無ければ「区間と運賃」で作ってから戻ります。
+    <p class="hint"><b>登録済みの区間から選びます。</b>
+      一覧に無ければ、閉じてから<b>「区間を登録する」</b>でその場で作れます。
       <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。
       入力補助でそこを揃えにいきません。</p>`);
 
@@ -1872,7 +1961,9 @@ const NAMES = {
 };
 
 function render(){
-  document.getElementById("viewport").innerHTML = SCREENS[state.screen]() + overlayHtml();
+  document.getElementById("viewport").innerHTML = SCREENS[state.screen]();
+  /* オーバーレイは別の箱へ描く。.viewport の中に入れるとスクロール量ぶん上へずれる */
+  document.getElementById("overlayRoot").innerHTML = overlayHtml();
   document.getElementById("screenName").textContent = NAMES[state.screen];
 }
 
@@ -1905,6 +1996,7 @@ function enterScreen(name){
   clearBanner();
   state.screen = name;
   state.overlay = null;
+  state.overlayBack = null;
   state.editing = false;
   const p = project(state.projectId);
   if (name === "login")    state.form = { denied:false };
@@ -1912,6 +2004,7 @@ function enterScreen(name){
   else if (name === "record") state.form = p ? freshRecordForm(p) : {};
   else if (name === "submit"){ state.submitStage = "confirm"; state.submitResult = null; state.form = {}; }
   else if (name === "settings"){ state.form = {}; state.configJson = null; }
+  else if (name === "segments") state.form = { segTab:"seg" };
   else state.form = {};
   document.getElementById("viewport").scrollTop = 0;
 }
@@ -1953,8 +2046,11 @@ function runImport(){
 ================================================================== */
 const ACTIONS = {
   go(el){ enterScreen(el.dataset.screen); },
-  overlay(el){ state.overlay = el.dataset.overlay; },
-  closeOverlay(){ state.overlay = null; },
+  /* data-back を持つボタンは、閉じたときにそこへ戻る。シートを重ねるのはこの1段だけ */
+  overlay(el){ state.overlay = el.dataset.overlay; state.overlayBack = el.dataset.back || null; },
+  backOverlay(){ state.overlay = state.overlayBack; state.overlayBack = null; },
+  /* ✕ と暗幕のタップは、重なっていても全部閉じる */
+  closeOverlay(){ state.overlay = null; state.overlayBack = null; },
 
   login(){ enterScreen("home"); runImport(); },
   loginDenied(){ state.form.denied = true; },
@@ -2070,10 +2166,11 @@ const ACTIONS = {
   addVenue(){
     const f = state.form;
     const code = (f.vCode || "").trim().toUpperCase(), name = (f.vName || "").trim();
-    if (!code || !name){ state.overlay = null; say("warn", "会場コードと会場名は要ります"); return; }
-    if (venue(code)){ state.overlay = null; say("warn", `会場コード ${esc(code)} は既にあります`); return; }
+    /* 不備で閉じない。閉じると打った内容ごと消える */
+    if (!code || !name){ say("warn", "会場コードと会場名は要ります"); return; }
+    if (venue(code)){ say("warn", `会場コード ${esc(code)} は既にあります`); return; }
     db.venues.push({ code, name, source:"manual" });
-    state.overlay = null; state.form = {};
+    state.overlay = null; dropKeys("vCode", "vName");
     say("ok", `${esc(code)} ${esc(name)} を足しました。出どころは<b>自分で追加</b>です（F-14）`);
   },
   newRoute(el){
@@ -2093,7 +2190,10 @@ const ACTIONS = {
     [a[i], a[i + d]] = [a[i + d], a[i]];
   },
   dropSeg(el){ state.form.segIds.splice(+el.dataset.i, 1); },
-  addSegToRoute(el){ state.form.segIds.push(el.dataset.id); state.overlay = null; },
+  addSegToRoute(el){
+    state.form.segIds.push(el.dataset.id);
+    state.overlay = null; state.overlayBack = null;
+  },
   saveRoute(){
     const f = state.form;
     if (!f.name.trim() || !f.venue || !f.segIds.length){
@@ -2121,7 +2221,7 @@ const ACTIONS = {
   editFare(el){
     const s = segment(el.dataset.id);
     state.overlay = "editFare";
-    state.form = { segId:s.id, fare:String(s.fare) };
+    Object.assign(state.form, { segId:s.id, fare:String(s.fare) });
   },
   saveFare(){
     const f = state.form, s = segment(f.segId);
@@ -2129,36 +2229,56 @@ const ACTIONS = {
     if (!(v >= 0)){ say("warn", "運賃は0以上の数で入れてください"); return; }
     const n = usedBy(s.id), before = s.fare;
     s.fare = v;
-    state.overlay = null; state.form = {};
+    state.overlay = null; dropKeys("segId", "fare");
     say("ok", `${esc(station(s.from))}→${esc(station(s.to))} を ${yen(before)} から ${yen(v)} へ直しました。
       <b>${n}本のルートに効いています。</b>済んだ記録の金額は動きません`);
   },
   addStation(){
     const name = (state.form.stName || "").trim();
-    if (!name){ state.overlay = null; say("warn", "駅名は要ります"); return; }
+    /* どの不備でもシートを閉じない。閉じると打った内容ごと消え、重ねている下のシートまで巻き込む */
+    if (!name){ say("warn", "駅名は要ります"); return; }
     if (db.stations.some(s => s.name === name)){
-      state.overlay = null; say("warn", `${esc(name)} は既に登録されています`); return;
+      say("warn", `${esc(name)} は既に登録されています`); return;
     }
     db.stations.push({ id:"st" + (db.seq++), name });
-    state.overlay = null; state.form = {};
-    say("ok", `${esc(name)} を登録しました（F-15）`);
+    dropKeys("stName");
+    /* 「区間を追加」から開いていればそこへ戻る。出発と到着のどちらに入れるべきかは
+       決まらないので、選ぶのは人に任せる */
+    const back = state.overlayBack;
+    ACTIONS.backOverlay();
+    say("ok", back === "addSegment"
+      ? `${esc(name)} を登録しました。<b>出発駅・到着駅から選べます</b>（F-15）`
+      : `${esc(name)} を登録しました（F-15）`);
   },
   addSegment(){
     const f = state.form, fare = parseInt(f.sgFare, 10);
     if (!f.sgFrom || !f.sgTo || !(fare >= 0)){
-      state.overlay = null; say("warn", "出発駅・到着駅・片道運賃はどれも要ります"); return;
+      say("warn", "出発駅・到着駅・片道運賃はどれも要ります"); return;
     }
     if (f.sgFrom === f.sgTo){
-      state.overlay = null; say("warn", "出発駅と到着駅は同じにできません"); return;
+      say("warn", "出発駅と到着駅は同じにできません"); return;
     }
     if (db.segments.some(s => s.from === f.sgFrom && s.to === f.sgTo)){
-      state.overlay = null;
       say("warn", "同じ駅ペアの区間が既にあります。<b>同じ区間に運賃を2つ持たせません</b>（決定18）");
       return;
     }
-    db.segments.push({ id:"sg" + (db.seq++), from:f.sgFrom, to:f.sgTo, fare });
-    state.overlay = null; state.form = {};
-    say("ok", "区間を登録しました（F-37）");
+    const id = "sg" + (db.seq++);
+    db.segments.push({ id, from:f.sgFrom, to:f.sgTo, fare });
+    dropKeys("sgFrom", "sgTo", "sgFare");
+    state.overlay = null; state.overlayBack = null;
+    /* ルートの編集から登録したなら、そのまま並びに足す。
+       編集の途中で押すボタンなので、登録の目的はこのルートで使うことである */
+    if (state.screen === "routeEdit"){
+      state.form.segIds.push(id);
+      say("ok", "区間を登録し、<b>このルートの並びに足しました</b>（F-37）");
+    } else {
+      say("ok", "区間を登録しました（F-37）");
+    }
+  },
+  segTab(el){
+    state.form.segTab = el.dataset.tab;
+    render();
+    document.getElementById("viewport").scrollTop = 0;
   },
 
   /* --- 提出 --- */
@@ -2240,6 +2360,9 @@ function finishSubmit(){
 /* ==================================================================
    配線
 ================================================================== */
+/* 配線は端末枠に張る。オーバーレイが .viewport の外に出ているため、
+   .viewport に張るとシートの中のクリックも入力も届かない */
+const stage = document.getElementById("stage");
 const viewport = document.getElementById("viewport");
 
 function setModel(key, value){
@@ -2247,7 +2370,7 @@ function setModel(key, value){
   else state.form[key] = value;
 }
 
-viewport.addEventListener("click", e => {
+stage.addEventListener("click", e => {
   const el = e.target.closest("[data-act]");
   if (!el || el.hasAttribute("disabled")) return;
   /* シートの中を押したときに、背景のタップで閉じない */
@@ -2259,8 +2382,16 @@ viewport.addEventListener("click", e => {
   paint();
 });
 
+/* シートは Escape でも閉じる。閉じ方が2つしか無いと、モーダルとして扱われていないように見える */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape" || !state.overlay) return;
+  clearBanner();
+  ACTIONS.closeOverlay();
+  paint();
+});
+
 /* 入力は state.form へ書くだけにする。1文字ごとに描き直すと入力欄から離れてしまう */
-viewport.addEventListener("input", e => {
+stage.addEventListener("input", e => {
   const el = e.target.closest("[data-model]");
   if (!el) return;
   setModel(el.dataset.model, el.value);
@@ -2269,10 +2400,10 @@ viewport.addEventListener("input", e => {
   if (!el.dataset.live) return;
   const key = el.dataset.model, pos = el.selectionStart;
   render();
-  const back = viewport.querySelector(`[data-model="${key}"]`);
+  const back = stage.querySelector(`[data-model="${key}"]`);
   if (back){ back.focus(); back.setSelectionRange(pos, pos); }
 });
-viewport.addEventListener("change", e => {
+stage.addEventListener("change", e => {
   const el = e.target.closest("[data-model]");
   if (!el) return;
   const k = el.dataset.model;
