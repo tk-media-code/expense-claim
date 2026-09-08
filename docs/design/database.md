@@ -93,7 +93,7 @@ erDiagram
     }
     projects {
         int id PK
-        varchar project_no UK "NULL 可"
+        varchar project_no UK "手で足した案件も必ず持つ"
         date service_date "施行日。月度はここから導出"
         varchar venue_code "FK ではない"
         varchar venue_name
@@ -399,7 +399,7 @@ route_segments                ← 区間 1 が3本のルートから参照され
 | 列 | 型 | NULL | 既定 | 説明 |
 | --- | --- | --- | --- | --- |
 | `id` | `INT UNSIGNED` | NO | AUTO_INCREMENT | 主キー |
-| `project_no` | `VARCHAR(32)` | **YES** | NULL | 案件番号。**手で足した案件では空になりうる**（F-10） |
+| `project_no` | `VARCHAR(32)` | NO | — | 案件番号。**手で足した案件も必ず持つ**（F-10） |
 | `service_date` | `DATE` | NO | — | 施行日。**月度はここから導出する**（決定12） |
 | `venue_code` | `VARCHAR(16)` | NO | — | **外部キーにしない**（8章） |
 | `venue_name` | `VARCHAR(255)` | NO | — | 依頼メールから取った会場名 |
@@ -408,14 +408,14 @@ route_segments                ← 区間 1 が3本のルートから参照され
 | `imported_mail_id` | `VARCHAR(64)` | YES | NULL | → `imported_mails.id`（**RESTRICT**）。手動追加では NULL |
 | `created_at` / `updated_at` | `DATETIME` | NO | — | |
 
-- `UNIQUE (project_no)` — **MySQL は NULL の重複を許す**ので、手で足した案件が何件あっても衝突しない
+- `UNIQUE (project_no)` — **NOT NULL なので、例外なく効く**（F-10 で必須にした）
 - `UNIQUE (imported_mail_id)` — **1通の案件詳細メールは1案件になる**（要求分析 6.3）。同じ理由で NULL は重複してよい
 - `INDEX (service_date)` — 月度での絞り込みと並び順（9章）
 
 **`UNIQUE (project_no)` が F-08（二重取り込みの防止）の一段目である。**
 `imported_mails` で同じメールを2度読まないようにしたうえで、**別のメールで同じ案件が来ても弾く。**
-**手で足した案件には効かない**（案件番号が空）。要件定義 6.2 のとおり、
-そのときは重複を手で消す（F-12）。
+**手で足した案件にも効く。** 案件番号が必須になったためである（F-10 / 要件定義 6.2）。
+先に手で足しておいた案件が、後からメールで取り込まれても増えない。
 
 **目的（C列）を持たない。** 常に `婚礼案件` である（要件定義 5.3 / 要求分析 5.2・実データで確認済み）。
 **定数を全行に持たせても、何も区別できない。**
@@ -883,11 +883,11 @@ N-14 はここから**「知らせる。ただし書き込みは止めない」*
 SELECT * FROM projects
  WHERE service_date >= :target_month
    AND service_date <  :target_month + INTERVAL 1 MONTH
- ORDER BY service_date, project_no IS NULL, project_no, id;
+ ORDER BY service_date, project_no, id;
 ```
 
 **並び順は要件定義 5.3 のとおり。** 施行日の昇順、同じ日なら案件番号の昇順。
-**手で足した案件は案件番号を持たないことがある**ので、`project_no IS NULL` を先に見て**後ろへ置く。**
+**案件番号は NOT NULL なので、NULL を後ろへ寄せる並べ替えは要らない**（F-10）。
 それでも決まらなければ `id`（＝登録した順）で決める。
 
 ```sql
@@ -978,7 +978,7 @@ backend/
 | --- | --- |
 | `F-08` 案件番号で二重取り込みを防ぐ | `projects.UNIQUE (project_no)` / `imported_mails` |
 | `F-09` 提出待ち以降の案件を一覧する | 9.1 の範囲検索 |
-| `F-10` 案件を手で足す | `projects.project_no` が NULL 可 / `source = 'manual'` |
+| `F-10` 案件を手で足す | `projects.project_no` が **NOT NULL** / `source = 'manual'` |
 | `F-12` 案件を手で削除する | 6.2 の CASCADE |
 | `F-13` / `F-14` 会場マスタの取り込みと追加 | `venues.source` |
 | `F-15` 駅を鉄道会社の略称込みで持つ | `stations.name` |
