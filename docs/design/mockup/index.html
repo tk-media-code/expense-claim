@@ -262,7 +262,6 @@ input,select,textarea{font:inherit;color:inherit}
 .field{display:flex;flex-direction:column;gap:7px}
 .label{font-size:11.5px;font-family:var(--font-mono);letter-spacing:.09em;
   text-transform:uppercase;color:var(--ink-3)}
-.label .opt-mark{text-transform:none;letter-spacing:0;color:var(--ink-3);font-family:var(--font-ui)}
 .input,select.input,textarea.input{
   width:100%;border:1px solid var(--line-strong);border-radius:8px;padding:11px 13px;
   background:var(--surface);font-size:15px;min-width:0;
@@ -553,7 +552,7 @@ const SEED_PROJECTS = [
     source:"mail",   appearedAt:"2026-08-31" },
   { id:"p4", no:"250901002", date:"2026-09-05", code:"BBB", couple:"□□様◇◇様",
     source:"mail",   appearedAt:"2026-08-31" },
-  { id:"p5", no:null,        date:"2026-09-06", code:"EEE", couple:"◆◆様◇◇様",
+  { id:"p5", no:"250901004", date:"2026-09-06", code:"EEE", couple:"◆◆様◇◇様",
     source:"manual", appearedAt:"2026-08-31" },
   { id:"p6", no:"250901003", date:"2026-09-12", code:"AAA", couple:"××様＋＋様",
     source:"mail",   appearedAt:"2026-09-07" }
@@ -951,6 +950,7 @@ function screenDetail(){
       <h2>項目を直す</h2>
     </div>
     <div class="body">
+      ${bannerHtml()}
       <div class="field"><span class="label">施行日</span>
         <input class="input" type="date" data-model="date" value="${esc(state.form.date)}"></div>
       <p class="hint"><b>施行日を直すと、所属する月度が変わります</b>（決定12）。
@@ -962,8 +962,10 @@ function screenDetail(){
         </select></div>
       <div class="field"><span class="label">ご両家名</span>
         <input class="input" data-model="couple" value="${esc(state.form.couple)}"></div>
-      <div class="field"><span class="label">案件番号 <span class="opt-mark">任意</span></span>
+      <div class="field"><span class="label">案件番号</span>
         <input class="input" data-model="no" value="${esc(state.form.no)}"></div>
+      <p class="hint"><b>案件番号は必ず入ります</b>（F-10）。空にはできません。
+        <b>既にある番号とも重ねられません</b>（F-08）。</p>
       <div class="spacer"></div>
       <button class="btn" data-act="saveEdit">この内容で直す</button>
       <button class="btn" data-variant="quiet" data-act="cancelEdit">やめる</button>
@@ -996,8 +998,7 @@ function screenDetail(){
           <span class="sub">${monthLabel(monthOf(p.date))}に属します</span></dd></div>
         <div class="row"><dt>会場</dt><dd>${esc(venueName(p.code))}<span class="sub">${p.code}</span></dd></div>
         <div class="row"><dt>ご両家名</dt><dd>${esc(p.couple)}</dd></div>
-        <div class="row"><dt>案件番号</dt><dd class="mono">${p.no ? esc(p.no) : "—"}
-          ${p.no ? "" : `<span class="sub">手で足した案件なので空です（F-10）</span>`}</dd></div>
+        <div class="row"><dt>案件番号</dt><dd class="mono">${esc(p.no)}</dd></div>
         <div class="row"><dt>出どころ</dt><dd>${p.source === "mail" ? "自動取込" : "手動追加"}</dd></div>
         <div class="row"><dt>交通費</dt><dd>${rec}</dd></div>
       </dl>
@@ -1035,6 +1036,7 @@ function screenAdd(){
       <h2>案件の追加</h2>
     </div>
     <div class="body">
+      ${bannerHtml()}
       <p class="hint">自動で拾えなかった案件を手で足します。<b>出どころは「手動追加」で固定です。</b></p>
       <div class="field"><span class="label">施行日</span>
         <input class="input" type="date" data-model="date" value="${esc(f.date)}"></div>
@@ -1046,11 +1048,12 @@ function screenAdd(){
         </select></div>
       <div class="field"><span class="label">ご両家名</span>
         <input class="input" data-model="couple" placeholder="〇〇様△△様" value="${esc(f.couple)}"></div>
-      <div class="field"><span class="label">案件番号 <span class="opt-mark">任意</span></span>
-        <input class="input" data-model="no" placeholder="空のままでもかまいません" value="${esc(f.no)}"></div>
+      <div class="field"><span class="label">案件番号</span>
+        <input class="input" data-model="no" placeholder="250901005" value="${esc(f.no)}"></div>
       <p class="hint">
-        <b>案件番号が空だと、二重取り込みの防止が効きません</b>（要件定義 6.2 / F-08）。
-        後からメールで同じ案件が入ってくることがあり、そのときは重複を手で消してください（F-12）。
+        <b>手で足すのは、依頼メールが取り込まれなかったときだけです。</b>
+        メール自体は届いているので、<b>そこに書かれている案件番号を入れてください</b>（F-10）。
+        番号があることで、<b>後から同じ案件がメールで入ってきても増えません</b>（F-08 / 要件定義 6.2）。
       </p>
       <div class="spacer"></div>
       <button class="btn" data-act="addProject">この内容で足す</button>
@@ -1422,8 +1425,8 @@ function screenSegments(){
    確認 → 実行 → 結果。書き込む形のまま見せる
 ================================================================== */
 
-/* 案件番号の昇順。手で足した案件は番号を持たないことがあり、その場合は後ろへ置く（要件定義 5.3） */
-const noKey = p => (p.no ? "0" + p.no : "1" + p.id);
+/* 案件番号の昇順。どの案件も番号を持つので、例外は要らない（要件定義 5.3 / F-10） */
+const noKey = p => p.no;
 
 function preview(){
   const month = db.sheet.a1;
@@ -1961,10 +1964,15 @@ const ACTIONS = {
   },
   cancelEdit(){ state.editing = false; state.form = {}; },
   saveEdit(){
-    const p = project(state.projectId), f = state.form;
-    if (!f.date || !f.couple.trim()){ say("warn", "施行日とご両家名は要ります"); return; }
+    const p = project(state.projectId), f = state.form, no = f.no.trim();
+    if (!f.date || !f.couple.trim() || !no){
+      say("warn", "施行日・ご両家名・案件番号はどれも要ります"); return;
+    }
+    if (db.projects.some(x => x.id !== p.id && x.no === no)){
+      say("warn", `案件番号 ${esc(no)} は既に別の案件が使っています（F-08）`); return;
+    }
     const before = monthOf(p.date);
-    p.date = f.date; p.code = f.code; p.couple = f.couple.trim(); p.no = f.no.trim() || null;
+    p.date = f.date; p.code = f.code; p.couple = f.couple.trim(); p.no = no;
     state.editing = false; state.form = {};
     say(monthOf(p.date) === before ? "ok" : "warn",
       monthOf(p.date) === before ? "項目を直しました"
@@ -1972,9 +1980,15 @@ const ACTIONS = {
   },
 
   addProject(){
-    const f = state.form;
-    if (!f.date || !f.code || !f.couple.trim()){ say("warn", "施行日・会場・ご両家名は要ります"); return; }
-    db.projects.push({ id:"n" + (db.seq++), no:f.no.trim() || null, date:f.date, code:f.code,
+    const f = state.form, no = f.no.trim();
+    if (!f.date || !f.code || !f.couple.trim() || !no){
+      say("warn", "施行日・会場・ご両家名・案件番号はどれも要ります"); return;
+    }
+    /* 案件番号が必須になったので、手で足した案件にも二重取り込みの防止が効く（F-08 / F-10） */
+    if (db.projects.some(x => x.no === no)){
+      say("warn", `案件番号 ${esc(no)} は既にあります。<b>同じ案件は二重に入りません</b>（F-08）`); return;
+    }
+    db.projects.push({ id:"n" + (db.seq++), no, date:f.date, code:f.code,
       couple:f.couple.trim(), source:"manual", appearedAt:db.today, record:null, taxi:[] });
     /* 詳細ではなくホームへ戻す。足した後に確かめたいのは、一覧に並んでいるかどうかである */
     enterScreen("home");
