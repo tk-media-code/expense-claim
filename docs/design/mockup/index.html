@@ -298,8 +298,6 @@ textarea.input{font-family:var(--font-mono);font-size:12px;line-height:1.6;resiz
 .leg .path .arrow{color:var(--ink-3);margin:0 6px}
 .leg .fare{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums}
 .leg .fare small{color:var(--ink-3);font-size:11px;margin-left:1px}
-.leg .fare-edit{width:96px;text-align:right;padding:7px 9px;font-family:var(--font-mono);
-  font-size:14px;border:1px solid var(--line-strong);border-radius:7px;background:var(--surface)}
 .total{display:flex;justify-content:space-between;align-items:baseline;
   padding:13px 14px;background:var(--surface-2);border-top:1px solid var(--line)}
 .total span{font-size:12.5px;color:var(--ink-2)}
@@ -1080,20 +1078,9 @@ function freshRecordForm(p){
     tripType: r ? r.tripType : "round",              /* 既定は往復（要件定義 5.3 の実測） */
     out:  r ? r.out  : (rs.length === 1 ? rs[0].id : null),  /* 1本なら選択済み（要件定義 8.1） */
     back: r ? r.back : null,
-    amounts:{},                                       /* 添字 → 上書きした金額（F-20） */
     taxiOpen: !!(r && p.taxi.length),
     taxi: r ? p.taxi.map(t => ({ amount:String(t.amount), url:t.url })) : []
   };
-}
-
-function currentLegs(){
-  const f = state.form;
-  const legs = buildLegs(f.tripType, f.out, f.back);
-  legs.forEach((l, i) => {
-    const v = f.amounts[i];
-    if (v !== undefined && v !== "" && !isNaN(+v)) l.amount = Math.max(0, parseInt(v, 10));
-  });
-  return legs;
 }
 
 function screenRecord(){
@@ -1129,7 +1116,7 @@ function screenRecord(){
     </div>
   </div>`;
 
-  const legs = currentLegs();
+  const legs = buildLegs(f.tripType, f.out, f.back);
   const total = legs.reduce((a, l) => a + l.amount, 0);
   const taxiTotal = f.taxi.reduce((a, t) => a + (parseInt(t.amount, 10) || 0), 0);
 
@@ -1143,12 +1130,10 @@ function screenRecord(){
       <span class="fare">片道 ${yen(oneWayFare(r))}</span>
     </button>`).join("");
 
-  const legRows = legs.length ? legs.map((l, i) => `
+  const legRows = legs.length ? legs.map(l => `
     <div class="leg">
       <span class="path">${esc(l.from)}<span class="arrow">→</span>${esc(l.to)}</span>
-      <input class="fare-edit" inputmode="numeric" data-model="amount:${i}"
-             value="${f.amounts[i] !== undefined ? esc(f.amounts[i]) : l.amount}"
-             aria-label="${esc(l.from)}から${esc(l.to)}の金額">
+      <span class="fare">${yen(l.amount)}</span>
     </div>`).join("") + `
     <div class="total"><span>合計${f.tripType === "round" ? "（往復ぶん）" : ""}</span><b>${yen(total)}</b></div>`
     : `<div class="leg"><span class="path" style="color:var(--ink-3)">ルートを選ぶと区間が出ます</span><span></span></div>`;
@@ -1198,8 +1183,9 @@ function screenRecord(){
       <div class="field">
         <span class="label">区間と金額</span>
         <div class="legs">${legRows}</div>
-        <p class="hint">金額は登録した運賃が入っています${f.tripType === "round" ? "（片道運賃 ×2）" : ""}。
-          <b>直す必要が無ければ触りません</b>（F-20）。ここを直しても区間の運賃は変わりません。</p>
+        <p class="hint">金額は登録した運賃です${f.tripType === "round" ? "（片道運賃 ×2）" : ""}。
+          <b>ここでは直せません</b>（F-20）。<b>直す場所は「区間と運賃」だけです</b>（決定18）。
+          この画面に入力欄を置くと、3手の経路にキーボードが現れます（要件定義 8.1）。</p>
       </div>
 
       <div class="disclose">
@@ -2007,13 +1993,9 @@ const ACTIONS = {
   /* --- 交通費の記録 --- */
   setTrip(el){
     state.form.tripType = el.dataset.v;
-    state.form.amounts = {};                       /* ルートが変われば既定値も変わる */
     if (el.dataset.v === "round") state.form.back = null;
   },
-  pickRoute(el){
-    state.form[el.dataset.kind] = el.dataset.route;
-    state.form.amounts = {};
-  },
+  pickRoute(el){ state.form[el.dataset.kind] = el.dataset.route; },
   toggleTaxi(){
     state.form.taxiOpen = !state.form.taxiOpen;
     if (state.form.taxiOpen && !state.form.taxi.length) state.form.taxi.push({ amount:"", url:null });
@@ -2035,7 +2017,7 @@ const ACTIONS = {
   },
   save(){
     const p = project(state.projectId), f = state.form;
-    const legs = currentLegs();
+    const legs = buildLegs(f.tripType, f.out, f.back);
     if (!legs.length || (f.tripType === "one_way" && !f.back)){
       say("warn", "ルートを選んでください"); return;
     }
@@ -2233,8 +2215,7 @@ function finishSubmit(){
 const viewport = document.getElementById("viewport");
 
 function setModel(key, value){
-  if (key.indexOf("amount:") === 0) state.form.amounts[+key.slice(7)] = value;
-  else if (key.indexOf("taxi:") === 0) state.form.taxi[+key.slice(5)].amount = value;
+  if (key.indexOf("taxi:") === 0) state.form.taxi[+key.slice(5)].amount = value;
   else state.form[key] = value;
 }
 
@@ -2268,8 +2249,8 @@ viewport.addEventListener("change", e => {
   if (!el) return;
   const k = el.dataset.model;
   setModel(k, el.value);
-  /* 選択と金額だけは、変えた結果（合計・分岐）をその場で出す */
-  if (el.tagName === "SELECT" || k.indexOf("amount:") === 0 || k.indexOf("taxi:") === 0) render();
+  /* 選択とタクシー代だけは、変えた結果（合計・分岐）をその場で出す */
+  if (el.tagName === "SELECT" || k.indexOf("taxi:") === 0) render();
 });
 
 document.getElementById("scenes").addEventListener("click", e => {
