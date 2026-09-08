@@ -204,11 +204,23 @@ input,select,textarea{font:inherit;color:inherit}
 .tag[data-kind="alert"]{background:var(--alert-soft);color:var(--alert)}
 
 .card{
-  width:100%;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;
-  padding:13px 14px;border:1px solid var(--line);border-radius:9px;background:var(--surface);
+  position:relative;width:100%;display:flex;flex-direction:column;overflow:hidden;
+  border:1px solid var(--line);border-radius:9px;background:var(--surface);
 }
-.card:hover{border-color:var(--line-strong);background:var(--surface-2)}
+.card:hover{border-color:var(--line-strong)}
 .card + .card{margin-top:-1px}
+.card-open{
+  width:100%;display:grid;grid-template-columns:52px 1fr auto;gap:12px;align-items:center;
+  padding:13px 14px;
+}
+.card-open:hover{background:var(--surface-2)}
+/* 2.2 の1手目。未記録のカードにだけ出す（3.2）。指で押すので 44px を切らない */
+.card-rec{
+  width:100%;display:flex;align-items:center;justify-content:flex-end;gap:4px;
+  min-height:44px;padding:11px 14px;border-top:1px solid var(--line);
+  font-size:13.5px;font-weight:700;color:var(--accent);
+}
+.card-rec:hover{background:var(--accent-soft)}
 .card-date{text-align:center;line-height:1.15}
 .card-date .d{font-family:var(--font-mono);font-size:19px;font-weight:500;display:block}
 .card-date .w{font-size:10.5px;color:var(--ink-3);display:block;margin-top:2px}
@@ -226,7 +238,10 @@ input,select,textarea{font:inherit;color:inherit}
 .state[data-s="future"]{background:var(--surface-3);color:var(--ink-3)}
 .card-side .amt{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);
   font-variant-numeric:tabular-nums}
-.card[data-today="1"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.card[data-today="1"]{border-color:var(--accent)}
+.card[data-today="1"]::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent);z-index:1;
+}
 
 .rows{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:9px;
   overflow:hidden;background:var(--surface)}
@@ -457,7 +472,7 @@ table.grid td.oneway{color:var(--warn);font-weight:700}
     <section class="pblock">
       <h2>確かめること</h2>
       <ol class="checklist">
-        <li><i>1</i><span><b>帰り道の記録は3手で終わるか。</b>ホーム → 案件の詳細 → 交通費の記録 →
+        <li><i>1</i><span><b>帰り道の記録は2手で終わるか。</b>ホームのカードの「記録する」→
           保存。ルートが1本の会場は選択済みで開きます（2.2 / 4.3）</span></li>
         <li><i>2</i><span><b>そこにキーボード入力が現れないか。</b>屋外・移動中に文字を打たせない</span></li>
         <li><i>3</i><span><b>2つの月が並んでも混乱しないか</b>（4.2）</span></li>
@@ -613,7 +628,7 @@ const SCENES = [
     note:"8月度が提出待ちです。提出を開くと、書き込む行がシートの列のまま見られます（F-27）" },
   { id:"trip",    label:"稼働日の帰り道", today:"2026-09-05", a1:"2026-08",
     recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-09-05T09:42:00Z",
-    note:"9/5 の2件が施行済み・未記録です。ここが 2.2 の3手の経路になります" },
+    note:"9/5 の2件が施行済み・未記録です。ここが 2.2 の2手の経路になります" },
   { id:"rolled",  label:"切り替わった後", today:"2026-09-06", a1:"2026-09",
     recorded:["p1","p2"], submitted:[], lastImportedAt:"2026-09-06T09:12:00Z",
     note:"A1 が9月度へ切り替わりました。8月度は提出が済んでいないので消えず、要確認事項に出ます（F-32 / 4.4）" },
@@ -674,6 +689,7 @@ const state = {
   faults:{ authRevoked:false, formatChanged:false, tightSheet:false, driveFail:false },
   screen:"home",
   projectId:null, routeId:null, venueCode:null,
+  returnTo:"detail",   /* 交通費の記録を開いた画面。戻ると、そこへ帰る（3.5） */
   overlay:null,        /* menu / deleteProject / addVenue / addSegment / addStation / pickSegment */
   form:{},             /* 画面ごとの入力の置き場。再描画で消えないようにここへ書く */
   editing:false,       /* 案件の詳細の編集モード（F-11） */
@@ -876,18 +892,23 @@ function screenHome(){
       const label = p.record ? "記録済み" : (future ? "施行前" : "未記録");
       const taxiSum = p.taxi.reduce((a, t) => a + t.amount, 0);
       const total = p.record ? p.record.legs.reduce((a, l) => a + l.amount, 0) + taxiSum : 0;
-      return `<button class="card" data-act="openDetail" data-id="${p.id}"
-                 data-today="${p.date === db.today ? 1 : 0}">
-          <span class="card-date"><span class="d">${md(p.date)}</span><span class="w">${wday(p.date)}</span></span>
-          <span class="card-main">
-            <span class="venue">${esc(venueName(p.code))}</span>
-            <span class="couple">${esc(p.couple)}</span>
-          </span>
-          <span class="card-side">
-            <span class="state" data-s="${s}">${label}</span>
-            ${p.record ? `<span class="amt">${yen(total)}${taxiSum ? " 🚕" : ""}</span>` : ""}
-          </span>
-        </button>`;
+      /* 2.2 の1手目。「記録する」は未記録のカードにだけ出す。記録済みは埋まっており、
+         施行前はまだ記録できない（3.2 / 4.1）。カード本体を押すと案件の詳細へ行く */
+      return `<div class="card" data-today="${p.date === db.today ? 1 : 0}">
+          <button class="card-open" data-act="openDetail" data-id="${p.id}">
+            <span class="card-date"><span class="d">${md(p.date)}</span><span class="w">${wday(p.date)}</span></span>
+            <span class="card-main">
+              <span class="venue">${esc(venueName(p.code))}</span>
+              <span class="couple">${esc(p.couple)}</span>
+            </span>
+            <span class="card-side">
+              <span class="state" data-s="${s}">${label}</span>
+              ${p.record ? `<span class="amt">${yen(total)}${taxiSum ? " 🚕" : ""}</span>` : ""}
+            </span>
+          </button>
+          ${s === "todo" ? `<button class="card-rec" data-act="openRecord"
+            data-id="${p.id}" data-from="home">記録する<span aria-hidden="true">›</span></button>` : ""}
+        </div>`;
     }).join("");
 
     return `<section class="month">
@@ -1069,7 +1090,7 @@ function screenMissing(title, text){
 
 /* ==================================================================
    3.5 交通費の記録（F-18〜F-26 / 4.3）
-   この画面が 2.2 の3手目である。開いた時点で保存できる状態になっていること
+   この画面が 2.2 の2手目である。開いた時点で保存できる状態になっていること
 ================================================================== */
 function freshRecordForm(p){
   const rs = routesFor(p.code);
@@ -1090,7 +1111,7 @@ function screenRecord(){
   const rs = routesFor(p.code);
 
   const head = `<div class="appbar">
-      <button class="back" data-act="openDetail" data-id="${p.id}">‹</button>
+      <button class="back" data-act="go" data-screen="${state.returnTo}">‹</button>
       <h2>交通費の記録</h2>
     </div>`;
   const summary = `<dl class="rows">
@@ -1185,7 +1206,7 @@ function screenRecord(){
         <div class="legs">${legRows}</div>
         <p class="hint">金額は登録した運賃です${f.tripType === "round" ? "（片道運賃 ×2）" : ""}。
           <b>ここでは直せません</b>（F-20）。<b>直す場所は「区間と運賃」だけです</b>（決定18）。
-          この画面に入力欄を置くと、3手の経路にキーボードが現れます（要件定義 8.1）。</p>
+          この画面に入力欄を置くと、2手の経路にキーボードが現れます（要件定義 8.1）。</p>
       </div>
 
       <div class="disclose">
@@ -1903,6 +1924,7 @@ function openFromIndex(name){
     const p = db.projects.find(x => ok(x) && x.date <= db.today)
            || db.projects.find(ok) || db.projects[0];
     state.projectId = p ? p.id : null;
+    state.returnTo = "detail";   /* 前回開いたときの戻り先を持ち越さない */
   }
   if (name === "routeEdit"){
     const r = db.routes[0];
@@ -1941,7 +1963,12 @@ const ACTIONS = {
   import(){ runImport(); },
 
   openDetail(el){ state.projectId = el.dataset.id; enterScreen("detail"); },
-  openRecord(){ enterScreen("record"); },
+  /* ホームのカードからは案件を伴って来る。詳細から来たときは data-* を持たない（2.2 / 3.5） */
+  openRecord(el){
+    if (el.dataset.id) state.projectId = el.dataset.id;
+    state.returnTo = el.dataset.from || "detail";
+    enterScreen("record");
+  },
 
   startEdit(){
     const p = project(state.projectId);
@@ -2027,7 +2054,8 @@ const ACTIONS = {
     p.record = { tripType:f.tripType, out:f.out, back:f.back, legs,
       recordedAt:nowIso() };
     p.taxi = f.taxi.map(t => ({ amount:parseInt(t.amount, 10), url:t.url }));
-    enterScreen("detail");
+    /* 開いた画面へ帰す。ホームから来たなら、一覧でカードが「記録済み」に変わるのを見たい（3.5） */
+    enterScreen(state.returnTo);
     say("ok", "交通費を記録しました。<b>提出画面の行に、そのまま出ます</b>");
   },
 
