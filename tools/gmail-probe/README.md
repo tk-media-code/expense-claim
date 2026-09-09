@@ -43,6 +43,7 @@ node tools/gmail-probe/probe.cjs list         # ラベルと差出人で同じ�
 node tools/gmail-probe/probe.cjs dump         # MIME 構造と本文を out/ へ落とす
 node tools/gmail-probe/probe.cjs parse        # 件名で2種類を判別し、項目を取り出せるか
 node tools/gmail-probe/probe.cjs venue-check  # 会場コードがマスタに実在するか（parse の後）
+node tools/gmail-probe/probe.cjs delivery     # 受信日と施行日が配信規則の内側かを照合する
 ```
 
 **すべて読み取りのみ。** `gmail.readonly` しか持っていないので、書き込み・削除・既読化は
@@ -60,6 +61,7 @@ node tools/gmail-probe/probe.cjs venue-check  # 会場コードがマスタに�
 | `dump` | MIME 構造、`text/plain` の有無、文字コード、`text/plain` と `text/html` で何が落ちるか |
 | `parse` | 件名で2種類を判別できるか（R-01 / R-19）、6.1 の項目を取り出せるか |
 | `venue-check` | 依頼メールの会場コードが提出シートの会場マスタに実在するか（N-14） |
+| `delivery` | 受信日と施行日が配信規則（要求分析 2章）の内側か。**9/14 以降の月曜祝日の観測はこれ1本** |
 
 ## 実装上の判断
 
@@ -83,3 +85,10 @@ node tools/gmail-probe/probe.cjs venue-check  # 会場コードがマスタに�
 **会場マスタの在り処を決め打ちにしない。**
 提出シートの B 列に付いている入力規則（`ONE_OF_RANGE`）が参照している範囲そのものを読む。
 マスタのシート名や行数が変わっても追随でき、**これは N-14 でアプリがやるべき手順と同じ**。
+
+**`delivery` は祝日カレンダーを持たない**（N-22）。アプリが持たないものを検証ツールにも持たせない。
+「月曜の祝日か」は判定せず、受信日 + 7日までを規則の上限とする
+（要求分析 2章「猶予の上限は6日から7日」）。7日ちょうどの通が出れば、それが月曜祝日の回である。
+依頼無しの件名は年が無いので、受信日時（Asia/Tokyo）の年を補い、補ったことを明示する。
+既知の回（2026-08-31 の 9/5・9/6）を規則の内側と判定できることだけが、今日の答え合わせである。
+**月曜祝日の配信そのものは、まだ確かめていない。**

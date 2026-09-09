@@ -10,6 +10,7 @@
 //   dump         MIME 構造と本文を out/ へ落とす。抽出方式を決める前に実物を見る段
 //   parse        件名で2種類を判別し、案件詳細から項目を取り出せるか
 //   venue-check  取り出した会場コードが提出シートの会場マスタに実在するか
+//   delivery     受信日と施行日が配信規則の内側かを照合する（Issue #63）
 //
 // sheet-probe のような段階分けと承認は要らない。gmail.readonly しか持っておらず、
 // 書き込み・削除・既読化が起こり得ないため。
@@ -417,6 +418,193 @@ async function cmdVenueCheck() {
 	console.log(`\n全文を ${U.saveOut('5-venue-check.json', out)} に保存しました（Git 管理外）。`);
 }
 
+// --- delivery ---------------------------------------------------------------
+
+// 要求分析 2章 / 決定16。
+// 月曜に届く。1回の配信が覆うのは、その週の稼働日と、それに連なる月曜の祝日。
+// 祝日カレンダーは持たない（N-22）。「月曜の祝日か」は判定せず、
+// 受信日 + 7日までを規則の上限として扱う。7日ちょうどなら月曜祝日の回である。
+const RULE_MAX_DAYS = 7;
+const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'];
+const WEEKDAY_EN = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+
+// 2026-08-31 に届いた、祝日を含まない通常週の2通（要求分析 6章）。
+// 今日の実行で分かるのは「道具が正しく動くこと」だけである。
+const KNOWN_BATCH = [
+	{ received: '2026-08-31', event: '2026-09-05' },
+	{ received: '2026-08-31', event: '2026-09-06' },
+];
+
+function jstYmd(ms) {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone: 'Asia/Tokyo',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		weekday: 'short',
+	}).formatToParts(new Date(ms));
+	const get = (type) => parts.find((p) => p.type === type)?.value;
+	const y = Number(get('year'));
+	const m = Number(get('month'));
+	const d = Number(get('day'));
+	const w = WEEKDAY_EN[get('weekday')];
+	if (!Number.isInteger(y) || !Number.isInteger(m) || !Number.isInteger(d) || w == null) {
+		throw new Error(`Asia/Tokyo の日付に落とせません: ${new Date(ms).toISOString()}`);
+	}
+	return {
+		y,
+		m,
+		d,
+		w,
+		iso: `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+		weekdayJa: WEEKDAYS_JA[w],
+		isMonday: w === 1,
+	};
+}
+
+function formatYmd(ymd) {
+	return `${ymd.y}-${String(ymd.m).padStart(2, '0')}-${String(ymd.d).padStart(2, '0')}`;
+}
+
+function calendarDays(from, to) {
+	const a = Date.UTC(from.y, from.m - 1, from.d);
+	const b = Date.UTC(to.y, to.m - 1, to.d);
+	return Math.round((b - a) / 86400000);
+}
+
+function parseEventDate(subject, received) {
+	const sd = E.subjectDate(subject);
+	if (!sd) return { ok: false, reason: '件名から施行日が取れない' };
+	if (sd.hasYear) {
+		const m = sd.text.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+		if (!m) return { ok: false, reason: '年入りの施行日が読めない' };
+		return {
+			ok: true,
+			ymd: { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) },
+			yearInferred: false,
+			yearRolled: false,
+			source: sd.text,
+		};
+	}
+	const m = sd.text.match(/^(\d{1,2})月(\d{1,2})日$/);
+	if (!m) return { ok: false, reason: '年無しの施行日が読めない' };
+	let ymd = { y: received.y, m: Number(m[1]), d: Number(m[2]) };
+	let yearRolled = false;
+	if (calendarDays(received, ymd) < 0) {
+		ymd = { ...ymd, y: received.y + 1 };
+		yearRolled = true;
+	}
+	return {
+		ok: true,
+		ymd,
+		yearInferred: true,
+		yearRolled,
+		source: sd.text,
+	};
+}
+
+async function cmdDelivery() {
+	const sender = requireEnv('GMAIL_SENDER');
+	const { gmail } = await clients();
+	const out = { ruleMaxDays: RULE_MAX_DAYS, timeZone: 'Asia/Tokyo', messages: [] };
+
+	hr('1  差出人で全通を引く');
+	const ids = await listAll(gmail, { q: `from:${sender}` });
+	console.log(`  from: で引いた    : ${ids.length} 通`);
+	console.log(`  規則の上限        : 受信日 + ${RULE_MAX_DAYS} 日（祝日カレンダーは持たない）`);
+	console.log(`  日付の基準        : Asia/Tokyo`);
+
+	hr('2  受信日と施行日を照合する');
+	const rows = [];
+	for (const id of ids) {
+		const m = await getMeta(gmail, id);
+		const subject = U.header(m.payload?.headers || [], 'subject');
+		const c = classify(subject);
+		const received = jstYmd(Number(m.internalDate));
+		const event = parseEventDate(subject, received);
+		const days = event.ok ? calendarDays(received, event.ymd) : null;
+		const inside = event.ok && days >= 0 && days <= RULE_MAX_DAYS;
+		let verdict = '判定できない';
+		if (event.ok && inside) verdict = '規則の内側';
+		else if (event.ok) verdict = '規則から外れた';
+
+		const row = {
+			id,
+			kind: c.kind,
+			match: c.match,
+			subject,
+			received: received.iso,
+			receivedWeekday: received.weekdayJa,
+			receivedIsMonday: received.isMonday,
+			event: event.ok ? formatYmd(event.ymd) : null,
+			eventSource: event.source || null,
+			yearInferred: Boolean(event.yearInferred),
+			yearRolled: Boolean(event.yearRolled),
+			days,
+			inside,
+			verdict,
+			reason: event.ok ? null : event.reason,
+		};
+		rows.push(row);
+
+		console.log(`\n  --- ${id} ---`);
+		console.log(`  判別              : ${c.kind}（${c.match}）`);
+		console.log(`  件名              : ${subject}`);
+		console.log(`  受信日            : ${received.iso}（${received.weekdayJa}）${received.isMonday ? '' : '  ← 月曜ではない'}`);
+		if (!event.ok) {
+			console.log(`  施行日            : （${event.reason}）`);
+		} else {
+			const extras = [];
+			if (event.yearInferred) extras.push('受信日の年で補った');
+			if (event.yearRolled) extras.push('年を繰り上げた');
+			console.log(`  施行日            : ${formatYmd(event.ymd)}（件名 ${event.source}${extras.length ? ` / ${extras.join('・')}` : ''}）`);
+			console.log(`  受信日からの日数  : ${days} 日${days === RULE_MAX_DAYS ? '  ← 7日ちょうど。月曜祝日の回にあたる' : ''}`);
+		}
+		console.log(`  判定              : ${verdict}`);
+	}
+	out.messages = rows;
+
+	hr('3  規則から外れた通');
+	const outside = rows.filter((r) => r.verdict !== '規則の内側');
+	if (outside.length === 0) {
+		console.log('  無し。引いた通はすべて規則の内側。');
+	} else {
+		for (const r of outside) {
+			const why = r.reason || (r.days == null ? '' : `${r.days} 日`);
+			console.log(`  ${r.verdict}  ${r.received} → ${r.event ?? '—'}  ${why}  ${r.kind}`);
+		}
+	}
+	out.outside = outside.map((r) => r.id);
+
+	hr('4  既知の回の答え合わせ（2026-08-31 の 9/5・9/6）');
+	const knownResults = [];
+	let knownOk = true;
+	for (const k of KNOWN_BATCH) {
+		const hits = rows.filter((r) => r.received === k.received && r.event === k.event);
+		let status;
+		if (hits.length === 0) {
+			status = '箱に無い';
+			knownOk = false;
+		} else if (hits.every((r) => r.inside)) {
+			status = '規則の内側';
+		} else {
+			status = '規則から外れた（実装が間違っている）';
+			knownOk = false;
+		}
+		knownResults.push({ ...k, hits: hits.length, status });
+		console.log(`  ${k.received} → ${k.event}  : ${status}${hits.length > 1 ? `（${hits.length} 通）` : ''}`);
+	}
+	out.knownBatch = knownResults;
+	if (knownOk) {
+		console.log('\n  [OK] 既知の回を規則どおりと判定できた。道具は動いている。');
+		console.log('       月曜祝日の配信そのものは、まだ確かめていない。');
+	} else {
+		console.log('\n  [NG] 既知の回を規則どおりと判定できなかった。');
+	}
+
+	console.log(`\n全文を ${U.saveOut('6-delivery.json', out)} に保存しました（Git 管理外）。`);
+}
+
 // --- 入口 -------------------------------------------------------------------
 
 const COMMANDS = {
@@ -425,6 +613,7 @@ const COMMANDS = {
 	dump: cmdDump,
 	parse: cmdParse,
 	'venue-check': cmdVenueCheck,
+	delivery: cmdDelivery,
 };
 
 async function main() {
