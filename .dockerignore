@@ -1,0 +1,12 @@
+.git
+**/.git
+**/node_modules
+**/.nuxt
+**/.output
+**/dist
+tools
+docs
+plans
+credentials
+.env
+*.md

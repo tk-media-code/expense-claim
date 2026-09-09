@@ -90,15 +90,29 @@
 
 | 層 | 選定 | 前回 |
 | --- | --- | --- |
-| 言語 | **TypeScript** | Java（バックエンド） |
-| フロントエンド | **Nuxt 3（Vue 3）** — SPA としてビルドする | React SPA |
-| バックエンド | **Hono** | Spring Boot |
-| データベース | **MySQL 8** | PostgreSQL |
-| データベースアクセス | **Drizzle ORM** | （不明・対象外） |
+| 言語 | **TypeScript 6** | Java（バックエンド） |
+| 実行時 | **Node.js 24**（Active LTS） | — |
+| フロントエンド | **Nuxt 4（Vue 3）** — SPA としてビルドする | React SPA |
+| バックエンド | **Hono 4** | Spring Boot |
+| データベース | **MySQL 8.4**（LTS） | PostgreSQL |
+| データベースアクセス | **Drizzle ORM**（0.45 系） | （不明・対象外） |
 | 認証 | **Google OAuth 2.0 + 許可アドレスの照合** | （不明・対象外） |
+| リバースプロキシ | **nginx stable** | — |
 | 実行形態 | **Docker Compose** | — |
 | インフラ | **AWS EC2 ×1 / RDS ×1** | 同左（据え置き） |
 | IaC | **Terraform** | 同左（据え置き） |
+
+**版は最新の安定チャネルを使う。** パッチは lockfile とイメージタグが正本で、この表には系列だけを書く。
+npm や Docker の `latest` が安定とは限らない。次は採らない。
+
+- **TypeScript 7** — 安定だが、Vue の言語ツール（Volar / `vue-tsc`）が 7.0 の API に未対応。フロントがある以上、バックエンドも 6 に揃える
+- **Drizzle ORM 1.0** — 2026-09-09 時点では RC
+- **MySQL 9.x** — Innovation。サポート期間が短い。LTS は 8.4
+- **Node.js Current**（当時 26）— LTS になる前
+- **nginx `latest`** — mainline。プロキシには stable を使う
+- **Nuxt 3** — 2026-07-31 で EOL。**Nuxt 5** は当時まだ予定
+
+確認日は 2026-09-09。経緯は [`docs/decisions.md`](../decisions.md)。
 
 ### 3.2 言語 — TypeScript
 
@@ -118,7 +132,7 @@
   加えて未経験で、フロントエンドと言語が分かれる。**目的②の移行先を Cloudflare に据えた時点で外れた**
 - **Python** — 学習資料は最も多いが、同じく Workers では動かない。フロントと言語が分かれる
 
-### 3.3 バックエンド — Hono
+### 3.3 バックエンド — Hono 4
 
 | なぜ | |
 | --- | --- |
@@ -141,7 +155,7 @@
 層の分け方も依存の向きも自分で決めることになる。これは5章で決めて書き残す。
 **設計を自分で決めて説明することは、目的①では欠点ではなく主題である。**
 
-### 3.4 フロントエンド — Nuxt 3（Vue 3）
+### 3.4 フロントエンド — Nuxt 4（Vue 3）
 
 | なぜ | |
 | --- | --- |
@@ -166,7 +180,7 @@
   書く量はさらに少なく、バンドルも最小。**日本語の資料と求人の多さで Nuxt を採った**
 - **Angular** — バックエンドと思想を揃えられるが、11画面・利用者1人の規模に対して重い
 
-### 3.5 データベース — MySQL 8
+### 3.5 データベース — MySQL 8.4
 
 | なぜ | |
 | --- | --- |
@@ -236,7 +250,7 @@ Gmail・ドライブ・スプレッドシートのスコープは要らない。
 | | |
 | --- | --- |
 | EC2 | 1台。**常時起動。** Docker Compose でコンテナを動かす |
-| RDS | 1台。MySQL 8 |
+| RDS | 1台。MySQL 8.4 |
 | Terraform | 前回のものを引き継ぐ |
 
 **EC2 が常時起動であることは、`NF-04` と矛盾しない。**
@@ -278,7 +292,7 @@ Gmail・ドライブ・スプレッドシートのスコープは要らない。
 ```mermaid
 flowchart TB
     subgraph client["スマートフォンのブラウザ"]
-        spa["Nuxt 3 SPA"]
+        spa["Nuxt 4 SPA"]
     end
 
     subgraph ec2["AWS EC2 ×1（Docker Compose）"]
@@ -287,7 +301,7 @@ flowchart TB
         api["Hono<br/>API サーバー"]
     end
 
-    rds[("AWS RDS<br/>MySQL 8")]
+    rds[("AWS RDS<br/>MySQL 8.4")]
 
     subgraph google["Google（外部システム）"]
         gmail["Gmail<br/>読み取り＋送信"]
@@ -321,7 +335,8 @@ flowchart TB
 ビルドの段だけコンテナに分け、成果物を nginx へ渡す形にする。
 
 **データベースはコンテナにしない。** RDS を使う（目的①の制約）。
-ただし**ローカル開発では MySQL のコンテナを立てる。** RDS へ繋がずに開発できる状態を保つ。
+ただし**ローカル開発では MySQL 8.4 のコンテナを立てる。** RDS へ繋がずに開発できる状態を保つ。
+あわせて **CloudBeaver** をローカル専用で立て、ブラウザから中身を見る。本番の compose には載せない。
 
 ### 4.3 同一オリジンでパスを振り分ける（CORS を作らない）
 
