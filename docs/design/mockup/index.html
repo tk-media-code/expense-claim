@@ -495,7 +495,7 @@ table.grid td.oneway{color:var(--warn);font-weight:700}
       <h1>交通費精算アプリ 画面モック</h1>
     </div>
     <p class="lede">
-      画面設計（<code>docs/design/screens.md</code>）の11画面を、実際に触って確かめるためのモックです。
+      画面設計（<code>docs/design/02-screens.md</code>）の11画面を、実際に触って確かめるためのモックです。
       <b>データはすべて架空です</b>（要件定義 5.6 の例）。
       左の「場面」を切り替えると、4章の状態と分岐がそのまま現れます。
     </p>
@@ -651,7 +651,7 @@ const ATTENTION_LABEL = {
 /* 提出シート。ID は持たない（N-08）。名前だけで足りる */
 const SEED_SHEET = { spreadsheetName:"交通費精算", sheetName:"（自分のシート）", writableRows:25 };
 
-/* Google API の認可（F-02）。ログインの認可とは別物（architecture.md 3.7） */
+/* Google API の認可（F-02）。ログインの認可とは別物（01-architecture.md 3.7） */
 const SEED_AUTH = {
   authorized:true, authorizedAt:"2026-09-01T02:00:00Z", missingScopes:[],
   scopes:["gmail.readonly","gmail.send","drive","spreadsheets"]
@@ -768,7 +768,7 @@ const WDAY = ["日","月","火","水","木","金","土"];
 const wday = iso => WDAY[new Date(+iso.slice(0,4), +iso.slice(5,7) - 1, +iso.slice(8,10)).getDay()];
 /* 提出シートの A列は日付として書く（要件定義 7.4） */
 const sheetDate = iso => `${+iso.slice(0,4)}/${+iso.slice(5,7)}/${+iso.slice(8,10)}`;
-/* 日時は UTC で持ち、表示のときだけ JST へ直す（api.md 2.4） */
+/* 日時は UTC で持ち、表示のときだけ JST へ直す（04-api.md 2.4） */
 const jst = iso => new Date(iso).toLocaleString("ja-JP",
   { timeZone:"Asia/Tokyo", month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" });
 
@@ -791,7 +791,7 @@ const oneWayFare = r => segsOf(r).reduce((a, s) => a + s.fare, 0);
 const usedBy     = segId => db.routes.filter(r => r.segIds.includes(segId)).length;
 const stationOf  = id => db.stations.find(s => s.id === id);
 /* その駅を使っている区間の本数。区間の usedBy と対になる。
-   どちらも 0 のときだけ消せる（database.md 6.2 の RESTRICT） */
+   どちらも 0 のときだけ消せる（03-database.md 6.2 の RESTRICT） */
 const segsUsing  = stId => db.segments.filter(s => s.from === stId || s.to === stId).length;
 const openAttentions = () => db.attentions.filter(a => !a.checkedAt);
 
@@ -925,7 +925,7 @@ function screenLogin(){
       <p class="footnote">
         ここで確かめるのは<b>本人かどうかだけ</b>です。
         ログインに Gmail・ドライブ・スプレッドシートのスコープを求めません
-        （<code>architecture.md</code> 3.7）。それらの認可は設定画面で別に持ちます（F-02）。
+        （<code>01-architecture.md</code> 3.7）。それらの認可は設定画面で別に持ちます（F-02）。
       </p>
     </div>
   </div>`;
@@ -1306,7 +1306,7 @@ function screenRecord(){
 ================================================================== */
 function screenVenues(){
   /* 会場マスタを取り込むと43件まで増える（要件定義 9.1）。
-     一覧は全件を持っているので、絞り込みはここで行う（api.md 4.7） */
+     一覧は全件を持っているので、絞り込みはここで行う（04-api.md 4.7） */
   const q = (state.form.q || "").trim().toLowerCase();
   const hit = v => v.code.toLowerCase().includes(q) || v.name.toLowerCase().includes(q);
   const shown = q ? db.venues.filter(hit) : db.venues;
@@ -1355,7 +1355,7 @@ function screenVenues(){
         <b>マスタに無い会場を追加できることが要ります</b>（F-14 / 要求分析 6.5）。
         マスタだけを使う作りにすると、その会場にルートを紐付けられず、記録そのものができません。
         <b>会場を削除する操作は置いていません。</b>ルートを巻き込みで消さないためです
-        （<code>database.md</code> 6.2 の RESTRICT）。
+        （<code>03-database.md</code> 6.2 の RESTRICT）。
       </p>
     </div>
   </div>`;
@@ -1418,7 +1418,7 @@ function screenRouteEdit(){
         </div>
         <p class="hint"><b>どちらもこの画面を離れません。</b>
           一覧に無い区間は「区間を登録する」でその場で作り、<b>このルートの並びに入ります。</b>
-          <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。
+          <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>04-api.md</code> 8章）。
           <b>区間はいくつでも並べられます</b>（要件定義 6.1）。上限はありません。</p>
       </div>
 
@@ -1432,7 +1432,7 @@ function screenRouteEdit(){
       ${isNew ? "" : `<button class="btn" data-variant="danger" data-act="deleteRoute">
         このルートを削除する</button>
         <p class="footnote">削除すると<b>使う区間の並びだけが消えます。</b>
-        区間そのものは残り、他のルートは影響を受けません（<code>database.md</code> 6.2）。</p>`}
+        区間そのものは残り、他のルートは影響を受けません（<code>03-database.md</code> 6.2）。</p>`}
     </div>
   </div>`;
 }
@@ -1483,7 +1483,7 @@ function screenSegments(){
         入力補助でそこを揃えにいきません。<br>
         <b>区間をタップすると直せます。</b>片道運賃はいつでも、
         <b>出発駅・到着駅と削除は、どのルートも使っていないときだけ</b>です
-        （<code>database.md</code> 6.2 の RESTRICT）。
+        （<code>03-database.md</code> 6.2 の RESTRICT）。
       </p>`;
 
   const stationPane = `
@@ -1497,11 +1497,11 @@ function screenSegments(){
 
       <p class="footnote">
         <b>駅は区間より先に登録します。</b>足す順は「駅 → 区間 → ルート」で固定です
-        （<code>api.md</code> 8章）。<b>「区間を追加」の中からも登録できます。</b><br>
+        （<code>04-api.md</code> 8章）。<b>「区間を追加」の中からも登録できます。</b><br>
         <b>駅をタップすると名前を直せます。</b>使われていても直せます。
         使われている駅は消せないので、<b>打ち間違いを直す手段がこれしかありません。</b>
         <b>削除は、どの区間も使っていないときだけ</b>です
-        （<code>database.md</code> 6.2 の RESTRICT）。
+        （<code>03-database.md</code> 6.2 の RESTRICT）。
       </p>`;
 
   const tabBtn = (id, label, n) => `<button class="tab" data-act="segTab" data-tab="${id}"
@@ -1603,7 +1603,7 @@ function screenSubmit(){
         </div>
         <p class="footnote"><b>途中で条件を満たさなければ、何も書かずに中止します</b>（5.5）。
           クリアと書き込みは1回の呼び出しにまとめてあり、
-          <b>「消えたまま書かれない」状態が作れません</b>（<code>integration.md</code> 8.2）。</p>
+          <b>「消えたまま書かれない」状態が作れません</b>（<code>05-integration.md</code> 8.2）。</p>
       </div>
     </div>`;
   }
@@ -1657,7 +1657,7 @@ function screenSubmit(){
   }
 
   /* --- 確認 --- */
-  /* 認可が切れていれば、確認そのものが成り立たない（api.md 5.4 の 503） */
+  /* 認可が切れていれば、確認そのものが成り立たない（04-api.md 5.4 の 503） */
   if (!db.auth.authorized) return `<div class="app" data-screen="submit">${head}
     <div class="body">
       <div class="notice" role="alert">
@@ -1775,7 +1775,7 @@ function screenAttentions(){
       <p class="footnote">
         知らせる相手は<b>本人であって、委託元ではありません</b>（N-14）。
         種別は7つあります（要件定義 4.9）。
-        <b>確認済みへ戻す操作は持ちません</b>（<code>api.md</code> 4.9）。
+        <b>確認済みへ戻す操作は持ちません</b>（<code>04-api.md</code> 4.9）。
         <b>「提出せずに月度が切り替わった」は、切り替わった先より前の月度だけ出します</b>（F-32 / 4.4）。
         これから稼働する月度に提出記録が無いのは当たり前で、報せても本人にできることが何もありません。
       </p>
@@ -1809,7 +1809,7 @@ function screenSettings(){
           <span class="sub">${esc(SCOPE_WHY[s] || "")}</span></div>`).join("")}
       </div>
       <p class="hint">保持しているスコープを出すのは、<b>スコープが増えたときに気づくため</b>です
-        （<code>api.md</code> 4.2）。<code>gmail.send</code> は後から足したもので、
+        （<code>04-api.md</code> 4.2）。<code>gmail.send</code> は後から足したもので、
         <b>古いままだとアラートの送信だけが失敗します。</b></p>
       ${a.authorized ? "" : `<button class="btn" data-act="reauth">再認可する</button>`}
 
@@ -1830,14 +1830,14 @@ function screenSettings(){
       ${state.configJson != null ? `
         <textarea class="input" rows="8" readonly>${esc(state.configJson)}</textarea>
         <p class="hint">この JSON をファイルとして保存します。
-          <b>控えは駅・会場・ルート・区間だけを含みます</b>（<code>architecture.md</code> 8章）。
+          <b>控えは駅・会場・ルート・区間だけを含みます</b>（<code>01-architecture.md</code> 8章）。
           実績データは含めません。消えてよいものだからです（N-05）。</p>` : ""}
       ${state.form.importOpen ? `
         <div class="field"><span class="label">控えの JSON</span>
           <textarea class="input" rows="6" data-model="importText"
             placeholder='{"stations":[…],"venues":[…],"segments":[…],"routes":[…]}'>${esc(state.form.importText || "")}</textarea></div>
         <button class="btn" data-act="importConfig">この内容で置き換える</button>
-        <p class="hint"><b>読み込みは追加ではなく置き換えです</b>（<code>api.md</code> 4.10）。
+        <p class="hint"><b>読み込みは追加ではなく置き換えです</b>（<code>04-api.md</code> 4.10）。
           控えは丸ごと1つで、<b>部分的に混ぜると元の形に戻りません。</b></p>` : ""}
       <p class="hint"><b>NF-11 を落とすと、このアプリの前提が崩れます。</b>
         設定データが消えると「登録済みルートを選ぶだけで済む」（R-05〜R-07）が成立せず、
@@ -1922,13 +1922,13 @@ function overlayHtml(){
           value="${esc(f.sgFare || "")}"></div>
       <p class="hint"><b>同じ駅ペアの区間は1つだけです</b>（決定18）。
         2つ持たせると、どちらが正か決まりません。
-        <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>api.md</code> 8章）。
+        <b>足す順は「駅 → 区間 → ルート」で固定です</b>（<code>04-api.md</code> 8章）。
         <b>駅が無ければ、ここから登録して戻れます。</b>打ちかけの内容は残ります。</p>
       <button class="btn" data-act="addSegment">追加する</button>`);
   }
 
   /* 使われているかどうかで、開くところが変わる。
-     使っているルートが0本なら、駅を差し替えても黙って変わるものが無い（api.md 4.7） */
+     使っているルートが0本なら、駅を差し替えても黙って変わるものが無い（04-api.md 4.7） */
   if (o === "segment"){
     const s = segment(f.segId);
     if (!s) return "";
@@ -1956,11 +1956,11 @@ function overlayHtml(){
              <b>運賃を直すと、この区間を使っている全ルートに効きます</b>（決定18）。
              済んだ記録の金額は動きません（要件定義 6.2）</span></div>
            <p class="hint"><b>${n}本のルートが使っているので、出発駅と到着駅は変えられません。</b>
-             駅を差し替えると、<b>その全ルートの経路が黙って変わります</b>（<code>api.md</code> 4.7）。
-             <b>同じ理由で削除もできません</b>（<code>database.md</code> 6.2 の RESTRICT）。
+             駅を差し替えると、<b>その全ルートの経路が黙って変わります</b>（<code>04-api.md</code> 4.7）。
+             <b>同じ理由で削除もできません</b>（<code>03-database.md</code> 6.2 の RESTRICT）。
              作り直したいなら、先にルートの並びから外してください。</p>`
         : `<p class="hint"><b>まだどのルートも使っていないので、駅も直せます。</b>
-             変えても経路が変わるルートがありません（<code>api.md</code> 4.7）。
+             変えても経路が変わるルートがありません（<code>04-api.md</code> 4.7）。
              <b>同じ駅ペアの区間は1つだけです</b>（決定18）。</p>`}
       <button class="btn" data-act="saveSegment">
         ${n > 0 ? "この運賃で直す" : "この内容で直す"}</button>
@@ -1986,7 +1986,7 @@ function overlayHtml(){
       <button class="btn" data-act="saveStation">この名前で直す</button>
       ${n > 0
         ? `<p class="footnote"><b>${n}区間がこの駅を使っているので、削除できません</b>
-             （<code>database.md</code> 6.2 の RESTRICT）。消せてしまうと区間が壊れます。
+             （<code>03-database.md</code> 6.2 の RESTRICT）。消せてしまうと区間が壊れます。
              先にその区間を消してください。</p>`
         : `<button class="btn" data-variant="danger" data-act="deleteStation">
              この駅を削除する</button>`}`);
@@ -2312,7 +2312,7 @@ const ACTIONS = {
 
     if (movingPair){
       say("ok", `${esc(beforeLabel)} を ${esc(station(s.from))}→${esc(station(s.to))} へ直しました。
-        <b>どのルートも使っていないので、変わった経路はありません</b>（<code>api.md</code> 4.7）`);
+        <b>どのルートも使っていないので、変わった経路はありません</b>（<code>04-api.md</code> 4.7）`);
     } else {
       say("ok", `${esc(station(s.from))}→${esc(station(s.to))} を ${yen(beforeFare)} から ${yen(v)} へ直しました。
         <b>${n}本のルートに効いています。</b>済んだ記録の金額は動きません`);
@@ -2320,7 +2320,7 @@ const ACTIONS = {
   },
   deleteSegment(){
     const s = segment(state.form.segId);
-    /* ボタンを出していなくても、ここでも守る（database.md 6.2 の RESTRICT） */
+    /* ボタンを出していなくても、ここでも守る（03-database.md 6.2 の RESTRICT） */
     const n = usedBy(s.id);
     if (n > 0){ say("warn", `${n}本のルートが使っているので削除できません`); return; }
     const label = `${station(s.from)}→${station(s.to)}`;
@@ -2436,7 +2436,7 @@ const ACTIONS = {
     say("ok", "再認可しました。取り込み・保存・提出が動きます");
   },
   exportConfig(){
-    /* 控えは駅・会場・ルート・区間だけを含む。実績データは含めない（architecture.md 8章） */
+    /* 控えは駅・会場・ルート・区間だけを含む。実績データは含めない（01-architecture.md 8章） */
     state.configJson = JSON.stringify({
       stations:db.stations, venues:db.venues, segments:db.segments, routes:db.routes
     }, null, 2);
@@ -2446,7 +2446,7 @@ const ACTIONS = {
     try {
       const o = JSON.parse(state.form.importText || "");
       if (!o.stations || !o.venues || !o.segments || !o.routes) throw new Error();
-      /* 読み込みは追加ではなく置き換え（api.md 4.10） */
+      /* 読み込みは追加ではなく置き換え（04-api.md 4.10） */
       db.stations = o.stations; db.venues = o.venues;
       db.segments = o.segments; db.routes = o.routes;
       state.form = {}; state.configJson = null;
@@ -2466,7 +2466,7 @@ function finishSubmit(){
       reason:"Google API の認可が切れています。提出シートを読み書きできません",
       how:"設定から再認可してください。委託元が共有を締めた場合は、アプリ側では直せません（N-13）" };
   } else if (state.faults.formatChanged){
-    /* 確認と実行の間にシートは変わりうる。だからプレビューの結果を持ち回さず、毎回読み直す（api.md 6.1） */
+    /* 確認と実行の間にシートは変わりうる。だからプレビューの結果を持ち回さず、毎回読み直す（04-api.md 6.1） */
     state.submitResult = { aborted:true, code:"SHEET_FORMAT_CHANGED",
       reason:"7行目のヘッダーが想定と違います。様式が変わっています",
       how:"実装を直すまでは手で入力してください。自動で合わせにいくと、間違った欄へ書く危険があります（NF-10）" };

@@ -7,12 +7,12 @@
 
 | # | 文書 | 何を決めるか | 状態 |
 | --- | --- | --- | --- |
-| 1 | [`architecture.md`](architecture.md) | 技術選定、システム構成、層の分け方、認可情報の扱い | **作成済み** |
-| 2 | [`screens.md`](screens.md) | 画面遷移、画面項目定義、状態と分岐 | **作成済み** |
-| 3 | [`database.md`](database.md) | 物理 ER 図、テーブル定義、型・索引・制約 | **作成済み** |
-| 4 | [`api.md`](api.md) | フロントとバックの間のエンドポイント | **作成済み** |
-| 5 | [`integration.md`](integration.md) | Gmail / ドライブ / スプレッドシートの呼び出し設計、OAuth フロー | **作成済み** |
-| 6 | [`error-handling.md`](error-handling.md) | 異常系の実現方法、要確認事項の発生経路 | **作成済み** |
+| 1 | [`01-architecture.md`](01-architecture.md) | 技術選定、システム構成、層の分け方、認可情報の扱い | **作成済み** |
+| 2 | [`02-screens.md`](02-screens.md) | 画面遷移、画面項目定義、状態と分岐 | **作成済み** |
+| 3 | [`03-database.md`](03-database.md) | 物理 ER 図、テーブル定義、型・索引・制約 | **作成済み** |
+| 4 | [`04-api.md`](04-api.md) | フロントとバックの間のエンドポイント | **作成済み** |
+| 5 | [`05-integration.md`](05-integration.md) | Gmail / ドライブ / スプレッドシートの呼び出し設計、OAuth フロー | **作成済み** |
+| 6 | [`06-error-handling.md`](06-error-handling.md) | 異常系の実現方法、要確認事項の発生経路 | **作成済み** |
 
 **1 から順に決まっていく。** 後ろの文書は前の文書の結論を前提にしている。
 

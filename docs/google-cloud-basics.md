@@ -418,7 +418,7 @@ https://console.cloud.google.com/auth/clients
 
 > **この節の一部は、設計で決まった。**
 > どこで動かすか・リフレッシュトークンをどう保管するかは
-> [`docs/design/architecture.md`](design/architecture.md) が決めている。
+> [`docs/design/01-architecture.md`](design/01-architecture.md) が決めている。
 > **決まったものは「決まったこと」へ移した。**
 
 ### スマホから使うので、ウェブアプリになる
@@ -443,7 +443,7 @@ https://console.cloud.google.com/auth/clients
 
 ### 決まったこと
 
-**設計（[`docs/design/architecture.md`](design/architecture.md)）で決まった。**
+**設計（[`docs/design/01-architecture.md`](design/01-architecture.md)）で決まった。**
 理由と却下した案はそちらにある。
 
 | 何が | 決定 | 設計のどこ |
@@ -477,7 +477,7 @@ Picker でフォルダを選ばせる道も、フォルダは `drive.file` の�
 
 **8節のスコープ表は、この実測に合わせて `drive.file` へ書き換えた。**
 
-**決定の詳細は [`docs/design/architecture.md`](design/architecture.md) にある。**
+**決定の詳細は [`docs/design/01-architecture.md`](design/01-architecture.md) にある。**
 この節は「**Google Cloud の側から見て何が変わるか**」だけを書く。
 
 ---
