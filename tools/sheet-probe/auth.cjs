@@ -20,6 +20,10 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 // 今回の検証で要るスコープ。
 // drive.file ではアプリが作ったファイルしか触れず、委託元のシートを複製できないため
 // drive を使う。対象ユーザーが「内部」の Workspace アプリなら審査は不要。
+//
+// 呼び出し側が scopes を渡したときだけ差し替える。既定は変えない。
+// スコープは狭く保つのが原則で、その原則は定義が1箇所にないと守れない
+// （gmail-probe/README.md）。
 const SCOPES = [
 	'https://www.googleapis.com/auth/spreadsheets',
 	'https://www.googleapis.com/auth/drive',
@@ -116,9 +120,11 @@ function waitForCode(client, port, authUrl) {
 }
 
 // 認可済みのクライアントを返す。トークンがあれば使い回し、無ければ認可フローに入る。
-async function getAuthClient({ clientFile, tokenFile, port = 5710 } = {}) {
+// scopes / tokenFile を渡したときだけ差し替える。渡さなければ既定のまま。
+async function getAuthClient({ clientFile, tokenFile, port = 5710, scopes } = {}) {
 	const cf = clientFile || process.env.OAUTH_CLIENT_FILE || 'credentials/oauth-client.json';
 	const tf = resolveFromRoot(tokenFile || process.env.OAUTH_TOKEN_FILE || 'credentials/token.json');
+	const usedScopes = scopes ?? SCOPES;
 
 	const cred = readClientSecret(cf);
 	const client = new OAuth2Client(cred.client_id, cred.client_secret, redirectUri(port));
@@ -137,7 +143,7 @@ async function getAuthClient({ clientFile, tokenFile, port = 5710 } = {}) {
 	const authUrl = client.generateAuthUrl({
 		access_type: 'offline', // リフレッシュトークンを受け取るため
 		prompt: 'consent', // 2回目以降も確実にリフレッシュトークンを得るため
-		scope: SCOPES,
+		scope: usedScopes,
 	});
 
 	const { tokens } = await waitForCode(client, port, authUrl);

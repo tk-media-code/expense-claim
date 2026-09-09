@@ -9,7 +9,7 @@
 - **扱わないこと** — 異常系の実現方法（[`error-handling.md`](error-handling.md)）、
   エンドポイント（[`api.md`](api.md)）、テーブル定義（[`database.md`](database.md)）
 - **出どころ** — **要求分析 5章・6章の API 実測**、[`tools/sheet-probe/`](../../tools/sheet-probe/)・
-  [`tools/gmail-probe/`](../../tools/gmail-probe/)、要件定義 7章、
+  [`tools/gmail-probe/`](../../tools/gmail-probe/)・[`tools/drive-probe/`](../../tools/drive-probe/)、要件定義 7章、
   `architecture.md` 5.3 / 6.3 / 7章、`api.md` 2.5 / 7章
 
 > **このリポジトリは public である。**
@@ -32,6 +32,7 @@
 | --- | --- | --- |
 | 提出シート | 2026-08-29 | 要求分析 5.2 / 5.3 / 5.5 / 5.6、`tools/sheet-probe/` |
 | 依頼メール | 2026-08-31 | 要求分析 6章、`tools/gmail-probe/` |
+| ドライブ（既存フォルダへの保存） | 2026-09-09 | `tools/drive-probe/`、`google-cloud-basics.md` 8章 / 15章 |
 
 **だから、この文書の「こうする」の多くは「こうだった」に支えられている。**
 それでも**推測は推測と書く**（11章）。実測に基づく記述には、**出どころを添える。**
@@ -215,27 +216,30 @@ sequenceDiagram
 | `openid` `email` | **ログイン。** 本人かを確かめる | F-01 / N-03 |
 | `.../auth/gmail.readonly` | 依頼メールを読む | F-04〜F-06 |
 | `.../auth/gmail.send` | **提出アラートを送る** | F-35 |
-| `.../auth/drive` | 領収書を保存し、共有を付ける | F-24 / F-25 |
+| `.../auth/drive.file` | 領収書を保存し、共有を付ける | F-24 / F-25 |
 | `.../auth/spreadsheets` | 提出シートを読み書きする | F-13 / F-28 / F-31 |
 
 **`gmail.send` は送信だけができる。** 読み取りも変更も含まない
 （`google-cloud-basics.md` 8章）。**依頼メールには触れない。返信も転送もしない**（要件定義 7.1）。
 
-#### `drive` が広いことについて
+#### `drive.file` で足りる
 
-**`drive.file`（アプリが作ったファイルだけ）で済めば、そのほうがよい**
-（`google-cloud-basics.md` 8章「スコープは狭いほどよい」）。
+**2026-09-09 に [`tools/drive-probe/`](../../tools/drive-probe/) で実測した。**
+人が手で作った既存フォルダを `parents` に指定して `files.create` できた。
+作ったファイルへ `anyone` / `reader` の共有を付け、`webViewLink` も取れた（F-25 / R-15）。
 
-**検証時に `drive` を選んだ理由の半分は、もう無い。**
-`tools/sheet-probe/` は委託元のシートを自分のドライブへ複製していたが、
-**アプリ本体は複製しない。** 残っているのは「**既存の保管先フォルダの下にファイルを作れるか**」だけである。
+**親フォルダのメタデータは `drive.file` では読めない。** `files.get` は 404 を返した
+（存在しないときと同じ。2.4 と同じ区別）。
+同じフォルダを広い `drive` で読むと通るので、原因はスコープである。
+**アプリは保管先フォルダの ID を設定で持つ。親を読む必要は無い。**
+存在確認に親の `files.get` を使ってはならない。存在するフォルダでも 404 になる。
 
-> **これは未検証である。** 文献上は「**できない**」側の材料が出ている
-> （`drive.file` はアプリが作っていない親フォルダを触れない・`google-cloud-basics.md` 15章）。
-> **要件定義13章のとおり、実装時に `tools/` へプローブを足して確かめる。**
->
-> **狭められたら変わるのは `integrations/drive/googleapis.ts` だけである**（`architecture.md` 5.3）。
-> 業務ロジックには一行も触らない。**だから、今この判断を先に確かめる必要は無い。**
+文献は「アプリが作っていない親フォルダの下には作れない」としていた
+（`google-cloud-basics.md` 15章）。**作るほうは文献と違った。** 読むほうは文献どおりである。
+
+**検証用の `tools/sheet-probe/` は、委託元のシートを複製するために広い `drive` を使い続ける。**
+アプリ本体は複製しない。スコープが変わるのは `integrations/drive/googleapis.ts` だけである
+（`architecture.md` 5.3）。
 
 ### 3.4 `state` と PKCE
 
@@ -735,10 +739,11 @@ README が「**これは N-14 でアプリがやるべき手順と同じ**」と
 
 | 何が | 何が決まっていないか | いつ決めるか |
 | --- | --- | --- |
-| **`drive.file` で済むか** | 既存の保管先フォルダへ保存できるか。**文献上は「できない」側の材料が出ている**（3.3） | **実装時に `tools/` へプローブを足す**（要件定義13章） |
 | **`googleapis` が Workers で動くか** | バンドルが 3 MiB に収まるか | **目的②のプロジェクト**（`architecture.md` 10章） |
 | **`text/html` からテキストを起こす方法** | `tools/gmail-probe/` はタグを落とす自前の実装で足りた。**ライブラリを使うかは決めていない**（`architecture.md` 6.1 の縛り1・バンドルに効く） | 実装時 |
 | 領収書のサイズ上限 | `api.md` 10章から引き継ぐ | 実装時 |
+
+**`drive.file` で済むかは、2026-09-09 に `tools/drive-probe/` で閉じた。** 3.3 を見ること。
 
 **引き継いでいた3件は、[`error-handling.md`](error-handling.md) で閉じた。**
 
