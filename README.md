@@ -3,7 +3,8 @@
 交通費申請を行うアプリです。
 
 - **要求分析**（なぜ作るのか・何が欲しいのか）: [`docs/requirements-analysis.md`](docs/requirements-analysis.md)
-- **要件定義**（何を満たすか）: [`docs/requirements.md`](docs/requirements.md)
+- **要件定義**（いま守る約束）: [`docs/requirements.md`](docs/requirements.md)
+- **決定ログ**（なぜ決めたか・なぜ覆したか）: [`docs/decisions.md`](docs/decisions.md)
 - **設計**（どう作るか）: [`docs/design/`](docs/design/) — 技術選定・画面・データベース・API・
   外部連携・異常系。**[`01-architecture.md`](docs/design/01-architecture.md) から読んでください。**
 - **Google Cloud 入門**: [`docs/google-cloud-basics.md`](docs/google-cloud-basics.md) —
