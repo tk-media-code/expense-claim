@@ -109,16 +109,30 @@ for dir in "${packages[@]}"; do
 	run_npm_script "$dir" typecheck "型チェック"
 done
 
-# Issue B でユニットテストと API 統合テストを足す。
+# DB を使わないテスト。
+run_npm_script backend test:unit "ユニットテスト"
+run_npm_script frontend test "コンポーネントテスト"
 
+# API 統合テストとリポジトリのテストは実 MySQL に当てる（07-development.md 4章）。
+# 落ちている場合は自分で起こす。「繋がらないので飛ばす」をしない。
+if ! command -v docker >/dev/null 2>&1; then
+	echo "Docker が見つかりません。統合テストに MySQL が要ります。" >&2
+	exit 3
+fi
+
+note "==> MySQL を起動 (docker compose up -d mysql --wait)"
+if ! docker compose up -d mysql --wait >/dev/null 2>&1; then
+	echo "MySQL を起動できません。docker compose up -d mysql --wait を手で試してください。" >&2
+	exit 3
+fi
+
+run_npm_script backend test:integration "API 統合テスト"
+
+# E2E はブラウザの起動を待つので、既定では走らせない。
+# フックは git commit にも掛かるため、TDD の細かいコミットが毎回待たされる。
+# PR を出す前に一度 RUN_E2E=1 で通す（07-development.md 5.1）。
 if [ "${RUN_E2E:-0}" = "1" ]; then
-	if [ ! -f e2e/playwright.config.ts ]; then
-		fail "E2E が未整備です" \
-			"  Issue B のマージ後に RUN_E2E=1 が使えます。"
-	else
-		require_node_modules e2e || true
-		run_npm_script e2e test "E2E"
-	fi
+	run_npm_script e2e test "E2E"
 fi
 
 if [ "$findings" -gt 0 ]; then
