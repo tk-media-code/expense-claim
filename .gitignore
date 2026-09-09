@@ -14,3 +14,7 @@ node_modules/
 
 # 検証スクリプトの出力。他スタッフの氏名・実績データを含むため決してコミットしない
 tools/**/out/
+
+.nuxt/
+.output/
+dist
