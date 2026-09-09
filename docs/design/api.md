@@ -458,19 +458,30 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 | POST | `/api/venues/import` | **会場マスタを取り込む。** `code` を鍵にした upsert | F-13 |
 | GET | `/api/segments` | 区間一覧。**使っているルート数まで含める** | F-37 |
 | POST | `/api/segments` | 区間を登録。出発駅・到着駅・片道運賃 | F-37 |
-| PUT | `/api/segments/:id` | **片道運賃を直す。使っている全ルートに効く** | F-37 |
+| PUT | `/api/segments/:id` | **片道運賃を直す。使っている全ルートに効く。****使っているルートが0本のときは出発駅・到着駅も受け取る** | F-37 |
+| DELETE | `/api/segments/:id` | 削除。**使っているルートがあれば 409** | F-37 |
 | POST | `/api/routes` | ルートを追加。**`segmentIds` の配列を伴う** | F-16 / F-17 |
 | GET | `/api/routes/:id` | ルート1本。**区間の中身つき** | F-16 |
 | PUT | `/api/routes/:id` | 更新。**`segmentIds` の配列ごと置き換える** | F-16 |
 | DELETE | `/api/routes/:id` | 削除。**使う区間の並びだけが消える**（CASCADE）。**区間そのものは残る** | F-16 |
 | GET | `/api/stations` | 駅一覧 | F-15 |
 | POST | `/api/stations` | 駅を登録。**名前は鉄道会社の略称込み** | F-15 |
+| PUT | `/api/stations/:id` | **名前を直す。使われていても直せる**（下記） | F-15 |
+| DELETE | `/api/stations/:id` | 削除。**使っている区間があれば 409** | F-15 |
 
 **ルートの更新は `segmentIds: [1, 2]` を送る。配列の順が、そのまま並び順である。**
 `sort_order` はサーバーが振る（3.2）。**クライアントは番号を持たない。**
 
-**`PUT /api/segments/:id` が変えるのは運賃だけである。**
-出発駅・到着駅を変えたいなら、**それは別の区間**である（`UNIQUE (from_station_id, to_station_id)`）。
+**`PUT /api/segments/:id` が運賃のほかに駅を受け取るのは、使っているルートが0本のときだけである。**
+1本でもあれば、`from_station_id` / `to_station_id` を送っても **409** で弾く。
+
+**理由は下の「黙って変わる」である。** 区間は複数のルートで共有されるので（決定18）、
+駅を差し替えると、そのルートすべてが**誰も触っていないのに別の経路になる。**
+**使っているルートが0本なら、この理屈は成り立たない。** 変わるものが無いからである。
+
+**駅ペアを変えるときも `UNIQUE (from_station_id, to_station_id)` と
+`CHECK (from_station_id <> to_station_id)` に当たる。** 重複は 409、同一駅は 422 で弾く。
+**重複の判定からは自分自身を除く。**
 
 **負の運賃は 422（`INVALID_VALUE`）で弾く。** `POST` も `PUT` も同じである。
 **金額が入る入口はここだけになった**（F-20 / 5.3）ので、**ここで弾かなければ他に網が無い。**
@@ -478,9 +489,14 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 （N-09 / `database.md` 4.4）。
 **駅を差し替えられると、その区間を使っている全ルートの経路が黙って変わる。**
 
-**区間を削除するエンドポイントを持たない。** 会場・駅と同じ理屈で、
-`database.md` 6.2 は `segments → route_segments` を RESTRICT にしている。
-**使われていない区間が残っても困らない。**
+**`DELETE /api/segments/:id` は、使っているルートがあれば 409 を返す。**
+`database.md` 6.2 の `segments → route_segments` は RESTRICT なので、
+**そもそも DB が消させない。** API はそれを 409 として言い直しているだけである。
+
+> **以前は「区間を削除するエンドポイントを持たない」としていた。撤回する。**
+> 理由に挙げていたのは「使われていない区間が残っても困らない」だったが、
+> **登録し間違えた区間を消す手段が無く、実際に困った。**
+> **RESTRICT が守っていた「使われているものは消せない」は、そのまま残る。**
 
 **新しい区間は `POST /api/segments` で足してからルートに使う。**
 駅について `POST /api/stations` が先に来るのと同じ順である（8章）。
@@ -498,10 +514,20 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 **会場を削除するエンドポイントを持たない。** `screens.md` 3.6 に操作が無く、
 `database.md` 6.2 も `venues → routes` を RESTRICT にしている。**設定データを巻き込みで消さない。**
 
-**駅を削除するエンドポイントも持たない。** 同じく `stations → segments` は RESTRICT で、
-**使われている駅を消せてしまうと区間が壊れる。**
+**`DELETE /api/stations/:id` も同じで、使っている区間があれば 409 を返す。**
+`stations → segments` が RESTRICT だからである。**使われている駅を消せてしまうと区間が壊れる。**
 
-**駅名が既存と重複したら 409。** `stations.UNIQUE (name)` に当たる。
+**`PUT /api/stations/:id` のほうは、使われていても通す。**
+**そうしないと打ち間違いを直す手段が無い。** 使われている駅は消せないので、
+区間やルートを組んだあとに気づくと、**リネーム以外に道が残らない。**
+名前を直しても**どの駅を使うかは変わらない。** 区間の駅の差し替えとは性質が違う。
+
+**済んだ記録は動かない。** 実績は駅名を `expense_record_legs.from_station_name` /
+`to_station_name` に**記録した時点の文字列**で持ち、駅への外部キーではない（`database.md` 7章）。
+`database.md` は駅名を直す操作を**はじめから想定していて**、そのためにこの列を作っている。
+
+**駅名が既存と重複したら 409。** `stations.UNIQUE (name)` に当たる。**`POST` も `PUT` も同じ**で、
+**`PUT` の判定からは自分自身を除く。**
 **`X鉄乙駅` と `Y鉄乙駅` は別の駅である**（F-15 / 要求分析 5.2）。
 濁点だけが違う駅名も別の行になる（`database.md` 4.1・**実機未確認**）。
 
@@ -826,11 +852,31 @@ sequenceDiagram
 | **依頼メールの本文を返すエンドポイント** | `screens.md` 5章。取り出した5項目で足りる。**リンクは叩かない**（要件定義 7.2） |
 | **要確認事項を作るエンドポイント** | `attentions` は**アプリが起こしたことの記録**である。外から積むものではない |
 | **月度切替を起こすエンドポイント** | F-32 は**確認を挟まない**（決定10）。**操作の入口が要らない。** 検知は `POST /api/sync` の中（4.3） |
-| **会場・区間・駅を削除するエンドポイント** | `screens.md` 3.6 / 3.7 / 3.8 に操作が無い。`database.md` 6.2 が RESTRICT にしている。**設定データを巻き込みで消さない** |
+| **会場を削除するエンドポイント** | `screens.md` 3.6 に操作が無い。`database.md` 6.2 が `venues → routes` を RESTRICT にしている。**設定データを巻き込みで消さない**（区間・駅は 4.7 へ移した。下記） |
 | **提出済みデータを読むエンドポイント** | 要件定義 11章。**正本は提出シートにある**（N-05） |
 | **ドライブのファイルを消すエンドポイント** | 要件定義 6.4 / 11章。**アプリが消してよいものではない** |
 | **`scheduler` 専用のエンドポイント** | `scheduler` は `backend` と**同じイメージを別コマンドで起動する**（`architecture.md` 3.8）。**HTTP を経由しないので、外から叩ける入口が生まれない** |
 | **管理者・他ユーザーのためのエンドポイント** | 利用者は本人1人（N-03）。**権限モデルを持たない**（`architecture.md` 3.7） |
+
+#### 区間・駅の削除をこの表から外した
+
+**以前はこの行が「会場・区間・駅を削除するエンドポイント」だった。**
+区間と駅は 4.7 へ移し、**使われていないものに限って消せるようにした。**
+
+**この表が守っているのは「設定データを巻き込みで消さない」である。**
+`database.md` 6.2 の RESTRICT は、**使われているものを消させない**という形でそれを実現している。
+**「使われていないものだけ消せる」は、その RESTRICT が最初から表現していた形そのもの**であって、
+**巻き込みは1件も起きない。** ここで守るものは減っていない。
+
+**外した理由は、もう一方の根拠が崩れたからである。**
+「使われていない区間が残っても困らない」としていたが、
+**登録し間違えたものを消す手段が無く、実際に困った**（`screens.md` 3.8）。
+
+**会場だけ残したのは、性質が違うからである。**
+案件は会場を**会場コードの文字列**で持ち、外部キーではない。
+会場を消すと、**ルートが0本でも、その会場コードの案件が「未登録の会場」表示に落ちる。**
+**駅・区間にはこれが無い**（実績は駅名を記録時点の文字列で持ち、区間を参照していない）。
+加えて会場は `POST /api/venues/import` で入れ直せる。
 
 **下の3行は、`architecture.md` 5.4 と同じことをしている。**
 
@@ -853,7 +899,7 @@ sequenceDiagram
 | **交通費の記録** | **`GET /api/projects/:id/expense-record`** | `PUT …/expense-record`／`POST …/taxi-rides`／`DELETE /api/taxi-rides/:id` |
 | 会場とルート | `GET /api/venues` | `POST /api/venues`／`POST /api/venues/import`／`DELETE /api/routes/:id` |
 | ルートの編集 | `GET /api/routes/:id`／`GET /api/segments` | `POST` / `PUT /api/routes/:id` |
-| **区間と運賃** | `GET /api/segments`／`GET /api/stations` | `POST /api/segments`／`PUT /api/segments/:id`／`POST /api/stations` |
+| **区間と運賃** | `GET /api/segments`／`GET /api/stations` | `POST` / `PUT` / `DELETE /api/segments/:id`／`POST` / `PUT` / `DELETE /api/stations/:id` |
 | 提出 | `POST /api/submissions/preview` | `POST /api/submissions` |
 | 要確認事項 | `GET /api/attentions?checked=false` | `POST /api/attentions/:id/check` |
 | 設定 | `GET /api/settings` | `GET /api/google/authorization/start`／`GET`・`POST /api/settings/config-backup`／`POST /api/auth/logout`／`POST /api/auth/logout-all` |
@@ -885,10 +931,10 @@ sequenceDiagram
 | F-12 | 4.4 `DELETE /api/projects/:id` |
 | F-13 | 4.7 `POST /api/venues/import` |
 | F-14 | 4.7 `POST /api/venues` |
-| F-15 | 4.7 `GET` / `POST /api/stations` |
+| F-15 | 4.7 `GET` / `POST /api/stations`／`PUT` / `DELETE /api/stations/:id` |
 | F-16 | 4.7 `POST` / `GET` / `PUT` / `DELETE /api/routes/:id` |
 | F-17 | 4.7（ルートは `venueId` を持つ） |
-| **F-37** | 4.7 `GET` / `POST /api/segments`／`PUT /api/segments/:id` |
+| **F-37** | 4.7 `GET` / `POST /api/segments`／`PUT` / `DELETE /api/segments/:id` |
 | F-18 / F-19 | 4.5 / 5.2（`defaults`） |
 | F-20 | 5.3（**金額を送らない**）／4.7 `PUT /api/segments/:id` |
 | F-21 | 5.1（`recorded`） |

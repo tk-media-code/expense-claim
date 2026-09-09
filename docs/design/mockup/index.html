@@ -740,7 +740,8 @@ const state = {
   screen:"home",
   projectId:null, routeId:null, venueCode:null,
   returnTo:"detail",   /* 交通費の記録を開いた画面。戻ると、そこへ帰る（3.5） */
-  overlay:null,        /* menu / deleteProject / addVenue / addSegment / addStation / pickSegment */
+  overlay:null,        /* menu / deleteProject / addVenue / addSegment / addStation
+                          / segment / station / pickSegment */
   overlayBack:null,    /* 重ねたシートを閉じたときに戻る先。駅 → 区間 の1段で足りる */
   form:{},             /* 画面ごとの入力の置き場。再描画で消えないようにここへ書く */
   editing:false,       /* 案件の詳細の編集モード（F-11） */
@@ -788,6 +789,10 @@ const routesFor  = code => db.routes.filter(r => r.venue === code);
 const segsOf     = r => r.segIds.map(segment).filter(Boolean);
 const oneWayFare = r => segsOf(r).reduce((a, s) => a + s.fare, 0);
 const usedBy     = segId => db.routes.filter(r => r.segIds.includes(segId)).length;
+const stationOf  = id => db.stations.find(s => s.id === id);
+/* その駅を使っている区間の本数。区間の usedBy と対になる。
+   どちらも 0 のときだけ消せる（database.md 6.2 の RESTRICT） */
+const segsUsing  = stId => db.segments.filter(s => s.from === stId || s.to === stId).length;
 const openAttentions = () => db.attentions.filter(a => !a.checkedAt);
 
 /* 交通費記録の区間行を組み立てる。
@@ -1441,19 +1446,27 @@ function screenSegments(){
      区間側に居るあいだ駅が視界から消えるので、タブで並べて固定する */
   const tab = state.form.segTab === "station" ? "station" : "seg";
 
+  /* 一覧は消せるようになった。空にもなりうるので、そのときの1行を用意しておく */
+  const empty = text => `<div class="item"><span class="top">
+    <span class="name" style="color:var(--ink-3);font-weight:400">${text}</span></span></div>`;
+
   const segRows = db.segments.map(s => {
     const n = usedBy(s.id);
-    return `<button class="item" data-act="editFare" data-id="${s.id}">
+    return `<button class="item" data-act="openSegment" data-id="${s.id}">
       <span class="top"><span class="name">${esc(station(s.from))} → ${esc(station(s.to))}</span>
         <span class="right">${yen(s.fare)}</span></span>
       <span class="sub">${n > 0 ? `${n}本のルートが使っています` : "まだどのルートも使っていません"}</span>
     </button>`;
-  }).join("");
+  }).join("") || empty("まだ区間がありません");
 
-  const stationRows = db.stations.map(s => `<div class="item"><span class="top">
-    <span class="name">${esc(s.name)}</span>
-    <span class="right">${db.segments.filter(g => g.from === s.id || g.to === s.id).length}区間</span>
-  </span></div>`).join("");
+  const stationRows = db.stations.map(s => {
+    const n = segsUsing(s.id);
+    return `<button class="item" data-act="openStation" data-id="${s.id}">
+      <span class="top"><span class="name">${esc(s.name)}</span>
+        <span class="right">${n}区間</span></span>
+      <span class="sub">${n > 0 ? `${n}区間が使っています` : "まだどの区間も使っていません"}</span>
+    </button>`;
+  }).join("") || empty("まだ駅がありません");
 
   const segPane = `
       <p class="hint"><b>片道運賃は区間が1か所だけ持ちます</b>（決定18）。
@@ -1468,8 +1481,9 @@ function screenSegments(){
       <p class="footnote">
         <b>前の区間の到着駅と、次の区間の出発駅は一致しなくてかまいません</b>（要件定義 6.1）。
         入力補助でそこを揃えにいきません。<br>
-        <b>区間を削除する操作は置いていません。</b>使われていれば消せず、
-        使われていない区間が残っても困らないためです（<code>database.md</code> 6.2 の RESTRICT）。
+        <b>区間をタップすると直せます。</b>片道運賃はいつでも、
+        <b>出発駅・到着駅と削除は、どのルートも使っていないときだけ</b>です
+        （<code>database.md</code> 6.2 の RESTRICT）。
       </p>`;
 
   const stationPane = `
@@ -1484,7 +1498,9 @@ function screenSegments(){
       <p class="footnote">
         <b>駅は区間より先に登録します。</b>足す順は「駅 → 区間 → ルート」で固定です
         （<code>api.md</code> 8章）。<b>「区間を追加」の中からも登録できます。</b><br>
-        <b>駅を削除する操作は置いていません。</b>区間から使われていれば消せないためです
+        <b>駅をタップすると名前を直せます。</b>使われていても直せます。
+        使われている駅は消せないので、<b>打ち間違いを直す手段がこれしかありません。</b>
+        <b>削除は、どの区間も使っていないときだけ</b>です
         （<code>database.md</code> 6.2 の RESTRICT）。
       </p>`;
 
@@ -1911,24 +1927,69 @@ function overlayHtml(){
       <button class="btn" data-act="addSegment">追加する</button>`);
   }
 
-  if (o === "editFare"){
+  /* 使われているかどうかで、開くところが変わる。
+     使っているルートが0本なら、駅を差し替えても黙って変わるものが無い（api.md 4.7） */
+  if (o === "segment"){
     const s = segment(f.segId);
     if (!s) return "";
-    return wrap("片道運賃を直す", `
-      <dl class="rows">
-        <div class="row"><dt>出発駅</dt><dd>${esc(station(s.from))}</dd></div>
-        <div class="row"><dt>到着駅</dt><dd>${esc(station(s.to))}</dd></div>
-        <div class="row"><dt>使用中</dt><dd>${usedBy(s.id)}本のルート</dd></div>
-      </dl>
+    const n = usedBy(s.id);
+    const opts = sel => db.stations.map(x =>
+      `<option value="${x.id}" ${x.id === sel ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+
+    const pair = n === 0
+      ? `<div class="field"><span class="label">出発駅</span>
+           <select class="input" data-model="sgEditFrom">${opts(f.sgEditFrom)}</select></div>
+         <div class="field"><span class="label">到着駅</span>
+           <select class="input" data-model="sgEditTo">${opts(f.sgEditTo)}</select></div>`
+      : `<dl class="rows">
+           <div class="row"><dt>出発駅</dt><dd>${esc(station(s.from))}</dd></div>
+           <div class="row"><dt>到着駅</dt><dd>${esc(station(s.to))}</dd></div>
+           <div class="row"><dt>使用中</dt><dd>${n}本のルート</dd></div>
+         </dl>`;
+
+    return wrap("この区間", `
+      ${pair}
       <div class="field"><span class="label">片道運賃</span>
         <input class="input" inputmode="numeric" data-model="fare" value="${esc(f.fare)}"></div>
-      <div class="notice" data-tone="warn" role="status"><span>
-        <b>直すと、この区間を使っている全ルートに効きます</b>（決定18）。
-        済んだ記録の金額は動きません（要件定義 6.2）</span></div>
-      <p class="hint"><b>出発駅と到着駅は、登録したあと変えられません。</b>
-        変えたいならそれは別の区間です（<code>api.md</code> 4.7）。
-        駅を差し替えられると、<b>その区間を使っている全ルートの経路が黙って変わります。</b></p>
-      <button class="btn" data-act="saveFare">この運賃で直す</button>`);
+      ${n > 0
+        ? `<div class="notice" data-tone="warn" role="status"><span>
+             <b>運賃を直すと、この区間を使っている全ルートに効きます</b>（決定18）。
+             済んだ記録の金額は動きません（要件定義 6.2）</span></div>
+           <p class="hint"><b>${n}本のルートが使っているので、出発駅と到着駅は変えられません。</b>
+             駅を差し替えると、<b>その全ルートの経路が黙って変わります</b>（<code>api.md</code> 4.7）。
+             <b>同じ理由で削除もできません</b>（<code>database.md</code> 6.2 の RESTRICT）。
+             作り直したいなら、先にルートの並びから外してください。</p>`
+        : `<p class="hint"><b>まだどのルートも使っていないので、駅も直せます。</b>
+             変えても経路が変わるルートがありません（<code>api.md</code> 4.7）。
+             <b>同じ駅ペアの区間は1つだけです</b>（決定18）。</p>`}
+      <button class="btn" data-act="saveSegment">
+        ${n > 0 ? "この運賃で直す" : "この内容で直す"}</button>
+      ${n > 0 ? "" : `<button class="btn" data-variant="danger" data-act="deleteSegment">
+        この区間を削除する</button>
+        <p class="footnote">消えるのは区間だけです。<b>出発駅・到着駅は残ります。</b></p>`}`);
+  }
+
+  if (o === "station"){
+    const s = stationOf(f.stId);
+    if (!s) return "";
+    const n = segsUsing(s.id);
+    return wrap("この駅", `
+      <div class="field"><span class="label">駅名</span>
+        <input class="input" data-model="stEditName" value="${esc(f.stEditName)}"></div>
+      <dl class="rows">
+        <div class="row"><dt>使用中</dt><dd>${n}区間</dd></div>
+      </dl>
+      <p class="hint"><b>名前は、使われていても直せます。</b>
+        直すと区間とルートの表示が変わりますが、<b>済んだ記録の駅名は動きません</b>（要件定義 6.2）。
+        記録した時点の駅名を実績側に持つためです。
+        <b>鉄道会社の略称込みで入れます</b>（F-15）。</p>
+      <button class="btn" data-act="saveStation">この名前で直す</button>
+      ${n > 0
+        ? `<p class="footnote"><b>${n}区間がこの駅を使っているので、削除できません</b>
+             （<code>database.md</code> 6.2 の RESTRICT）。消せてしまうと区間が壊れます。
+             先にその区間を消してください。</p>`
+        : `<button class="btn" data-variant="danger" data-act="deleteStation">
+             この駅を削除する</button>`}`);
   }
 
   if (o === "pickSegment") return wrap("区間を足す", `
@@ -2218,20 +2279,86 @@ const ACTIONS = {
   },
 
   /* --- 区間と運賃 --- */
-  editFare(el){
+  openSegment(el){
     const s = segment(el.dataset.id);
-    state.overlay = "editFare";
-    Object.assign(state.form, { segId:s.id, fare:String(s.fare) });
+    state.overlay = "segment";
+    Object.assign(state.form,
+      { segId:s.id, fare:String(s.fare), sgEditFrom:s.from, sgEditTo:s.to });
   },
-  saveFare(){
+  saveSegment(){
     const f = state.form, s = segment(f.segId);
     const v = parseInt(f.fare, 10);
     if (!(v >= 0)){ say("warn", "運賃は0以上の数で入れてください"); return; }
-    const n = usedBy(s.id), before = s.fare;
+    const n = usedBy(s.id);
+
+    /* 使われていれば運賃だけ。駅ペアを触らせるのは、変わるルートが無いときに限る */
+    const movingPair = n === 0 && (f.sgEditFrom !== s.from || f.sgEditTo !== s.to);
+    if (movingPair){
+      if (f.sgEditFrom === f.sgEditTo){
+        say("warn", "出発駅と到着駅は同じにできません"); return;
+      }
+      if (db.segments.some(x =>
+            x.id !== s.id && x.from === f.sgEditFrom && x.to === f.sgEditTo)){
+        say("warn", "同じ駅ペアの区間が既にあります。<b>同じ区間に運賃を2つ持たせません</b>（決定18）");
+        return;
+      }
+    }
+
+    const beforeLabel = `${station(s.from)}→${station(s.to)}`, beforeFare = s.fare;
+    if (movingPair){ s.from = f.sgEditFrom; s.to = f.sgEditTo; }
     s.fare = v;
-    state.overlay = null; dropKeys("segId", "fare");
-    say("ok", `${esc(station(s.from))}→${esc(station(s.to))} を ${yen(before)} から ${yen(v)} へ直しました。
-      <b>${n}本のルートに効いています。</b>済んだ記録の金額は動きません`);
+    state.overlay = null; state.overlayBack = null;
+    dropKeys("segId", "fare", "sgEditFrom", "sgEditTo");
+
+    if (movingPair){
+      say("ok", `${esc(beforeLabel)} を ${esc(station(s.from))}→${esc(station(s.to))} へ直しました。
+        <b>どのルートも使っていないので、変わった経路はありません</b>（<code>api.md</code> 4.7）`);
+    } else {
+      say("ok", `${esc(station(s.from))}→${esc(station(s.to))} を ${yen(beforeFare)} から ${yen(v)} へ直しました。
+        <b>${n}本のルートに効いています。</b>済んだ記録の金額は動きません`);
+    }
+  },
+  deleteSegment(){
+    const s = segment(state.form.segId);
+    /* ボタンを出していなくても、ここでも守る（database.md 6.2 の RESTRICT） */
+    const n = usedBy(s.id);
+    if (n > 0){ say("warn", `${n}本のルートが使っているので削除できません`); return; }
+    const label = `${station(s.from)}→${station(s.to)}`;
+    db.segments = db.segments.filter(x => x.id !== s.id);
+    state.overlay = null; state.overlayBack = null;
+    dropKeys("segId", "fare", "sgEditFrom", "sgEditTo");
+    say("quiet", `${esc(label)} を削除しました。<b>出発駅・到着駅は残っています</b>`);
+  },
+  openStation(el){
+    const s = stationOf(el.dataset.id);
+    state.overlay = "station";
+    /* 追加シートの stName とキーを分ける。どちらも state.form に同居するため */
+    Object.assign(state.form, { stId:s.id, stEditName:s.name });
+  },
+  saveStation(){
+    const s = stationOf(state.form.stId);
+    const name = (state.form.stEditName || "").trim();
+    if (!name){ say("warn", "駅名は要ります"); return; }
+    if (db.stations.some(x => x.id !== s.id && x.name === name)){
+      say("warn", `${esc(name)} は既に登録されています`); return;
+    }
+    const before = s.name, n = segsUsing(s.id);
+    if (name === before){ say("quiet", "駅名は変わっていません"); return; }
+    s.name = name;
+    state.overlay = null; state.overlayBack = null;
+    dropKeys("stId", "stEditName");
+    say("ok", `${esc(before)} を ${esc(name)} へ直しました。
+      <b>${n}区間の表示が変わります。</b>済んだ記録の駅名は動きません（要件定義 6.2）`);
+  },
+  deleteStation(){
+    const s = stationOf(state.form.stId);
+    const n = segsUsing(s.id);
+    if (n > 0){ say("warn", `${n}区間が使っているので削除できません`); return; }
+    const before = s.name;
+    db.stations = db.stations.filter(x => x.id !== s.id);
+    state.overlay = null; state.overlayBack = null;
+    dropKeys("stId", "stEditName");
+    say("quiet", `${esc(before)} を削除しました`);
   },
   addStation(){
     const name = (state.form.stName || "").trim();
