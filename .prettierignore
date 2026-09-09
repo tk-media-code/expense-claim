@@ -1,0 +1,7 @@
+docs/
+plans/
+**/*.md
+**/.nuxt
+**/.output
+**/dist
+backend/drizzle

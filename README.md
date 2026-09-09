@@ -6,7 +6,7 @@
 - **要件定義**（いま守る約束）: [`docs/requirements.md`](docs/requirements.md)
 - **決定ログ**（なぜ決めたか・なぜ覆したか）: [`docs/decisions.md`](docs/decisions.md)
 - **設計**（どう作るか）: [`docs/design/`](docs/design/) — 技術選定・画面・データベース・API・
-  外部連携・異常系。**[`01-architecture.md`](docs/design/01-architecture.md) から読んでください。**
+  外部連携・異常系・開発環境。**[`01-architecture.md`](docs/design/01-architecture.md) から読んでください。**
 - **Google Cloud 入門**: [`docs/google-cloud-basics.md`](docs/google-cloud-basics.md) —
   このアプリで使う範囲の Google Cloud を、**提案の是非を判断できるようになること**を目的に
   まとめています。セットアップ手順もここにあります。
@@ -19,12 +19,44 @@
 
 Nuxt 4 の SPA と Hono 4 の API を、nginx が同一オリジンで振り分ける。ローカルだけ MySQL 8.4 と CloudBeaver も立つ。
 
+### 日常の開発
+
 ```bash
-docker compose up --build
+docker compose up
 ```
+
+`compose.override.yaml` が自動で読まれ、frontend / backend のホットリロード付き開発モードになる。
 
 - アプリ: http://localhost:8080/
 - CloudBeaver: http://127.0.0.1:8978/ （初回は管理者と MySQL 接続を画面で作る。ホストは `mysql`、ポート `3306`）
+
+### 本番相当の確認
+
+```bash
+docker compose -f compose.yaml up --build
+```
+
+nginx イメージが frontend を静的ビルドして配信する。
+
+### 依存を足したあと
+
+frontend / backend はコンテナ内の名前付きボリュームで `node_modules` を持つ。パッケージを足したら:
+
+```bash
+docker compose run --rm frontend npm ci
+docker compose run --rm backend npm ci
+```
+
+### 品質チェック
+
+```bash
+bash scripts/harness-check.sh
+bash scripts/quality-check.sh
+```
+
+PR を出す前に、Issue B 以降は `RUN_E2E=1 bash scripts/quality-check.sh` も通す（[`docs/design/07-development.md`](docs/design/07-development.md) 5.1）。
+
+### 環境変数
 
 `.env` は無くてよい。compose の既定値（データベース名 `expense_claim`、ユーザー / パスワード `expense`）で起動する。変えるときはリポジトリ直下に `.env` を置き、次を書く。
 

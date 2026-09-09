@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: nginx/Dockerfile
     ports:
-      - "8080:80"
+      - '8080:80'
     depends_on:
       backend:
         condition: service_started
@@ -14,7 +14,7 @@ services:
       context: ./backend
     environment:
       TZ: Asia/Tokyo
-      PORT: "3000"
+      PORT: '3000'
 
   mysql:
     image: mysql:8.4
@@ -30,7 +30,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD"]
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -39,7 +39,7 @@ services:
   cloudbeaver:
     image: dbeaver/cloudbeaver:26.2.0
     ports:
-      - "127.0.0.1:8978:8978"
+      - '127.0.0.1:8978:8978'
     volumes:
       - cloudbeaver_workspace:/opt/cloudbeaver/workspace
     depends_on:

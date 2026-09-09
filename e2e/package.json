@@ -1,5 +1,5 @@
 {
-	"name": "expense-claim-backend",
+	"name": "expense-claim-e2e",
 	"private": true,
 	"version": "0.0.0",
 	"type": "module",
@@ -7,26 +7,19 @@
 		"node": ">=24"
 	},
 	"scripts": {
-		"dev": "tsx watch src/index.ts",
-		"build": "tsc",
-		"start": "node dist/index.js",
+		"dev": "node -e \"console.log('e2e には dev サーバは無い')\"",
+		"build": "node -e \"console.log('e2e には build 対象は無い')\"",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"typecheck": "tsc --noEmit"
 	},
-	"dependencies": {
-		"@hono/node-server": "^1.19.0",
-		"hono": "^4.13.7"
-	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
-		"@types/node": "^24.3.0",
 		"eslint": "^10.10.0",
 		"eslint-config-prettier": "^10.1.8",
 		"prettier": "^3.9.6",
-		"tsx": "^4.23.13",
 		"typescript": "~6.0.3",
 		"typescript-eslint": "^8.70.0"
 	}

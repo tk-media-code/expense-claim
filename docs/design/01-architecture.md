@@ -99,6 +99,9 @@
 | 認証 | **Google OAuth 2.0 + 許可アドレスの照合** | （不明・対象外） |
 | リバースプロキシ | **nginx stable** | — |
 | 実行形態 | **Docker Compose** | — |
+| UI 基盤 | **Nuxt UI 4**（Tailwind v4 を内包） | — |
+| テスト | **Vitest ＋ Playwright**（方針は [`07-development.md`](07-development.md) 4章） | — |
+| Lint / Format | **ESLint 10 ＋ Prettier 3**（[`07-development.md`](07-development.md) 3章） | — |
 | インフラ | **AWS EC2 ×1 / RDS ×1** | 同左（据え置き） |
 | IaC | **Terraform** | 同左（据え置き） |
 
@@ -578,8 +581,6 @@ integrations/gmail/
 | 何が | どこで決めるか |
 | --- | --- |
 | 画面の見た目 | [`02-screens.md`](02-screens.md) |
-| ログの出し方・監視 | 実装時。**利用者1人なので、まずは標準出力で足りるはず**（未確定） |
-| テストの方針 | 実装時 |
 
 閉じた宿題（ファイル名、セッション失効、cron の死活、`NF-10`）は
 [`docs/decisions.md`](../decisions.md) と、決まった先の文書を見る。
