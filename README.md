@@ -47,6 +47,27 @@ docker compose run --rm frontend npm ci
 docker compose run --rm backend npm ci
 ```
 
+### テスト
+
+```bash
+cd backend  && npm test        # unit と integration。integration は MySQL が要る
+cd frontend && npm test        # コンポーネント（@nuxt/test-utils）
+cd e2e      && npm test        # Playwright。nginx 越しにスタック全体を叩く
+```
+
+`backend` の integration は、走るたびに `expense_claim_test` スキーマを冪等に作り直す。事前準備は要らないが、MySQL は起きている必要がある（`docker compose up -d mysql --wait`）。
+
+Playwright のブラウザが無いと言われたら `cd e2e && npx playwright install chromium`。`sudo` は要らない。
+
+### データベース
+
+```bash
+cd backend && npm run db:generate    # スキーマから SQL を生成する
+cd backend && npm run db:migrate     # expense_claim へ適用する
+```
+
+生成された SQL は `backend/drizzle/` にコミットする（[`docs/design/03-database.md`](docs/design/03-database.md) 10.2）。**手で書き換えない。**
+
 ### 品質チェック
 
 ```bash
@@ -54,7 +75,9 @@ bash scripts/harness-check.sh
 bash scripts/quality-check.sh
 ```
 
-PR を出す前に、Issue B 以降は `RUN_E2E=1 bash scripts/quality-check.sh` も通す（[`docs/design/07-development.md`](docs/design/07-development.md) 5.1）。
+`quality-check.sh` は format → lint → typecheck → ユニット → API 統合 の順に走り、統合テストの前に MySQL を自分で起こす。
+
+**PR を出す前に `RUN_E2E=1 bash scripts/quality-check.sh` も通す**（[`docs/design/07-development.md`](docs/design/07-development.md) 5.1）。
 
 ### 環境変数
 

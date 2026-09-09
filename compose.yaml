@@ -15,6 +15,12 @@ services:
     environment:
       TZ: Asia/Tokyo
       PORT: '3000'
+      # 設定はすべて環境変数から取る（01-architecture.md 6.1 の縛り3）。
+      # EC2 では RDS の URL を渡して上書きする。
+      DATABASE_URL: ${DATABASE_URL:-mysql://expense:expense@mysql:3306/expense_claim}
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.4

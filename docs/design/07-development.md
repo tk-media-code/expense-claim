@@ -78,11 +78,19 @@ docker compose up -d --build
 | --- | --- |
 | Lint | **ESLint 10** — frontend は `@nuxt/eslint`、backend / e2e は `typescript-eslint` |
 | Format | **Prettier 3** — タブ・シングルクォート・セミコロンあり |
-| 型チェック | frontend: `nuxt typecheck`（vue-tsc）、backend: `tsc --noEmit` |
+| 型チェック | frontend: `nuxt typecheck`（vue-tsc）、backend / e2e: `tsc --noEmit` |
+| テスト | **Vitest 5** — backend / frontend。frontend は `@nuxt/test-utils` ＋ `@vue/test-utils` ＋ happy-dom |
+| E2E | **Playwright 1.63** — `e2e/`。ブラウザは chromium 1本、既定の端末は Pixel 7（`NF-01`） |
+| DB アクセス | **Drizzle ORM 0.45** ＋ `mysql2`。マイグレーションは `drizzle-kit` |
+| 入力検証 | **Zod 4** — いまは環境変数の検証だけ |
 | Node.js | **24**（`.nvmrc`） |
 
 **npm workspaces にはしない。** ルートに lockfile が移ると Docker の「パッケージ単位で `npm ci`」が壊れる。
 設定の重複より、ビルドがパッケージ完結であることを取る。
+
+**backend は tsconfig を2枚持つ。** `tsconfig.json` は型チェック用で `src` / `test` / `*.config.ts` を見る。
+`tsconfig.build.json` はビルド用で `src` だけを見て `*.test.ts` を外す。
+**1枚にすると、テストファイルが `dist/` へ入って本番イメージに載る。**
 
 ### 3.2 採らなかった案
 
@@ -108,8 +116,35 @@ docker compose up -d --build
 SQLite は `utf8mb4_ja_0900_as_cs` を検証できない。モックは SQL の誤りを捕まえられない。
 
 **E2E の「帰り道の2手」「提出」導線は、画面が出来てから足す**（[`02-screens.md`](02-screens.md) 2.2 / 3.9）。
+いま `e2e/` にあるのは**スモーク1本だけ**である（トップが開く／`GET /api/health` が 200）。
 
-### 4.1 採らなかった案
+### 4.1 テスト用スキーマの用意
+
+**`docker-entrypoint-initdb.d` は使わない。** あれは **データディレクトリが空のときにしか走らない**ので、
+既に `mysql_data` ボリュームが育っている環境では黙って何も起きない。
+「初期化 SQL を置いたのに何も起きない」という読み違いを生む。
+
+代わりに **Vitest の `globalSetup`**（`backend/test/global-setup.ts`）が、走るたびに冪等に用意する。
+
+1. root で接続し `CREATE DATABASE IF NOT EXISTS expense_claim_test`（照合順序は本番と同じ）
+2. `GRANT ALL` をアプリのユーザーへ与える
+3. `drizzle-orm/mysql2/migrator` で `backend/drizzle/` を適用
+4. 各テストの前に対象テーブルを `TRUNCATE`（マイグレーション台帳は残す）
+
+**MySQL へ繋がらないときは、起こし方を言って落ちる。** 黙ってスキップしない。
+
+### 4.2 backend は unit と integration の2プロジェクト
+
+`backend/vitest.config.ts` が分ける。**`integration` だけが実 MySQL を要る。**
+
+| プロジェクト | 対象 | `npm run` |
+| --- | --- | --- |
+| `unit` | `src/**/*.test.ts` | `test:unit` |
+| `integration` | `src/**/*.integration.test.ts` | `test:integration` |
+
+`integration` は同じテスト用スキーマを共有するので `fileParallelism: false` にしている。
+
+### 4.3 採らなかった案
 
 | 案 | 却下理由 |
 | --- | --- |
@@ -133,8 +168,12 @@ SQLite は `utf8mb4_ja_0900_as_cs` を検証できない。モックは SQL の�
 1. `format:check`（Prettier）
 2. `lint`（ESLint）
 3. `typecheck`
-4. ユニットテスト（backend / frontend）— Issue B で足す
-5. API 統合テスト — Issue B で足す
+4. ユニットテスト（backend の `test:unit` / frontend の `test`）
+5. API 統合テスト（backend の `test:integration`）
+
+**5 の前に `docker compose up -d mysql --wait` を自分で行う。**
+MySQL が落ちていても走るようにするためで、**「繋がらないので飛ばす」はしない。**
+Docker が居ない・起こせないときは `3`（環境問題）で抜ける。
 
 **E2E は既定では走らせない。** `RUN_E2E=1 bash scripts/quality-check.sh` のときだけ。
 フックは `git commit` にも掛かるので、E2E を既定にすると TDD の細かいコミットが毎回ブラウザ起動を待つ。

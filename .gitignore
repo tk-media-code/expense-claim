@@ -22,3 +22,6 @@ tools/**/out/
 .nuxt/
 .output/
 dist
+
+# Vitest / rtk のレポート出力
+**/.vitest/

@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1788958881264,
+      "tag": "0000_ordinary_lockjaw",
+      "breakpoints": true
+    }
+  ]
+}

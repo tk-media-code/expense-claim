@@ -1,0 +1,87 @@
+{
+  "version": "5",
+  "dialect": "mysql",
+  "id": "ceabac6d-c5f7-49f5-a8a9-4a377fdc6e82",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "tables": {
+    "sync_state": {
+      "name": "sync_state",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "tinyint unsigned",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "last_imported_at": {
+          "name": "last_imported_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_seen_target_month": {
+          "name": "last_seen_target_month",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_alert_sent_on": {
+          "name": "last_alert_sent_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_cron_run_at": {
+          "name": "last_cron_run_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "datetime",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "sync_state_id": {
+          "name": "sync_state_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraint": {
+        "sync_state_single_row": {
+          "name": "sync_state_single_row",
+          "value": "`sync_state`.`id` = 1"
+        },
+        "sync_state_target_month_is_first_day": {
+          "name": "sync_state_target_month_is_first_day",
+          "value": "`sync_state`.`last_seen_target_month` is null or dayofmonth(`sync_state`.`last_seen_target_month`) = 1"
+        }
+      }
+    }
+  },
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  },
+  "internal": {
+    "tables": {},
+    "indexes": {}
+  }
+}
