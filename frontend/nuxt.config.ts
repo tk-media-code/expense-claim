@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+	modules: ['@nuxt/eslint'],
 	ssr: false,
 	app: {
 		head: {
