@@ -1,6 +1,7 @@
 export default defineNuxtConfig({
-	modules: ['@nuxt/eslint'],
+	modules: ['@nuxt/eslint', '@nuxt/ui'],
 	ssr: false,
+	css: ['~/assets/css/main.css'],
 	app: {
 		head: {
 			title: 'expense-claim',

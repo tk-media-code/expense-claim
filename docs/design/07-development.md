@@ -201,21 +201,20 @@ Docker が居ない・起こせないときは `3`（環境問題）で抜ける
 
 ## 7. UI 基盤
 
-**Nuxt UI v4** を採用する（Tailwind v4 を内包）。詳細は Issue C で導入する。
+**選定と採らなかった案は [`01-architecture.md`](01-architecture.md) 3.4.1 が正本。**
+ここには開発で引っかかる点だけ書く。
 
-**見た目はモックに合わせない。** [`docs/design/mockup/index.html`](mockup/index.html) は
-UI の機能と導線の正本であって、配色・タイポグラフィの正本ではない。
-Nuxt UI の既定テーマに委ねる。
-
-### 7.1 採らなかった案
-
-| 案 | 却下理由 |
+| どこに | 何を |
 | --- | --- |
-| Tailwind 単体 | ボタンもモーダルも自前設計になり「フレームワークで整う」にならない |
-| Vuetify | Material Design だが独自スタイル。Tailwind の決定を撤回することになる |
-| PrimeVue | 11画面に対して過剰 |
-| daisyUI | JS の振る舞いを持たない |
-| Chakra UI / MUI | React 専用。Vue 版 Chakra は停止 |
+| `frontend/app/assets/css/main.css` | `@import 'tailwindcss';` と `@import '@nuxt/ui';` の2行だけ |
+| `frontend/app/app.config.ts` | 色だけ（`primary: teal` / `neutral: slate`）。それ以上は作り込まない |
+| `frontend/app/app.vue` | 最上位に `<UApp>`。トースト・モーダル・ツールチップの土台になる |
+
+**アイコンは `@iconify-json/lucide` をローカルに入れる。**
+入れないと `@nuxt/icon` が実行時に API を叩きに行く。
+**ビルドとテストをネットワークに依存させない**ため、コレクションごと持つ。
+
+**Tailwind は個別に入れない。** `@nuxt/ui` が依存として持ち込む。
 
 ## 8. 未確定事項
 
