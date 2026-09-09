@@ -6,11 +6,11 @@
 
 `drive.file` は**アプリが作った／開いたファイルしか触れない。**
 アプリが作っていない親フォルダを指定して `files.create` できるかが争点だった
-（`docs/design/integration.md` 3.3）。文献上は「できない」側の材料が出ていた。
+（`docs/design/05-integration.md` 3.3）。文献上は「できない」側の材料が出ていた。
 
 **2026-09-09 に実測して閉じた。** `drive.file` だけで既存フォルダの下に作れ、
 共有と `webViewLink` も取れた。親フォルダのメタデータは 404 で読めない。
-結果は `integration.md` 3.3・`google-cloud-basics.md` 8章 / 15章・要件定義 13章に書いてある。
+結果は `05-integration.md` 3.3・`google-cloud-basics.md` 8章 / 15章・要件定義 13章に書いてある。
 
 ## 何を確かめるか
 

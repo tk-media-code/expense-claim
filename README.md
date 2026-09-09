@@ -5,7 +5,7 @@
 - **要求分析**（なぜ作るのか・何が欲しいのか）: [`docs/requirements-analysis.md`](docs/requirements-analysis.md)
 - **要件定義**（何を満たすか）: [`docs/requirements.md`](docs/requirements.md)
 - **設計**（どう作るか）: [`docs/design/`](docs/design/) — 技術選定・画面・データベース・API・
-  外部連携・異常系。**[`architecture.md`](docs/design/architecture.md) から読んでください。**
+  外部連携・異常系。**[`01-architecture.md`](docs/design/01-architecture.md) から読んでください。**
 - **Google Cloud 入門**: [`docs/google-cloud-basics.md`](docs/google-cloud-basics.md) —
   このアプリで使う範囲の Google Cloud を、**提案の是非を判断できるようになること**を目的に
   まとめています。セットアップ手順もここにあります。
