@@ -129,7 +129,7 @@ fi
 run_npm_script backend test:integration "API 統合テスト"
 
 # E2E はブラウザの起動を待つので、既定では走らせない。
-# フックは git commit にも掛かるため、TDD の細かいコミットが毎回待たされる。
+# フックは git push に掛かるため、既定に含めると送信のたびにブラウザ起動を待つ。
 # PR を出す前に一度 RUN_E2E=1 で通す（07-development.md 5.1）。
 if [ "${RUN_E2E:-0}" = "1" ]; then
 	run_npm_script e2e test "E2E"
