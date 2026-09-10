@@ -19,15 +19,29 @@ docker compose up
 
 `compose.override.yaml` が自動で読まれ、**開発モード** になる。
 
-| サービス | 開発時の動き |
-| --- | --- |
-| nginx | `nginx/dev.conf` を bind mount。`/` は frontend:3000 へ proxy（HMR 対応）、`/api/` は backend:3000 へ |
-| frontend | Nuxt dev サーバ。ソースを bind mount |
-| backend | `tsx watch` でホットリロード。ソースを bind mount |
-| mysql | ホストから `127.0.0.1:3306` で接続可能（テスト用） |
-| cloudbeaver | 本番 compose と同じ |
+| サービス | 開発時の動き | 本番 compose |
+| --- | --- | --- |
+| nginx | `nginx/dev.conf` を bind mount。`/` は frontend:3000 へ proxy（HMR 対応）、`/api/` は backend:3000 へ | 載る |
+| frontend | Nuxt dev サーバ。ソースを bind mount | **載らない。** 実行時はただのファイルで、nginx が配る |
+| backend | `tsx watch` でホットリロード。ソースを bind mount | 載る |
+| mysql | ホストから `127.0.0.1:3306` で接続可能（テスト用） | **載らない。** 本番は RDS |
+| cloudbeaver | `http://127.0.0.1:8978/` から DB の中身を見る | **載らない。** ローカル専用 |
 
 **URL は本番と同じ `http://localhost:8080`** である。パスで `/api/` と `/` を nginx が振り分ける。
+
+**実行時に本番へ載らないものは `compose.override.yaml` に置く**（[`01-architecture.md`](01-architecture.md) 4.2）。
+frontend / mysql / cloudbeaver の3つが該当する。
+
+**`backend` の `depends_on: mysql` も override 側にある。** 本番のデータベースは RDS なので、
+`compose.yaml` に書くと**使わない MySQL コンテナが healthy になるまで backend が起動しない。**
+なお `depends_on` だけを override へ残して `mysql` を `compose.yaml` に置くことはできない。
+`docker compose -f compose.yaml` が `depends on undefined service "mysql"` で落ちる。
+
+**mysql のホスト側ポートは消せない。** API 統合テスト（`backend/test/database.ts`）と
+マイグレーション（`backend/drizzle.config.ts`）は**コンテナの中ではなくホストの Node.js で走り**、
+どちらも既定の接続先が `127.0.0.1:3306` だからである（3.2 でツールチェーンをホストに一本化した帰結）。
+`0.0.0.0` ではなく **`127.0.0.1` バインド**なので LAN には出ない。ホストで別の MySQL が 3306 を
+使っているときは `MYSQL_HOST_PORT` で逃がす。
 
 ### 2.2 本番相当の確認
 
@@ -37,6 +51,13 @@ docker compose -f compose.yaml up --build
 
 `-f compose.yaml` を明示し、`compose.override.yaml` を読まない。
 nginx イメージが frontend を `nuxt generate` して静的配信する。
+
+**立つのは `nginx` と `backend` の2つだけである。** mysql も cloudbeaver も開発専用なので上がらない。
+**これが EC2 で動くものと同じ構成である**（[`01-architecture.md`](01-architecture.md) 6.1 の縛り1）。
+
+`DATABASE_URL` を渡さなければ backend は DB へ到達できない。**起動そのものは通る**
+（`src/index.ts` は環境変数を読むだけで、接続は遅延する）ので、静的配信の確認はこのまま行える。
+DB を触る API だけが接続失敗で落ちる。
 
 ### 2.3 依存を足したあと
 

@@ -36,7 +36,9 @@ docker compose up
 docker compose -f compose.yaml up --build
 ```
 
-nginx イメージが frontend を静的ビルドして配信する。
+nginx イメージが frontend を静的ビルドして配信する。**立つのは nginx と backend だけ**で、
+MySQL と CloudBeaver は開発専用なので上がらない（本番のデータベースは RDS）。
+DB を触る API を試すときは `DATABASE_URL` を渡す。
 
 ### 依存を足したあと
 
