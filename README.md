@@ -7,6 +7,8 @@
 - **決定ログ**（なぜ決めたか・なぜ覆したか）: [`docs/decisions.md`](docs/decisions.md)
 - **設計**（どう作るか）: [`docs/design/`](docs/design/) — 技術選定・画面・データベース・API・
   外部連携・異常系・開発環境。**[`01-architecture.md`](docs/design/01-architecture.md) から読んでください。**
+- **実装計画**（どの順で作るか・いまどこまで進んだか）: [`docs/implementation-plan.md`](docs/implementation-plan.md) —
+  全74タスクの一覧と進捗。**次に着手するものは、表の上から最初の `⬜` です。**
 - **Google Cloud 入門**: [`docs/google-cloud-basics.md`](docs/google-cloud-basics.md) —
   このアプリで使う範囲の Google Cloud を、**提案の是非を判断できるようになること**を目的に
   まとめています。セットアップ手順もここにあります。
