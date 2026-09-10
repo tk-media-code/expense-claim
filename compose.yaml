@@ -17,41 +17,6 @@ services:
       PORT: '3000'
       # 設定はすべて環境変数から取る（01-architecture.md 6.1 の縛り3）。
       # EC2 では RDS の URL を渡して上書きする。
+      # 既定値のホスト `mysql` は compose.override.yaml でしか立たない開発用コンテナを指す。
+      # 上書きを忘れたまま本番相当で起動した場合は、名前解決に失敗して DB 利用箇所が明示的に落ちる。
       DATABASE_URL: ${DATABASE_URL:-mysql://expense:expense@mysql:3306/expense_claim}
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  mysql:
-    image: mysql:8.4
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_ja_0900_as_cs
-    environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-expense_claim}
-      MYSQL_USER: ${MYSQL_USER:-expense}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-expense}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-expense}
-      TZ: Asia/Tokyo
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD']
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 40s
-
-  cloudbeaver:
-    image: dbeaver/cloudbeaver:26.2.0
-    ports:
-      - '127.0.0.1:8978:8978'
-    volumes:
-      - cloudbeaver_workspace:/opt/cloudbeaver/workspace
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-volumes:
-  mysql_data:
-  cloudbeaver_workspace:

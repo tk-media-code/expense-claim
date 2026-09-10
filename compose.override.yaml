@@ -1,3 +1,5 @@
+# 開発時だけ読まれる（`docker compose up`）。本番相当は `-f compose.yaml` で読まない
+# （07-development.md 2.2）。実行時に本番へ載らないものは、すべてこちら側に置く。
 services:
   nginx:
     build:
@@ -20,11 +22,55 @@ services:
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules
+    # MySQL コンテナはこのファイルにしか居ないので、待ち合わせもここで宣言する。
+    # 本番のデータベースは RDS なので、compose.yaml 側に書くと使わない MySQL が
+    # healthy になるまで backend が起動しなくなる。
+    depends_on:
+      mysql:
+        condition: service_healthy
 
+  # データベースはコンテナにしない。本番は RDS を使う（01-architecture.md 4.2）。
+  # ローカルだけ立てて、RDS へ繋がずに開発できる状態を保つ。
   mysql:
+    image: mysql:8.4
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_ja_0900_as_cs
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-expense_claim}
+      MYSQL_USER: ${MYSQL_USER:-expense}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-expense}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-expense}
+      TZ: Asia/Tokyo
+    # ホストの Node.js から繋ぐために開ける。API 統合テスト（backend/test/database.ts）と
+    # マイグレーション（backend/drizzle.config.ts）はコンテナ内ではなくホストで走り、
+    # どちらも既定の接続先が 127.0.0.1:3306 である（07-development.md 2.1 / 4章）。
+    # 127.0.0.1 バインドなので LAN には出ない。ホストで別の MySQL が使っていれば
+    # MYSQL_HOST_PORT で逃がす。
     ports:
       - '127.0.0.1:${MYSQL_HOST_PORT:-3306}:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  # ブラウザから DB の中身を見るためのローカル専用ツール（01-architecture.md 4.2）。
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:26.2.0
+    ports:
+      - '127.0.0.1:8978:8978'
+    volumes:
+      - cloudbeaver_workspace:/opt/cloudbeaver/workspace
+    depends_on:
+      mysql:
+        condition: service_healthy
 
 volumes:
   frontend_node_modules:
   backend_node_modules:
+  mysql_data:
+  cloudbeaver_workspace:
