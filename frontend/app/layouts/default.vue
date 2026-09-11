@@ -39,6 +39,7 @@ const menuItems = [
 						<UButton icon="i-lucide-menu" variant="ghost" color="neutral" aria-label="メニュー" />
 					</UDropdownMenu>
 				</template>
+				<UColorModeButton class="shrink-0" data-testid="color-mode" />
 			</div>
 		</header>
 
