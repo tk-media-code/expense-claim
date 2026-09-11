@@ -230,6 +230,8 @@ Docker が居ない・起こせないときは `3`（環境問題）で抜ける
 | `frontend/app/assets/css/main.css` | `@import 'tailwindcss';` と `@import '@nuxt/ui';` の2行だけ |
 | `frontend/app/app.config.ts` | 色だけ（`primary: teal` / `neutral: slate`）。それ以上は作り込まない |
 | `frontend/app/app.vue` | 最上位に `<UApp>`。トースト・モーダル・ツールチップの土台になる |
+| `frontend/app/plugins/api.ts` | `/api` を叩く `$fetch` の派生。**失敗を `ApiError` にしてトーストに出し、再試行しない** |
+| `frontend/app/composables/useApi.ts` | 画面からの入口 `useApi()` / `useApiFetch()`。**素の `$fetch` / `useFetch` で `/api` を叩かない**（トーストに乗らず、再試行も切れない） |
 
 **アイコンは `@iconify-json/lucide` をローカルに入れる。**
 入れないと `@nuxt/icon` が実行時に API を叩きに行く。
