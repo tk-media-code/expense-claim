@@ -110,6 +110,15 @@ JavaScript から読める場所にトークンを置かない。
 
 **`message` は本人が読む日本語**である。画面はそのまま出してよい。
 
+**`code` ごとに既定の文面を持つ。** 同じ失敗が経路ごとに違う言い方になるのを防ぎ、
+**識別子が混じっていないことを1か所で確かめられるようにする**（`N-08` / `N-18`）。
+`SHEET_UNREACHABLE` は同期・提出・cron の3経路から起きるが
+（[`06-error-handling.md`](06-error-handling.md) 3.1）、**本人がすることは同じ**である。
+
+**状況で変わるものだけ、呼び出し側が上書きする。** `INVALID_VALUE` は
+「案件番号が空」（4.4）・「負の運賃」「同一駅」（4.7）を同じ `code` に載せており、
+**1文では本人が何を直せばよいか分からない。**
+
 | 状態 | いつ | `code` の例 |
 | --- | --- | --- |
 | 400 | 本文が JSON として壊れている | `BAD_REQUEST` |
@@ -118,6 +127,7 @@ JavaScript から読める場所にトークンを置かない。
 | 404 | 資源が無い | `NOT_FOUND` |
 | **409** | **競合。** 対象月度が変わった・案件番号が重複した | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` |
 | **422** | **値が規則に合わない**（負の金額など） | `INVALID_VALUE` |
+| 500 | 想定外の例外。**バグである** | `INTERNAL_ERROR` |
 | **502** | **Google API が失敗した** | `SHEET_UNREACHABLE` / `DRIVE_UPLOAD_FAILED` / `SHEET_FORMAT_CHANGED` |
 | **503** | **Google API の認可が無い・切れている** | `GOOGLE_UNAUTHORIZED` |
 
