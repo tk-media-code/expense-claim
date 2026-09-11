@@ -5,6 +5,7 @@ export default defineNuxtConfig({
 	app: {
 		head: {
 			title: 'expense-claim',
+			titleTemplate: '%s | expense-claim',
 		},
 	},
 	compatibilityDate: '2026-09-09',

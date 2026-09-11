@@ -230,6 +230,10 @@ Docker が居ない・起こせないときは `3`（環境問題）で抜ける
 | `frontend/app/assets/css/main.css` | `@import 'tailwindcss';` と `@import '@nuxt/ui';` の2行だけ |
 | `frontend/app/app.config.ts` | 色だけ（`primary: teal` / `neutral: slate`）。それ以上は作り込まない |
 | `frontend/app/app.vue` | 最上位に `<UApp>`。トースト・モーダル・ツールチップの土台になる |
+| `frontend/app/layouts/default.vue` | アプリバー。各ページの `definePageMeta`（`title` / `back` / `menu`）から組む |
+| `frontend/app/types/page-meta.d.ts` | `PageMeta` に `title` / `back` / `menu` を足す |
+| `frontend/app/components/ScreenPlaceholder.vue` | 未実装画面の仮の置き場。残っている仮画面はこれを grep する |
+| `frontend/app/error.vue` | 無いパス。「画面が見つかりません」と「ホームへ」。`app.vue` の外なので `UApp` を自分で持つ |
 | `frontend/app/plugins/api.ts` | `/api` を叩く `$fetch` の派生。**失敗を `ApiError` にしてトーストに出し、再試行しない** |
 | `frontend/app/composables/useApi.ts` | 画面からの入口 `useApi()` / `useApiFetch()`。**素の `$fetch` / `useFetch` で `/api` を叩かない**（トーストに乗らず、再試行も切れない） |
 

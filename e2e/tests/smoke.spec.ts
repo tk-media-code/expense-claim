@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 test('トップが開く', async ({ page }) => {
 	const response = await page.goto('/');
 	expect(response?.status()).toBe(200);
-	await expect(page).toHaveTitle('expense-claim');
+	await expect(page).toHaveTitle('ホーム | expense-claim');
 });
 
 test('GET /api/health が 200 を返す', async ({ request }) => {
