@@ -55,3 +55,33 @@ export const stations = mysqlTable(
 	},
 	(t) => [unique('stations_name_unique').on(t.name)],
 );
+
+// 区間。設定データで、消えない（03-database.md 5.1 / 6.1）
+//
+// 複数のルートで共有し、片道運賃はここに1つだけ持つ（決定18）。運賃改定はこの行を直せば
+// 使っている全ルートに効く。逆向きの区間は登録しない（決定9）。復路は同じ区間を逆順にし、
+// 出発駅と到着駅を入れ替えて使う。
+export const segments = mysqlTable(
+	'segments',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 使っている駅は消せない（6.2 RESTRICT / 決定22）。1-4 の削除 API はこれを 409 に写す
+		fromStationId: int('from_station_id', { unsigned: true })
+			.notNull()
+			.references(() => stations.id, { onDelete: 'restrict' }),
+		toStationId: int('to_station_id', { unsigned: true })
+			.notNull()
+			.references(() => stations.id, { onDelete: 'restrict' }),
+		// 片道運賃。UNSIGNED で負の額を DB でも弾く（4.4。一枚目の網はアプリ／N-09）
+		oneWayFare: int('one_way_fare', { unsigned: true }).notNull(),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	(t) => [
+		// 同じ駅ペアに運賃を2つ持たせない（5.1 / 決定18）
+		unique('segments_from_station_id_to_station_id_unique').on(t.fromStationId, t.toStationId),
+		// 出発駅と到着駅が同じ区間は作れない（5.1）
+		check('segments_from_to_differ', sql`${t.fromStationId} <> ${t.toStationId}`),
+	],
+);

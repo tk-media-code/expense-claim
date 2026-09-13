@@ -15,6 +15,13 @@
       "when": 1789133585559,
       "tag": "0001_stations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1789310446925,
+      "tag": "0002_segments",
+      "breakpoints": true
     }
   ]
 }
