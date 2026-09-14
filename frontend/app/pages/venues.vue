@@ -25,6 +25,31 @@ const filtered = computed(() => {
 
 const addOpen = ref(false);
 
+// 会場マスタの取り込み（F-13）。提出シートの会場マスタを code を鍵に upsert する。手で足した会場は触らない
+const toast = useToast();
+const importing = ref(false);
+async function importMaster() {
+	importing.value = true;
+	try {
+		const result = await api<{
+			inserted: number;
+			updated: number;
+			unchanged: number;
+			skipped: number;
+		}>('/venues/import', { method: 'POST' });
+		toast.add({
+			title: '会場マスタを取り込みました',
+			description: `追加 ${result.inserted} 件・名前を直した ${result.updated} 件・変わらず ${result.unchanged} 件・自分で追加した会場 ${result.skipped} 件は触っていない`,
+			color: 'success',
+		});
+		await refresh();
+	} catch {
+		// 失敗の文面は plugins/api.ts が既にトーストへ出している（認可切れなら設定へ導く）
+	} finally {
+		importing.value = false;
+	}
+}
+
 // ルートの削除は確認を挟む。使う区間の並びだけが消え、区間そのものは残る（04-api.md 4.7）
 const removing = ref<{ venue: Venue; route: VenueRoute } | null>(null);
 const confirmOpen = ref(false);
@@ -59,7 +84,19 @@ function sourceLabel(venue: Venue) {
 		<!-- 追加の操作は一覧の見出しの右端に置く（3.8 と同じ流儀） -->
 		<div class="flex items-center justify-between gap-2">
 			<h2 class="font-semibold">会場</h2>
-			<UButton icon="i-lucide-plus" @click="addOpen = true">会場を追加</UButton>
+			<div class="flex gap-2">
+				<UButton
+					icon="i-lucide-download"
+					variant="outline"
+					color="neutral"
+					:loading="importing"
+					data-testid="import"
+					@click="importMaster"
+				>
+					会場マスタを取り込む
+				</UButton>
+				<UButton icon="i-lucide-plus" @click="addOpen = true">会場を追加</UButton>
+			</div>
 		</div>
 
 		<!-- 43ブロックが縦に積まれる。ルートを足したい会場へスクロールで辿り着かせない（3.6） -->

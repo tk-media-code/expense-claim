@@ -31,6 +31,7 @@ let venues: Venue[] = [];
 let listFails = false;
 const posted = vi.fn<(body: { code: string; name: string }) => void>();
 const removed = vi.fn<(id: number) => void>();
+const imported = vi.fn<() => void>();
 
 registerEndpoint('/api/venues', {
 	method: 'GET',
@@ -52,6 +53,15 @@ registerEndpoint('/api/venues', {
 		const created: Venue = { id: 6, ...body, source: 'manual', routes: [] };
 		venues = [...venues, created];
 		return created;
+	},
+});
+
+registerEndpoint('/api/venues/import', {
+	method: 'POST',
+	handler: () => {
+		imported();
+		venues = [...venues, { id: 7, code: 'CCC', name: '丙会館', source: 'master', routes: [] }];
+		return { inserted: 1, updated: 0, unchanged: 2, skipped: 1 };
 	},
 });
 
@@ -188,5 +198,13 @@ describe('/venues（02-screens.md 3.6）', () => {
 		bodyButton('削除する').click();
 		await vi.waitFor(() => expect(removed).toHaveBeenCalledWith(1));
 		await vi.waitFor(() => expect(cards(page)[0]?.text()).toContain('ルートなし'));
+	});
+
+	// F-13。会場マスタを取り込むと一覧が増える
+	it('「会場マスタを取り込む」で POST が飛び、一覧が増える', async () => {
+		const page = await openPage();
+		await page.find('[data-testid="import"]').trigger('click');
+		await vi.waitFor(() => expect(imported).toHaveBeenCalled());
+		await vi.waitFor(() => expect(cards(page)).toHaveLength(4));
 	});
 });
