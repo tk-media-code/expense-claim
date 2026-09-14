@@ -5,6 +5,7 @@ import type { Project, ProjectDetail } from '../domain/project.js';
 import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { RoutesRepository } from '../repositories/routes.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 
 /** 手で足すときの本文（02-screens.md 3.4）。会場は会場コードで選び、会場名はサーバーが引く */
@@ -25,6 +26,7 @@ export function createProjectsService(
 	venuesRepository: VenuesRepository,
 	expenseRecordsRepository: ExpenseRecordsRepository,
 	routesRepository: RoutesRepository,
+	taxiRidesRepository: TaxiRidesRepository,
 ) {
 	// 会場コードは会場一覧から選ぶ（02-screens.md 3.3 / 3.4）。無いコードは本文の値の問題なので 422。
 	// 取り込み（9-4）はこれを通らない。マスタに無いコードの案件も取り込む（03-database.md 8章）
@@ -54,7 +56,11 @@ export function createProjectsService(
 		async get(id: number): Promise<ProjectDetail> {
 			const project = await repository.findById(id);
 			if (project === null) throw new AppError('NOT_FOUND');
-			return { ...project, record: await summaryOf(id), taxiCount: 0 };
+			return {
+				...project,
+				record: await summaryOf(id),
+				taxiCount: await taxiRidesRepository.countByProjectId(id),
+			};
 		},
 
 		// 手で足す案件は source = 'manual' 固定（F-10 / 04-api.md 4.4）。

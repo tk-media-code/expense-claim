@@ -22,6 +22,7 @@ const app = createApp({
 		sheetName: env.MY_SHEET_NAME,
 		gmailSender: env.GMAIL_SENDER,
 		alertTo: env.ALERT_TO,
+		driveFolderId: env.DRIVE_FOLDER_ID,
 	},
 });
 

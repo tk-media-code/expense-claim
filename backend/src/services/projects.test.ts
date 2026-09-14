@@ -7,6 +7,7 @@ import type { ExpenseRecord } from '../domain/expense-record.js';
 import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { RoutesRepository } from '../repositories/routes.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 import { createProjectsService } from './projects.js';
 
@@ -78,12 +79,16 @@ function createFakes(
 		),
 	} as unknown as RoutesRepository;
 
+	const taxiRidesRepository = {
+		countByProjectId: vi.fn<TaxiRidesRepository['countByProjectId']>(() => Promise.resolve(0)),
+	} as unknown as TaxiRidesRepository;
 	return {
 		service: createProjectsService(
 			repository,
 			venuesRepository,
 			expenseRecordsRepository,
 			routesRepository,
+			taxiRidesRepository,
 		),
 		create,
 		update,

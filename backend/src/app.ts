@@ -3,6 +3,8 @@ import { logger } from 'hono/logger';
 
 import type { Database } from './db/client.js';
 import { AppError } from './domain/app-error.js';
+import type { DriveClient } from './integrations/drive/client.js';
+import { createDriveClient } from './integrations/drive/googleapis.js';
 import type { GmailClient } from './integrations/gmail/client.js';
 import { createGmailClient } from './integrations/gmail/googleapis.js';
 import type {
@@ -24,6 +26,7 @@ import { createRoutesRepository } from './repositories/routes.js';
 import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
 import { createSyncStateRepository } from './repositories/sync-state.js';
+import { createTaxiRidesRepository } from './repositories/taxi-rides.js';
 import { createVenuesRepository } from './repositories/venues.js';
 import { createAttentionsRoute } from './routes/attentions.js';
 import { createAuthRoute } from './routes/auth.js';
@@ -38,6 +41,7 @@ import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
 import { createSettingsRoute } from './routes/settings.js';
 import { createSyncRoute } from './routes/sync.js';
+import { createTaxiRidesRoute } from './routes/taxi-rides.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
 import { createAttentionsService } from './services/attentions.js';
@@ -50,6 +54,7 @@ import { createRoutesService } from './services/routes.js';
 import { createSegmentsService } from './services/segments.js';
 import { createSettingsService } from './services/settings.js';
 import { createSyncService } from './services/sync.js';
+import { createTaxiRidesService } from './services/taxi-rides.js';
 import { createStationsService } from './services/stations.js';
 import { createVenuesService } from './services/venues.js';
 
@@ -69,6 +74,7 @@ export type AppConfig = {
 	sheetName: string;
 	gmailSender: string;
 	alertTo: string;
+	driveFolderId: string;
 };
 
 // アプリが外から受け取るもの。index.ts は本物の DB と Google を、統合テストは test スキーマの DB と偽物を渡す。
@@ -82,6 +88,7 @@ export type AppDependencies = {
 	/** 省くと googleapis の実装を組む。テストは偽物を渡す */
 	sheetsClient?: SheetsClient;
 	gmailClient?: GmailClient;
+	driveClient?: DriveClient;
 };
 
 // OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
@@ -101,6 +108,7 @@ export function createApp({
 	googleAuth,
 	sheetsClient,
 	gmailClient,
+	driveClient,
 }: AppDependencies): Hono {
 	const app = new Hono();
 	app.use('*', logger());
@@ -116,12 +124,14 @@ export function createApp({
 	const routesService = createRoutesService(routesRepository, venuesRepository, segmentsRepository);
 	const projectsRepository = createProjectsRepository(db);
 	const expenseRecordsRepository = createExpenseRecordsRepository(db);
+	const taxiRidesRepository = createTaxiRidesRepository(db);
 	// 案件は会場コードから会場名を引き、詳細は記録の要約とルート名を添える（02-screens.md 3.3）
 	const projectsService = createProjectsService(
 		projectsRepository,
 		venuesRepository,
 		expenseRecordsRepository,
 		routesRepository,
+		taxiRidesRepository,
 	);
 	const syncStateRepository = createSyncStateRepository(db);
 	const attentionsRepository = createAttentionsRepository(db);
@@ -131,6 +141,7 @@ export function createApp({
 		syncStateRepository,
 		expenseRecordsRepository,
 		attentionsRepository,
+		taxiRidesRepository,
 	);
 	// 記録は案件 → 会場 → ルートと辿って既定値を組む（04-api.md 5.2）
 	const expenseRecordsService = createExpenseRecordsService(
@@ -138,6 +149,7 @@ export function createApp({
 		projectsRepository,
 		venuesRepository,
 		routesRepository,
+		taxiRidesRepository,
 	);
 	const provider =
 		loginProvider ??
@@ -178,6 +190,15 @@ export function createApp({
 	const gmail =
 		gmailClient ??
 		createGmailClient(google, { sender: config.gmailSender, alertTo: config.alertTo });
+	// 領収書はドライブへ保存し、通って初めて DB に書く（F-26）
+	const drive = driveClient ?? createDriveClient(google, { folderId: config.driveFolderId });
+	const taxiRidesService = createTaxiRidesService(
+		taxiRidesRepository,
+		projectsRepository,
+		drive,
+		attentionsService,
+	);
+	const taxiRidesRoute = createTaxiRidesRoute(taxiRidesService);
 	const syncService = createSyncService(
 		sheets,
 		gmail,
@@ -199,6 +220,8 @@ export function createApp({
 	app.route('/api/routes', createRoutesRoute(routesService));
 	app.route('/api/projects', createProjectsRoute(projectsService));
 	app.route('/api/projects', createExpenseRecordsRoute(expenseRecordsService));
+	app.route('/api/projects', taxiRidesRoute.projects);
+	app.route('/api/taxi-rides', taxiRidesRoute.taxiRides);
 	app.route(
 		'/api/google/authorization',
 		createGoogleAuthorizationRoute(googleAuthorizationService, {

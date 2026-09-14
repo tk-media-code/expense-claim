@@ -10,6 +10,7 @@ import type { Route } from '../domain/route.js';
 import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { RoutesRepository } from '../repositories/routes.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 
 /** PUT の本文（04-api.md 5.3）。区間も駅名も金額も送らない。送るのは選んだルートだけ */
@@ -26,6 +27,7 @@ export function createExpenseRecordsService(
 	projectsRepository: ProjectsRepository,
 	venuesRepository: VenuesRepository,
 	routesRepository: RoutesRepository,
+	taxiRidesRepository: TaxiRidesRepository,
 ) {
 	// 会場のルート。案件は会場コードで会場を指し（03-database.md 8章）、マスタに無いコードなら
 	// 会場が無くルートも0本。画面は「ルートが登録されていません」と会場とルートへ導く（02-screens.md 4.3）
@@ -38,9 +40,10 @@ export function createExpenseRecordsService(
 		async get(projectId: number): Promise<ExpenseRecordView> {
 			const project = await projectsRepository.findById(projectId);
 			if (project === null) throw new AppError('NOT_FOUND');
-			const [routes, record] = await Promise.all([
+			const [routes, record, taxiRides] = await Promise.all([
 				routesOf(project.venueCode),
 				repository.findByProjectId(projectId),
+				taxiRidesRepository.listByProjectId(projectId),
 			]);
 			return {
 				project: {
@@ -54,7 +57,7 @@ export function createExpenseRecordsService(
 				// record が null でないときは、そちらが defaults に優先する（5.2）。それは画面の判断
 				defaults: defaultsFor(routes),
 				record,
-				taxiRides: [],
+				taxiRides,
 			};
 		},
 

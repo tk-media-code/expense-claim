@@ -10,6 +10,7 @@ import type {
 } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import { createHomeService } from './home.js';
 
 // 案件は架空の値だけを使う（公開リポジトリ）。02-screens.md 2.4 のデータ（8月度2件・9月度4件）に合わせる
@@ -45,6 +46,8 @@ function createFakes(
 		/** 記録済みの案件 id → 要約 */
 		records?: ExpenseRecordSummary[];
 		attentionCount?: number;
+		/** 案件 id → タクシーの回数 */
+		taxiCounts?: Record<number, number>;
 	} = {},
 ) {
 	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() =>
@@ -63,12 +66,20 @@ function createFakes(
 			Promise.resolve(options.attentionCount ?? 0),
 		),
 	} as unknown as AttentionsRepository;
+	const taxiRidesRepository = {
+		countByProjectIds: vi.fn<TaxiRidesRepository['countByProjectIds']>(() =>
+			Promise.resolve(
+				new Map(Object.entries(options.taxiCounts ?? {}).map(([id, n]) => [Number(id), n])),
+			),
+		),
+	} as unknown as TaxiRidesRepository;
 	return {
 		service: createHomeService(
 			projectsRepository,
 			syncStateRepository,
 			expenseRecordsRepository,
 			attentionsRepository,
+			taxiRidesRepository,
 		),
 		listFrom,
 		summarize,
@@ -117,6 +128,7 @@ describe('home service', () => {
 			projects: [sep5a, sep5b],
 			syncState: synced,
 			records: [{ projectId: 3, tripType: 'round', total: 1060 }],
+			taxiCounts: { 3: 2 },
 		});
 		const home = await service.get();
 		expect(summarize).toHaveBeenCalledWith([3, 4]);
@@ -129,9 +141,13 @@ describe('home service', () => {
 			coupleName: '〇〇様△△様',
 			recorded: true,
 			totalAmount: 1060,
+			taxiCount: 2,
+		});
+		expect(home.months[0]?.projects[1]).toMatchObject({
+			recorded: false,
+			totalAmount: null,
 			taxiCount: 0,
 		});
-		expect(home.months[0]?.projects[1]).toMatchObject({ recorded: false, totalAmount: null });
 	});
 
 	// 一度も同期していなければ対象月度が無い。案件は全件出し、どれも提出待ちにしない

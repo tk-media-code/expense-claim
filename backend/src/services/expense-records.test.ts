@@ -8,6 +8,7 @@ import type { Route, RouteLeg } from '../domain/route.js';
 import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { RoutesRepository } from '../repositories/routes.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 import { createExpenseRecordsService } from './expense-records.js';
 
@@ -94,12 +95,16 @@ function createFakes(options: { record?: ExpenseRecord | null } = {}) {
 			Promise.resolve(venueId === 1 ? [viaOtsu] : venueId === 2 ? [viaTei, direct] : []),
 		),
 	} as unknown as RoutesRepository;
+	const taxiRidesRepository = {
+		listByProjectId: vi.fn<TaxiRidesRepository['listByProjectId']>(() => Promise.resolve([])),
+	} as unknown as TaxiRidesRepository;
 	return {
 		service: createExpenseRecordsService(
 			repository,
 			projectsRepository,
 			venuesRepository,
 			routesRepository,
+			taxiRidesRepository,
 		),
 		save,
 	};

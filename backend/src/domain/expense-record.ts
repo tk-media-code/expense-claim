@@ -1,5 +1,6 @@
 import type { Project } from './project.js';
 import type { Route, RouteLeg } from './route.js';
+import type { TaxiRide } from './taxi-ride.js';
 
 // 交通費記録。domain はどの層にも依存しない（01-architecture.md 5.2）。
 //
@@ -39,13 +40,14 @@ export type ExpenseRecordDefaults = {
 	legs: ExpenseRecordLeg[];
 };
 
-/** GET /api/projects/:id/expense-record の集約（04-api.md 5.2）。タクシー乗車は Phase 10 で入る */
+/** GET /api/projects/:id/expense-record の集約（04-api.md 5.2） */
 export type ExpenseRecordView = {
 	project: Pick<Project, 'id' | 'serviceDate' | 'venueCode' | 'venueName' | 'coupleName'>;
 	routes: Route[];
 	defaults: ExpenseRecordDefaults;
 	record: ExpenseRecord | null;
-	taxiRides: never[];
+	/** 領収書つきの乗車。乗車は交通費記録と独立している（04-api.md 4.6） */
+	taxiRides: TaxiRide[];
 };
 
 /**

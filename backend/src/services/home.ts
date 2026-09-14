@@ -8,6 +8,7 @@ import type {
 } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
+import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 
 // ホームの集約（04-api.md 4.3 / 5.1）。DB しか読まない。外部 API を叩かない。
 // 取り込みの完了を待たずに一覧を出す（02-screens.md 3.2）ために、同期（POST /api/sync）とは別のリクエストである。
@@ -16,9 +17,14 @@ export function createHomeService(
 	syncStateRepository: SyncStateRepository,
 	expenseRecordsRepository: ExpenseRecordsRepository,
 	attentionsRepository: AttentionsRepository,
+	taxiRidesRepository: TaxiRidesRepository,
 ) {
 	// 記録の済み／未（F-21 / 02-screens.md 4.1）。Phase 11-7 で提出状態、7-3 で要確認件数、10 でタクシーが乗る
-	function toHomeProject(project: Project, record: ExpenseRecordSummary | undefined): HomeProject {
+	function toHomeProject(
+		project: Project,
+		record: ExpenseRecordSummary | undefined,
+		taxiCount: number,
+	): HomeProject {
 		return {
 			id: project.id,
 			projectNo: project.projectNo,
@@ -28,7 +34,7 @@ export function createHomeService(
 			coupleName: project.coupleName,
 			recorded: record !== undefined,
 			totalAmount: record?.total ?? null,
-			taxiCount: 0,
+			taxiCount,
 		};
 	}
 
@@ -43,7 +49,11 @@ export function createHomeService(
 			);
 
 			// 記録の有無は案件ごとに読まず、1クエリでまとめて引く（月6〜10件ぶん往復させない）
-			const records = await expenseRecordsRepository.summarize(projects.map((p) => p.id));
+			const ids = projects.map((p) => p.id);
+			const [records, taxiCounts] = await Promise.all([
+				expenseRecordsRepository.summarize(ids),
+				taxiRidesRepository.countByProjectIds(ids),
+			]);
 
 			// 月度ごとに束ねる。案件は施行日の昇順で来るので、月度も昇順に並ぶ。最後に降順へ返す
 			const byMonth = new Map<ProjectMonth, HomeMonth>();
@@ -62,7 +72,9 @@ export function createHomeService(
 					};
 					byMonth.set(project.month, month);
 				}
-				month.projects.push(toHomeProject(project, records.get(project.id)));
+				month.projects.push(
+					toHomeProject(project, records.get(project.id), taxiCounts.get(project.id) ?? 0),
+				);
 			}
 
 			return {

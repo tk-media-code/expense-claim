@@ -8,6 +8,8 @@ import type {
 	GoogleClientProvider,
 } from '../src/integrations/google/auth.js';
 import type { LoginProvider } from '../src/integrations/google/oauth.js';
+import type { DriveClient, ReceiptFile } from '../src/integrations/drive/client.js';
+import { DriveStep } from '../src/integrations/drive/googleapis.js';
 import type { FetchedMail, GmailClient } from '../src/integrations/gmail/client.js';
 import { GoogleApiFailure } from '../src/integrations/google/errors.js';
 import type { SheetsClient, SheetStructure } from '../src/integrations/sheets/client.js';
@@ -26,6 +28,7 @@ export const TEST_CONFIG: AppConfig = {
 	sheetName: '9999 テスト太郎',
 	gmailSender: 'requests@example.test',
 	alertTo: 'me@example.test',
+	driveFolderId: 'test-folder-id',
 };
 
 /** 偽物のログイン。exchange が返す本人の情報をテストが差し替える */
@@ -159,6 +162,31 @@ export function createFakeGmail(
 	return fake;
 }
 
+/** 偽物のドライブ。保存したファイルを覚え、fails で保存か共有を落とせる */
+export function createFakeDrive(
+	options: { fails?: 'create' | 'share' | 'unauthorized' | null } = {},
+): DriveClient & { stored: { name: string; mimeType: string; bytes: number }[] } {
+	const fake = {
+		configured: true,
+		stored: [] as { name: string; mimeType: string; bytes: number }[],
+		async store(file: ReceiptFile) {
+			let bytes = 0;
+			for await (const chunk of file.body as unknown as AsyncIterable<Uint8Array>)
+				bytes += chunk.length;
+			if (options.fails === 'unauthorized') throw new AppError('GOOGLE_UNAUTHORIZED');
+			if (options.fails) {
+				throw new AppError('DRIVE_UPLOAD_FAILED', { cause: new DriveStep(options.fails) });
+			}
+			fake.stored.push({ name: file.name, mimeType: file.mimeType, bytes });
+			return {
+				fileId: `file-${fake.stored.length}`,
+				url: `https://drive.google.com/file/d/file-${fake.stored.length}/view`,
+			};
+		},
+	};
+	return fake;
+}
+
 export async function sessionCookie(iat = Math.floor(Date.now() / 1000)): Promise<string> {
 	return `session=${await signSession(TEST_CONFIG.sessionSecret, { sub: 'sub-1', iat })}`;
 }
@@ -175,6 +203,7 @@ export function createAuthedApp(
 	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider,
 	sheetsClient?: SheetsClient,
 	gmailClient?: GmailClient,
+	driveClient?: DriveClient,
 ): TestApp {
 	const app = createApp({
 		db,
@@ -183,6 +212,7 @@ export function createAuthedApp(
 		googleAuth: googleAuth ?? createFakeGoogleAuth(),
 		sheetsClient: sheetsClient ?? createFakeSheets(),
 		gmailClient: gmailClient ?? createFakeGmail(),
+		driveClient: driveClient ?? createFakeDrive(),
 	});
 	return {
 		app,
