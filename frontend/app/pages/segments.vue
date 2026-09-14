@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui';
 
+import type { Segment } from '~/types/segment';
 import type { Station } from '~/types/station';
 
 definePageMeta({
@@ -8,32 +9,49 @@ definePageMeta({
 	back: '/',
 });
 
-const { data, status, error, refresh } = await useApiFetch<{ stations: Station[] }>('/stations');
+// 開いたときに叩く2本（04-api.md 8章）。両方の一覧をこの画面が持ち、シートへ渡す
+const stationsFetch = await useApiFetch<{ stations: Station[] }>('/stations');
+const segmentsFetch = await useApiFetch<{ segments: Segment[] }>('/segments');
 
-// 並びはサーバーが決めている（名前順）。画面では並べ替えない（04-api.md 5.1 の流儀）
-const stations = computed(() => data.value?.stations ?? []);
+// 並びはサーバーが決めている（駅は名前順、区間は出発駅名→到着駅名）。画面では並べ替えない
+const stations = computed(() => stationsFetch.data.value?.stations ?? []);
+const segments = computed(() => segmentsFetch.data.value?.segments ?? []);
 
-// 既定は `駅`。1-5 の時点で中身があるのはこちらだけで、`区間` は 1-8 で入る。
-const tab = ref('station');
+// 既定は `区間`。運賃改定はこの画面だけで終わる（R-23）ので、直す先を先に出す
+const tab = ref('segment');
 
-// 区間タブに件数を付けない。GET /api/segments は 1-6 で、数えられないものを 0 と書かない。
+// タブに件数を添える（3.8）
 const tabs = computed<TabsItem[]>(() => [
-	{ label: '区間', value: 'segment' },
+	{ label: '区間', value: 'segment', badge: segments.value.length },
 	{ label: '駅', value: 'station', badge: stations.value.length },
 ]);
 
-const addOpen = ref(false);
-const editOpen = ref(false);
-const editing = ref<Station | null>(null);
+const segmentAddOpen = ref(false);
+const segmentEditOpen = ref(false);
+const editingSegment = ref<Segment | null>(null);
+const stationAddOpen = ref(false);
+const stationEditOpen = ref(false);
+const editingStation = ref<Station | null>(null);
 
-function openStation(station: Station) {
-	editing.value = station;
-	editOpen.value = true;
+function openSegment(segment: Segment) {
+	editingSegment.value = segment;
+	segmentEditOpen.value = true;
 }
 
-function reload() {
-	// segmentCount はサーバーが数える。手元で足し引きしない
-	void refresh();
+function openStation(station: Station) {
+	editingStation.value = station;
+	stationEditOpen.value = true;
+}
+
+// segmentCount / routeCount はサーバーが数える。手元で足し引きしない
+function reloadStations() {
+	void stationsFetch.refresh();
+}
+
+// 区間を直せば駅の segmentCount も動くので、両方取り直す
+function reloadSegments() {
+	void segmentsFetch.refresh();
+	void stationsFetch.refresh();
 }
 </script>
 
@@ -48,9 +66,62 @@ function reload() {
 			<UTabs v-model="tab" :items="tabs" :content="false" class="w-full" />
 		</div>
 
-		<ScreenPlaceholder v-if="tab === 'segment'" phase="1-8" spec="3.8" />
+		<div v-if="tab === 'segment'" class="space-y-4" data-testid="segment-tab">
+			<p class="text-muted text-sm">
+				<b>区間は複数のルートで共有される</b>（決定18）。片道運賃を直すと、
+				その区間を使っている<b>全ルートに効く。</b>直す前に、何本に効くかが一覧に出ている。
+			</p>
 
-		<div v-else class="space-y-4">
+			<!-- 追加の操作は一覧の見出しの右端に置く。一覧と一覧の間だと、どちらに効くか位置で決まらない（3.8） -->
+			<div class="flex items-center justify-between gap-2">
+				<h2 class="font-semibold">登録済みの区間</h2>
+				<UButton icon="i-lucide-plus" @click="segmentAddOpen = true">区間を追加</UButton>
+			</div>
+
+			<div v-if="segmentsFetch.status.value === 'pending'" class="space-y-2">
+				<USkeleton v-for="n in 3" :key="n" class="h-14 w-full" />
+			</div>
+
+			<!-- 読み込めなかったことを「まだ区間がありません」と出さない。空と失敗は別のことである -->
+			<div v-else-if="segmentsFetch.error.value" class="space-y-3">
+				<p class="text-muted text-sm">区間の一覧を読み込めませんでした。</p>
+				<UButton variant="outline" @click="reloadSegments">もう一度読み込む</UButton>
+			</div>
+
+			<p v-else-if="segments.length === 0" class="text-muted text-sm">まだ区間がありません。</p>
+
+			<ul v-else class="divide-default divide-y">
+				<li v-for="segment in segments" :key="segment.id">
+					<button
+						type="button"
+						class="hover:bg-elevated flex w-full items-center gap-3 rounded-sm px-1 py-3 text-left"
+						@click="openSegment(segment)"
+					>
+						<span class="flex min-w-0 flex-1 flex-col gap-0.5">
+							<span class="min-w-0 truncate font-medium">
+								{{ segment.fromStationName }} → {{ segment.toStationName }}
+							</span>
+							<span class="text-muted text-sm">
+								{{
+									segment.routeCount > 0
+										? `${segment.routeCount}本のルートが使っています`
+										: 'まだどのルートも使っていません'
+								}}
+							</span>
+						</span>
+						<span class="shrink-0 tabular-nums">{{ segment.oneWayFare.toLocaleString() }}円</span>
+					</button>
+				</li>
+			</ul>
+
+			<p class="text-muted text-sm">
+				<b>登録済みの区間の運賃を直せる場所は、この画面だけである</b>（F-20）。
+				記録画面にもルートの編集にも入力欄は無い。
+				<b>出発駅・到着駅の差し替えと削除は、どのルートも使っていないときだけ</b>（決定22）。
+			</p>
+		</div>
+
+		<div v-else class="space-y-4" data-testid="station-tab">
 			<p class="text-muted text-sm">
 				<b>駅名は鉄道会社の略称込みで持つ</b
 				>（F-15）。乗換駅は鉄道会社ごとに別の駅として書かれるので、 <code>X鉄乙駅</code> と
@@ -60,17 +131,17 @@ function reload() {
 			<!-- 追加の操作は一覧の見出しの右端に置く。一覧と一覧の間だと、どちらに効くか位置で決まらない（3.8） -->
 			<div class="flex items-center justify-between gap-2">
 				<h2 class="font-semibold">登録済みの駅</h2>
-				<UButton icon="i-lucide-plus" @click="addOpen = true">駅を登録</UButton>
+				<UButton icon="i-lucide-plus" @click="stationAddOpen = true">駅を登録</UButton>
 			</div>
 
-			<div v-if="status === 'pending'" class="space-y-2">
+			<div v-if="stationsFetch.status.value === 'pending'" class="space-y-2">
 				<USkeleton v-for="n in 3" :key="n" class="h-14 w-full" />
 			</div>
 
 			<!-- 読み込めなかったことを「まだ駅がありません」と出さない。空と失敗は別のことである -->
-			<div v-else-if="error" class="space-y-3">
+			<div v-else-if="stationsFetch.error.value" class="space-y-3">
 				<p class="text-muted text-sm">駅の一覧を読み込めませんでした。</p>
-				<UButton variant="outline" @click="reload">もう一度読み込む</UButton>
+				<UButton variant="outline" @click="reloadStations">もう一度読み込む</UButton>
 			</div>
 
 			<p v-else-if="stations.length === 0" class="text-muted text-sm">まだ駅がありません。</p>
@@ -108,7 +179,24 @@ function reload() {
 			</p>
 		</div>
 
-		<StationAddSheet v-model:open="addOpen" @changed="reload" />
-		<StationEditSheet v-model:open="editOpen" :station="editing" @changed="reload" />
+		<SegmentAddSheet
+			v-model:open="segmentAddOpen"
+			:stations="stations"
+			@changed="reloadSegments"
+			@stations-changed="reloadStations"
+		/>
+		<SegmentEditSheet
+			v-model:open="segmentEditOpen"
+			:segment="editingSegment"
+			:stations="stations"
+			@changed="reloadSegments"
+			@stations-changed="reloadStations"
+		/>
+		<StationAddSheet v-model:open="stationAddOpen" @changed="reloadStations" />
+		<StationEditSheet
+			v-model:open="stationEditOpen"
+			:station="editingStation"
+			@changed="reloadSegments"
+		/>
 	</div>
 </template>

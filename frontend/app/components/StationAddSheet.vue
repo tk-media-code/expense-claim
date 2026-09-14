@@ -4,7 +4,8 @@ import type { Station } from '~/types/station';
 // 「駅を登録」のシート（02-screens.md 3.8）。
 // 画面を替えずに重ねて出す（2.1）ので URL を持たない。1-8 の「区間を追加」からも重ねて使う。
 const open = defineModel<boolean>('open', { required: true });
-const emit = defineEmits<{ changed: [] }>();
+// 登録した駅を添えて知らせる。区間のシートから重ねて開いたとき、そのまま選択状態にするため（3.8）
+const emit = defineEmits<{ changed: [station: Station] }>();
 
 const api = useApi();
 const name = ref('');
@@ -18,9 +19,12 @@ watch(open, (isOpen) => {
 async function submit() {
 	saving.value = true;
 	try {
-		await api<Station>('/stations', { method: 'POST', body: { name: name.value } });
+		const created = await api<Station>('/stations', {
+			method: 'POST',
+			body: { name: name.value },
+		});
 		open.value = false;
-		emit('changed');
+		emit('changed', created);
 	} catch {
 		// 失敗の文面は plugins/api.ts が既にトーストへ出している（04-api.md 2.5）。
 		// ここでやるのは「閉じない」ことだけ。閉じると打った名前ごと消える。
