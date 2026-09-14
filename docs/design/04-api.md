@@ -70,9 +70,13 @@ Cookie は `HttpOnly` / `Secure` / `SameSite=Lax` で、**クロスサイトか�
 | 本文 | `application/json`。**`multipart/form-data` は領収書のアップロードだけ**（4.6） |
 | キーの書き方 | **`camelCase`** |
 | 文字コード | UTF-8 |
+| **削除の応答** | **`204 No Content`。本文を持たない** |
 
 **`camelCase` にするのは、`repositories` の外へ `snake_case` を出さないためである**（`03-database.md` 5章 / 10.2）。
 DB の列名がそのまま API に出ていると、**DB を替えたときに API の互換性まで巻き込む。**
+
+**`DELETE` が消したものを返さないのは、返しても行き先が無いからである。**
+画面は消えたものを描かない。**本文があるのは失敗したときだけ**で、その形は 2.5 に従う。
 
 **セッションは Cookie だけで運ぶ。** `Authorization` ヘッダーを使わない。
 **SPA は同一オリジンにいるので、ブラウザが勝手に付ける**（2.2）。
@@ -124,12 +128,17 @@ JavaScript から読める場所にトークンを置かない。
 | 400 | 本文が JSON として壊れている | `BAD_REQUEST` |
 | **401** | **未ログイン。セッションが切れた・失効させられた** | `UNAUTHENTICATED` |
 | **403** | **許可アドレス以外**（F-01 / N-03）。`Origin` が合わない | `NOT_ALLOWED` |
-| 404 | 資源が無い | `NOT_FOUND` |
-| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` |
+| 404 | 資源が無い。**`:id` が正の整数でない場合を含む** | `NOT_FOUND` |
+| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した・**使われているものを消そうとした** | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` / `STATION_IN_USE` |
 | **422** | **値が規則に合わない**（負の金額など） | `INVALID_VALUE` |
 | 500 | 想定外の例外。**バグである** | `INTERNAL_ERROR` |
 | **502** | **Google API が失敗した** | `SHEET_UNREACHABLE` / `DRIVE_UPLOAD_FAILED` / `SHEET_FORMAT_CHANGED` |
 | **503** | **Google API の認可が無い・切れている** | `GOOGLE_UNAUTHORIZED` |
+
+**`:id` が正の整数でなければ 404 にする。** 主キーは `INT UNSIGNED` の `AUTO_INCREMENT` で
+（`03-database.md` 5章）、**整数でない `id` はどの行も指さない。**
+本人から見れば「その駅が無い」でしかなく、**422 に割ると、同じ1つの失敗が
+`abc` は 422・`9999` は 404 と2つの形になる。**
 
 **401 と 503 を分けるのは、導く先が違うからである。**
 401 はログイン画面へ。**503 は設定画面の「再認可する」へ**（F-02 / `02-screens.md` 3.11）。
