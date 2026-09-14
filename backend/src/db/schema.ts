@@ -6,6 +6,7 @@ import {
 	int,
 	mysqlEnum,
 	mysqlTable,
+	smallint,
 	tinyint,
 	unique,
 	varchar,
@@ -107,4 +108,56 @@ export const venues = mysqlTable(
 	},
 	// 取り込みの upsert が鍵にする（5.1）
 	(t) => [unique('venues_code_unique').on(t.code)],
+);
+
+// ルート。設定データで、消えない（03-database.md 5.1 / 6.1）
+//
+// 会場1対多ルート（要件定義 6.1 / R-07）。「自宅→会場」の1方向で持ち（決定9）、復路は区間の
+// 並びを逆順にして使う。ルートまで多対多にしない。1本を消しただけで複数の会場から行き方が
+// 消えるからで、同じ経路でも会場ごとに1本ずつ登録する（決定18）。
+export const routes = mysqlTable(
+	'routes',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 設定データを巻き込みで消さない（6.2 RESTRICT）。会場を削除する API はそもそも無い
+		venueId: int('venue_id', { unsigned: true })
+			.notNull()
+			.references(() => venues.id, { onDelete: 'restrict' }),
+		// 「乙駅乗換」など
+		name: varchar('name', { length: 100 }).notNull(),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	// 同じ会場に同じ名前のルートを2本持たせない（5.1）。別の会場なら同じ名前でよい
+	(t) => [unique('routes_venue_id_name_unique').on(t.venueId, t.name)],
+);
+
+// ルートが使う区間の並び。設定データで、消えない（03-database.md 5.1 / 6.1）
+//
+// segments を独立させた時点でルートと区間は多対多になり、その結び付きを置く場所である。
+// 「ルートが何番目にどの区間を使うか」だけを持ち、区間そのもの（駅・運賃）は持たない。
+// 上限を設けない（要件定義 6.1）。乗り換え無しなら1行、1回なら2行、2回なら3行。
+export const routeSegments = mysqlTable(
+	'route_segments',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 並びはルートの部品。ルートを消せば並びも消えるが、区間そのものは消えない（6.2 CASCADE）
+		routeId: int('route_id', { unsigned: true })
+			.notNull()
+			.references(() => routes.id, { onDelete: 'cascade' }),
+		// ルート内の順序。1 始まり。API の segmentIds の配列順からサーバーが振る（04-api.md 3.2）
+		sortOrder: smallint('sort_order', { unsigned: true }).notNull(),
+		// 使われている区間は消せない（6.2 RESTRICT / 決定22）。1-7 の削除 API はこれを 409 に写す
+		segmentId: int('segment_id', { unsigned: true })
+			.notNull()
+			.references(() => segments.id, { onDelete: 'restrict' }),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	// 順序を持つ子は (親, sort_order) を UNIQUE にする（4.3）。
+	// UNIQUE (route_id, segment_id) は張らない。想定していない経路を DB が先に禁じることになり、
+	// 「上限を設けない」「名寄せをしない」と同じ理由で設定データを機械が狭めにいかない（5.1）
+	(t) => [unique('route_segments_route_id_sort_order_unique').on(t.routeId, t.sortOrder)],
 );
