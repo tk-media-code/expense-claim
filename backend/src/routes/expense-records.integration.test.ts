@@ -1,15 +1,16 @@
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { createAuthedApp } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
-import { createApp } from '../app.js';
 import { expenseRecordLegs, expenseRecords } from '../db/schema.js';
 
 // createApp() の実物を test スキーマの DB で叩く（07-development.md 4章）。
 // 会場・駅名・案件は架空の値だけを使う（公開リポジトリ）。要件定義 5.6 の例に合わせる
 const pool: Pool = createTestPool();
 const db = createTestDatabase(pool);
-const app = createApp({ db });
+// /api/* に認証が被さる。ログイン済みの Cookie を自動で載せる（test/app.ts）
+const app = createAuthedApp(db);
 
 async function json(method: string, path: string, body?: unknown): Promise<Response> {
 	return app.request(path, {

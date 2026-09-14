@@ -1,10 +1,18 @@
 import { z } from 'zod';
 
 // 設定はすべて環境変数から取る（01-architecture.md 6.1 の縛り3 / NF-07）。
-// クラウド固有のシークレット機構を挟まない。
+// クラウド固有のシークレット機構を挟まない。一覧は 05-integration.md 9章。
 const envSchema = z.object({
 	PORT: z.coerce.number().int().positive().default(3000),
 	DATABASE_URL: z.string().min(1, 'DATABASE_URL が空です'),
+	// セッション Cookie の署名鍵（01-architecture.md 7.3）。短いと総当たりで署名を作れる
+	SESSION_SECRET: z.string().min(16, 'SESSION_SECRET は16文字以上にしてください'),
+	// 許可するメールアドレス（05-integration.md 3.5 / N-18）
+	ALLOWED_EMAIL: z.string().min(1, 'ALLOWED_EMAIL が空です'),
+	// OAuth クライアント（05-integration.md 3章）。空なら Google のログインは使えない（開発では E2E が Cookie を直接載せる）
+	GOOGLE_CLIENT_ID: z.string().default(''),
+	GOOGLE_CLIENT_SECRET: z.string().default(''),
+	GOOGLE_REDIRECT_URI_LOGIN: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

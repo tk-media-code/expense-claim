@@ -95,3 +95,14 @@ MYSQL_ROOT_PASSWORD=expense
 ```
 
 `.env.example` はフックで触れなかったので、雛形はここにある。本番の値は入れない。
+
+アプリの認証（[`docs/design/05-integration.md`](docs/design/05-integration.md) 9章）。開発では `compose.override.yaml` の既定値で動き、
+Google のログインだけが使えない（E2E はセッション Cookie を自分で載せる）。本番では全部を渡す。
+
+```
+SESSION_SECRET=                 # セッション Cookie の署名鍵。16文字以上
+ALLOWED_EMAIL=                  # 許可するメールアドレス（本人）
+GOOGLE_CLIENT_ID=               # 「ウェブ アプリケーション」型の OAuth クライアント
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI_LOGIN=      # https://<ホスト>/api/auth/callback
+```

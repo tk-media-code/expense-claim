@@ -1,8 +1,8 @@
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { createAuthedApp } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
-import { createApp } from '../app.js';
 import { routeSegments, routes, venues } from '../db/schema.js';
 import { errorCatalog } from '../domain/app-error.js';
 import { ONE_WAY_FARE_MAX } from '../domain/segment.js';
@@ -12,7 +12,8 @@ import { ONE_WAY_FARE_MAX } from '../domain/segment.js';
 // 並びを見るテストは先頭の英字（X < Y < Z）で順序が決まる名前にし、漢字の照合順序に依らないようにする。
 const pool: Pool = createTestPool();
 const db = createTestDatabase(pool);
-const app = createApp({ db });
+// /api/* に認証が被さる。ログイン済みの Cookie を自動で載せる（test/app.ts）
+const app = createAuthedApp(db);
 
 async function post(body: string): Promise<Response> {
 	return app.request('/api/segments', {

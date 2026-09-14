@@ -20,3 +20,11 @@ services:
       # 既定値のホスト `mysql` は compose.override.yaml でしか立たない開発用コンテナを指す。
       # 上書きを忘れたまま本番相当で起動した場合は、名前解決に失敗して DB 利用箇所が明示的に落ちる。
       DATABASE_URL: ${DATABASE_URL:-mysql://expense:expense@mysql:3306/expense_claim}
+      # 認証（01-architecture.md 7.3 / 05-integration.md 9章）。本番は .env か環境から渡す。
+      # 空のまま起動すると backend が「環境変数が正しくありません」で落ちる（config/env.ts）。
+      # 開発用の既定値は compose.override.yaml にある
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI_LOGIN: ${GOOGLE_REDIRECT_URI_LOGIN:-}

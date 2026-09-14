@@ -1,8 +1,8 @@
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { createAuthedApp } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
-import { createApp } from '../app.js';
 import { routeSegments } from '../db/schema.js';
 import { errorCatalog } from '../domain/app-error.js';
 
@@ -10,7 +10,8 @@ import { errorCatalog } from '../domain/app-error.js';
 // 会場・駅名は架空の値だけを使う。実在の値は書かない（公開リポジトリ）。
 const pool: Pool = createTestPool();
 const db = createTestDatabase(pool);
-const app = createApp({ db });
+// /api/* に認証が被さる。ログイン済みの Cookie を自動で載せる（test/app.ts）
+const app = createAuthedApp(db);
 
 async function json(method: string, path: string, body?: unknown): Promise<Response> {
 	return app.request(path, {

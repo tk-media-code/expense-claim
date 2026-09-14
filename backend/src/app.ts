@@ -2,6 +2,10 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 
 import type { Database } from './db/client.js';
+import { AppError } from './domain/app-error.js';
+import type { LoginProvider } from './integrations/google/oauth.js';
+import { createGoogleLoginProvider } from './integrations/google/oauth-googleapis.js';
+import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createExpenseRecordsRepository } from './repositories/expense-records.js';
 import { createProjectsRepository } from './repositories/projects.js';
 import { createRoutesRepository } from './repositories/routes.js';
@@ -9,15 +13,18 @@ import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
 import { createSyncStateRepository } from './repositories/sync-state.js';
 import { createVenuesRepository } from './repositories/venues.js';
+import { createAuthRoute } from './routes/auth.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { createExpenseRecordsRoute } from './routes/expense-records.js';
 import { healthRoute } from './routes/health.js';
 import { createHomeRoute } from './routes/home.js';
 import { createProjectsRoute } from './routes/projects.js';
+import { requireSession } from './routes/require-session.js';
 import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
+import { createAuthService } from './services/auth.js';
 import { createExpenseRecordsService } from './services/expense-records.js';
 import { createHomeService } from './services/home.js';
 import { createProjectsService } from './services/projects.js';
@@ -26,11 +33,32 @@ import { createSegmentsService } from './services/segments.js';
 import { createStationsService } from './services/stations.js';
 import { createVenuesService } from './services/venues.js';
 
-// アプリが外から受け取るもの。index.ts は本物の DB を、統合テストは test スキーマの DB を渡す。
-export type AppDependencies = { db: Database };
+/** 環境変数から組む設定のうち、アプリが要るもの。index.ts が env から写し、テストは固定値を渡す */
+export type AppConfig = {
+	sessionSecret: string;
+	allowedEmail: string;
+	google: { clientId: string; clientSecret: string; redirectUriLogin: string };
+};
+
+// アプリが外から受け取るもの。index.ts は本物の DB と Google を、統合テストは test スキーマの DB と偽物を渡す。
+export type AppDependencies = {
+	db: Database;
+	config: AppConfig;
+	/** 省くと config.google から googleapis の実装を組む。テストは偽物を渡す */
+	loginProvider?: LoginProvider;
+};
+
+// OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
+// セッション Cookie を直接載せれば他は動く
+function unconfiguredLoginProvider(): LoginProvider {
+	const fail = () => {
+		throw new AppError('INTERNAL_ERROR', { message: 'Google のログインが設定されていません' });
+	};
+	return { authorizationUrl: fail, exchange: () => Promise.reject(fail()) };
+}
 
 // ログは標準出力へ1行テキストで出し、Docker に拾わせる（07-development.md 6章）。
-export function createApp({ db }: AppDependencies): Hono {
+export function createApp({ db, config, loginProvider }: AppDependencies): Hono {
 	const app = new Hono();
 	app.use('*', logger());
 
@@ -65,8 +93,24 @@ export function createApp({ db }: AppDependencies): Hono {
 		venuesRepository,
 		routesRepository,
 	);
+	const provider =
+		loginProvider ??
+		(config.google.clientId
+			? createGoogleLoginProvider({
+					clientId: config.google.clientId,
+					clientSecret: config.google.clientSecret,
+					redirectUri: config.google.redirectUriLogin,
+				})
+			: unconfiguredLoginProvider());
+	const authService = createAuthService(provider, createAuthStateRepository(db), {
+		allowedEmail: config.allowedEmail,
+	});
+
+	// 本人以外は使えない（NF-06）。/api/health とログインの入口だけを除いて、全部に被せる
+	app.use('/api/*', requireSession(authService, config.sessionSecret));
 
 	app.route('/api/health', healthRoute);
+	app.route('/api/auth', createAuthRoute(authService, { sessionSecret: config.sessionSecret }));
 	app.route('/api/home', createHomeRoute(homeService));
 	app.route('/api/stations', createStationsRoute(stationsService));
 	app.route('/api/segments', createSegmentsRoute(segmentsService));
