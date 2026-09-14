@@ -9,8 +9,16 @@ export class GoogleApiFailure extends Error {
 	readonly kind: GoogleFailureKind;
 	readonly status: number | null;
 
-	constructor(kind: GoogleFailureKind, status: number | null, options?: ErrorOptions) {
-		super(`Google API に失敗しました（${kind}${status === null ? '' : ` ${status}`}）`, options);
+	constructor(
+		kind: GoogleFailureKind,
+		status: number | null,
+		options?: ErrorOptions & { message?: string },
+	) {
+		super(
+			options?.message ??
+				`Google API に失敗しました（${kind}${status === null ? '' : ` ${status}`}）`,
+			options,
+		);
 		this.name = 'GoogleApiFailure';
 		this.kind = kind;
 		this.status = status;
