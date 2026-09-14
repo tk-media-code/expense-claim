@@ -32,6 +32,8 @@ export function createGmailClient(
 	}
 
 	return {
+		configured: config.sender !== '',
+
 		// 4.1。q は from: と after: だけ。ラベルを条件にしない（F-04）。宛先で判別しない（N-17）。
 		// nextPageToken を追う。追わない実装は件数が増えた瞬間に静かに取りこぼす
 		async listRequestMailIds(after: CalendarDate | null): Promise<string[]> {

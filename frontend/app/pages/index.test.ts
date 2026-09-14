@@ -3,7 +3,7 @@ import type { VueWrapper } from '@vue/test-utils';
 import { setResponseStatus } from 'h3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Home, HomeProject } from '~/types/home';
+import type { Home, HomeProject, SyncResult } from '~/types/home';
 import HomePage from './index.vue';
 
 // 案件は架空の値だけを使う（公開リポジトリ）。02-screens.md 2.4 の場面「稼働日の帰り道」（今日 9/5）に合わせる
@@ -29,6 +29,16 @@ function project(
 
 let home: Home;
 let fails = false;
+let syncResult: SyncResult;
+const synced = vi.fn<() => void>();
+
+registerEndpoint('/api/sync', {
+	method: 'POST',
+	handler: () => {
+		synced();
+		return syncResult;
+	},
+});
 
 registerEndpoint('/api/home', {
 	method: 'GET',
@@ -55,6 +65,7 @@ function cards(page: VueWrapper) {
 beforeEach(() => {
 	vi.useFakeTimers({ now: new Date('2026-09-05T10:00:00Z'), toFake: ['Date'] });
 	fails = false;
+	syncResult = { targetMonth: '2026-08', rolledOver: false, importedCount: 0, warnings: [] };
 	home = {
 		targetMonth: '2026-08',
 		lastImportedAt: '2026-09-05T09:42:00Z',
@@ -186,5 +197,35 @@ describe('/（02-screens.md 3.2）', () => {
 		fails = true;
 		const page = await openPage();
 		expect(page.text()).toContain('読み込めませんでした');
+	});
+
+	// F-03 / 決定1。開いたときに取り込みが走り、一覧は待たずに出る。手動でも実行できる
+	it('開いたときに POST /api/sync が走り、「取り込む」で手動でも走る', async () => {
+		const page = await openPage();
+		await vi.waitFor(() => expect(synced).toHaveBeenCalledTimes(1));
+		expect(cards(page).length).toBeGreaterThan(0);
+		// 走っている間は二重に投げない。終わるのを待ってから押す
+		await vi.waitFor(() => expect(page.find('[data-testid="sync"]').text()).toBe('取り込む'));
+		await page.find('[data-testid="sync"]').trigger('click');
+		await vi.waitFor(() => expect(synced).toHaveBeenCalledTimes(2));
+	});
+
+	// 04-api.md 2.6。失敗は warnings に載って 200 で返り、知らせて続ける
+	it('取り込みの warnings をトーストに出す', async () => {
+		syncResult = {
+			targetMonth: null,
+			rolledOver: false,
+			importedCount: 2,
+			warnings: [{ code: 'SHEET_UNREACHABLE', message: '提出シートに届きませんでした' }],
+		};
+		await openPage();
+		await vi.waitFor(() => expect(synced).toHaveBeenCalled());
+		const toast = await useNuxtApp().runWithContext(() => useToast());
+		await vi.waitFor(() =>
+			expect(toast.toasts.value.map((t) => t.title)).toEqual(
+				expect.arrayContaining(['提出シートに届きませんでした', '案件を2件取り込みました']),
+			),
+		);
+		toast.clear();
 	});
 });

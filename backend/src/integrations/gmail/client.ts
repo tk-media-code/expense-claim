@@ -17,6 +17,8 @@ export type FetchedMail = {
 };
 
 export interface GmailClient {
+	/** 差出人アドレス（GMAIL_SENDER）の設定があるか。無ければ叩かず、未設定として扱う */
+	readonly configured: boolean;
 	/**
 	 * 依頼メールの id を集める（4.1）。差出人アドレスを一次条件にし、ラベルを条件にしない（F-04）。
 	 * after は前回の取り込み日の1日前。初回は null で付けない。境界が日付粒度なので広めに取り、

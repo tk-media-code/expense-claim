@@ -32,6 +32,13 @@ export function createSyncService(
 		now: Date,
 		warnings: SyncWarning[],
 	): Promise<{ imported: number; failed: boolean }> {
+		if (!gmail.configured) {
+			warnings.push({
+				code: 'GMAIL_NOT_CONFIGURED',
+				message: '依頼メールの差出人アドレスが設定されていないので、取り込めません',
+			});
+			return { imported: 0, failed: true };
+		}
 		let ids: string[];
 		try {
 			// 前回の取り込み日の1日前から。境界が日付粒度なので広めに取り、id で弾く（4.1）
@@ -97,23 +104,31 @@ export function createSyncService(
 			// 手順1。A1 を読み、last_seen_target_month と比べる（F-31 / F-32）。
 			// 読めなくても取り込みは続ける（04-api.md 4.3「片方が失敗しても、もう片方は走る」）
 			let readMonth: SyncResult['targetMonth'] = null;
-			try {
-				readMonth = await sheets.readTargetMonth();
-				rolledOver =
-					previous?.lastSeenTargetMonth != null && previous.lastSeenTargetMonth !== readMonth;
-			} catch (cause) {
-				const error =
-					cause instanceof AppError ? cause : new AppError('SHEET_UNREACHABLE', { cause });
-				if (!(cause instanceof AppError)) console.error(cause);
-				warnings.push({ code: error.code, message: error.message });
-				// 読めなかったことは、もう起きている（06-error-handling.md 3.2）。認可切れか共有停止かを文面に入れる（4.2）
-				await attentions.record(
-					'sheet_unreachable',
-					error.code === 'GOOGLE_UNAUTHORIZED'
-						? '対象月度を読もうとしましたが、Google の認可が切れています。設定から再認可してください'
-						: `対象月度を読もうとしましたが、提出シートに届きませんでした（${error.message}）。共有が続いているか確かめてください`,
-					now,
-				);
+			if (!sheets.configured) {
+				// 未設定は「届かない」とは別のこと。叩かず、要確認事項にも積まない（起きたことではなく設定の不足）
+				warnings.push({
+					code: 'SHEET_NOT_CONFIGURED',
+					message: '提出シートが設定されていないので、対象月度を読めません',
+				});
+			} else {
+				try {
+					readMonth = await sheets.readTargetMonth();
+					rolledOver =
+						previous?.lastSeenTargetMonth != null && previous.lastSeenTargetMonth !== readMonth;
+				} catch (cause) {
+					const error =
+						cause instanceof AppError ? cause : new AppError('SHEET_UNREACHABLE', { cause });
+					if (!(cause instanceof AppError)) console.error(cause);
+					warnings.push({ code: error.code, message: error.message });
+					// 読めなかったことは、もう起きている（06-error-handling.md 3.2）。認可切れか共有停止かを文面に入れる（4.2）
+					await attentions.record(
+						'sheet_unreachable',
+						error.code === 'GOOGLE_UNAUTHORIZED'
+							? '対象月度を読もうとしましたが、Google の認可が切れています。設定から再認可してください'
+							: `対象月度を読もうとしましたが、提出シートに届きませんでした（${error.message}）。共有が続いているか確かめてください`,
+						now,
+					);
+				}
 			}
 
 			if (rolledOver && readMonth) {

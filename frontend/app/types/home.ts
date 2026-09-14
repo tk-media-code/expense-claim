@@ -34,3 +34,11 @@ export type Home = {
 	attentionCount: number;
 	months: HomeMonth[];
 };
+
+/** POST /api/sync（04-api.md 4.3）。失敗は warnings[] に載って 200 で返る（2.6） */
+export type SyncResult = {
+	targetMonth: string | null;
+	rolledOver: boolean;
+	importedCount: number;
+	warnings: { code: string; message: string }[];
+};

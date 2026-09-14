@@ -31,6 +31,8 @@ export type SubmissionRow = {
 };
 
 export interface SheetsClient {
+	/** 提出シートの設定（SPREADSHEET_ID / MY_SHEET_NAME）があるか。無ければ叩かず、未設定として扱う */
+	readonly configured: boolean;
 	/** A1 を UNFORMATTED_VALUE で読み、対象月度にする（7.1）。読めなければ TARGET_MONTH_UNREADABLE */
 	readTargetMonth(): Promise<TargetMonth>;
 	/** グリッドと保護範囲から書ける行の範囲を決める（7.2）。決まらなければ WRITABLE_RANGE_UNKNOWN */

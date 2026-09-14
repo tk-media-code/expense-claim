@@ -91,6 +91,7 @@ export function createFakeSheets(
 		if (options.fails) throw new AppError(options.fails);
 	};
 	const fake = {
+		configured: true,
 		inserted: [] as number[],
 		written: [] as { rows: unknown[]; receiptCell: string }[],
 		readTargetMonth: () => {
@@ -135,6 +136,7 @@ export function createFakeGmail(
 ): GmailClient & { sent: { subject: string; body: string }[]; listedAfter: (string | null)[] } {
 	const mails = options.mails ?? [];
 	const fake = {
+		configured: true,
 		sent: [] as { subject: string; body: string }[],
 		listedAfter: [] as (string | null)[],
 		listRequestMailIds: (after: string | null) => {

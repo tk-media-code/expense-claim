@@ -94,6 +94,8 @@ export function createSheetsClient(
 	}
 
 	return {
+		configured: config.spreadsheetId !== '' && config.sheetName !== '',
+
 		// 7.1。A1 は他シートを参照する数式で、UNFORMATTED_VALUE で読むと日付のシリアル値が返る
 		async readTargetMonth() {
 			const sheets = await api();

@@ -1,13 +1,52 @@
 <script setup lang="ts">
-import type { Home, HomeMonth, HomeProject } from '~/types/home';
+import type { Home, HomeMonth, HomeProject, SyncResult } from '~/types/home';
 
 definePageMeta({
 	title: 'ホーム',
 	menu: true,
 });
 
-// 集約の1本（04-api.md 4.3）。DB しか読まないので待たされない。取り込み（POST /api/sync）は 9-5 で足す
+const api = useApi();
+const toast = useToast();
+
+// 集約の1本（04-api.md 4.3）。DB しか読まないので待たされない
 const { data, status, error, refresh } = await useApiFetch<Home>('/home');
+
+// 画面を開いたときに取り込みが走る（F-03 / 決定1）。GET の結果を待たずに POST を投げ、POST が返ったら
+// GET をやり直す（04-api.md 8章）。一覧は先に出る。取り込み中はその旨を出す。
+// 手動でも実行できる（F-03「画面の操作でも実行できる」）
+const syncing = ref(false);
+async function sync() {
+	if (syncing.value) return;
+	syncing.value = true;
+	try {
+		const result = await api<SyncResult>('/sync', { method: 'POST' });
+		for (const warning of result.warnings) {
+			// 認可切れは設定へ導く（F-02）。それ以外は知らせて続ける（2.6）
+			if (warning.code === 'GOOGLE_UNAUTHORIZED') {
+				toast.add({
+					title: warning.message,
+					color: 'error',
+					actions: [{ label: '設定を開く', to: '/settings', color: 'error', variant: 'solid' }],
+				});
+			} else {
+				toast.add({ title: warning.message, color: 'warning' });
+			}
+		}
+		if (result.importedCount > 0) {
+			toast.add({ title: `案件を${result.importedCount}件取り込みました`, color: 'success' });
+		}
+		await refresh();
+	} catch {
+		// 失敗の文面は plugins/api.ts が既にトーストへ出している
+	} finally {
+		syncing.value = false;
+	}
+}
+
+onMounted(() => {
+	void sync();
+});
 
 const home = computed(() => data.value ?? null);
 const today = todayInJst();
@@ -161,11 +200,23 @@ const cronStale = computed(() => {
 
 			<!-- 静かな故障に気づくための2行（要件定義 10章 / 06-error-handling.md 7章） -->
 			<dl class="text-muted space-y-1 text-sm" data-testid="sync-info">
-				<div class="flex gap-2">
+				<div class="flex items-center gap-2">
 					<dt class="shrink-0">最後に取り込んだ日時</dt>
 					<dd>
 						{{ home.lastImportedAt ? formatDateTime(home.lastImportedAt) : 'まだ取り込んでいない' }}
 					</dd>
+					<UButton
+						icon="i-lucide-refresh-cw"
+						variant="ghost"
+						color="neutral"
+						size="xs"
+						:loading="syncing"
+						aria-label="取り込む"
+						data-testid="sync"
+						@click="sync"
+					>
+						{{ syncing ? '取り込み中' : '取り込む' }}
+					</UButton>
 				</div>
 				<div class="flex gap-2" :class="{ 'text-warning font-semibold': cronStale }">
 					<dt class="shrink-0">提出アラートが最後に動いた日時</dt>
