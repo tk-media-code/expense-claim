@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
 	check,
+	customType,
 	date,
 	datetime,
 	index,
@@ -12,6 +13,14 @@ import {
 	unique,
 	varchar,
 } from 'drizzle-orm/mysql-core';
+
+// Drizzle の varbinary は TypeScript 側が string で、バイト列をそのまま往復できない。
+// 暗号化したトークンは Buffer で読み書きしたいので、列の型だけ自分で決める
+const binary = customType<{ data: Uint8Array; driverData: Buffer }>({
+	dataType: () => 'varbinary(1024)',
+	toDriver: (value) => Buffer.from(value),
+	fromDriver: (value) => new Uint8Array(value),
+});
 
 // テーブルは実装計画の順に足す（docs/implementation-plan.md）。
 // 列の型・NULL・既定値・制約は 03-database.md 5章の表に合わせる。
@@ -271,4 +280,23 @@ export const authState = mysqlTable(
 		updatedAt: datetime('updated_at').notNull(),
 	},
 	(t) => [check('auth_state_single_row', sql`${t.id} = 1`)],
+);
+
+// Google API の認可情報（単一行）。03-database.md 5.3 / 01-architecture.md 7.2。
+//
+// リフレッシュトークンは暗号化して保存し、暗号鍵は環境変数で持つ。列に鍵は入れない。
+// アクセストークンは保存しない。寿命が短く、リフレッシュトークンから作り直せる。置かなければ漏れない。
+// 初期データは投入できない（refresh_token_encrypted が NOT NULL）。初回の認可で作られる。
+export const googleCredentials = mysqlTable(
+	'google_credentials',
+	{
+		id: tinyint('id', { unsigned: true }).notNull().default(1).primaryKey(),
+		// AES-256-GCM の iv + 暗号文 + タグ（integrations/google/credentials.ts）
+		refreshTokenEncrypted: binary('refresh_token_encrypted').notNull(),
+		// 付与済みスコープ。空白区切り。増えたときに再認可へ導く（F-02）
+		scopes: varchar('scopes', { length: 512 }).notNull(),
+		authorizedAt: datetime('authorized_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	(t) => [check('google_credentials_single_row', sql`${t.id} = 1`)],
 );
