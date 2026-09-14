@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseCalendarDate, parseTargetMonth, type CalendarDate } from '../domain/month.js';
 import type { Project } from '../domain/project.js';
 import type { SyncState } from '../domain/sync-state.js';
+import type {
+	ExpenseRecordSummary,
+	ExpenseRecordsRepository,
+} from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 import { createHomeService } from './home.js';
@@ -33,7 +37,14 @@ const aug23 = project(2, '100000012', '2026-08-23', 'DDD');
 const sep5a = project(3, '100000001', '2026-09-05', 'AAA');
 const sep5b = project(4, '100000002', '2026-09-05', 'BBB');
 
-function createFakes(options: { projects?: Project[]; syncState?: SyncState | null } = {}) {
+function createFakes(
+	options: {
+		projects?: Project[];
+		syncState?: SyncState | null;
+		/** 記録済みの案件 id → 要約 */
+		records?: ExpenseRecordSummary[];
+	} = {},
+) {
 	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() =>
 		Promise.resolve(options.projects ?? []),
 	);
@@ -41,7 +52,15 @@ function createFakes(options: { projects?: Project[]; syncState?: SyncState | nu
 	const syncStateRepository = {
 		find: vi.fn<SyncStateRepository['find']>(() => Promise.resolve(options.syncState ?? null)),
 	} as unknown as SyncStateRepository;
-	return { service: createHomeService(projectsRepository, syncStateRepository), listFrom };
+	const summarize = vi.fn<ExpenseRecordsRepository['summarize']>(() =>
+		Promise.resolve(new Map((options.records ?? []).map((r) => [r.projectId, r]))),
+	);
+	const expenseRecordsRepository = { summarize } as unknown as ExpenseRecordsRepository;
+	return {
+		service: createHomeService(projectsRepository, syncStateRepository, expenseRecordsRepository),
+		listFrom,
+		summarize,
+	};
 }
 
 const synced: SyncState = {
@@ -80,9 +99,15 @@ describe('home service', () => {
 		]);
 	});
 
-	it('案件カードの項目を持ち、記録の有無は Phase 4-5 までは未記録', async () => {
-		const { service } = createFakes({ projects: [sep5a], syncState: synced });
+	// F-21 / 02-screens.md 4.1。記録の有無と合計を案件ごとに添える。1クエリでまとめて引く
+	it('記録済みの案件は recorded と合計を持ち、未記録は null', async () => {
+		const { service, summarize } = createFakes({
+			projects: [sep5a, sep5b],
+			syncState: synced,
+			records: [{ projectId: 3, tripType: 'round', total: 1060 }],
+		});
 		const home = await service.get();
+		expect(summarize).toHaveBeenCalledWith([3, 4]);
 		expect(home.months[0]?.projects[0]).toEqual({
 			id: 3,
 			projectNo: '100000001',
@@ -90,10 +115,11 @@ describe('home service', () => {
 			venueCode: 'AAA',
 			venueName: 'AAA会場',
 			coupleName: '〇〇様△△様',
-			recorded: false,
-			totalAmount: null,
+			recorded: true,
+			totalAmount: 1060,
 			taxiCount: 0,
 		});
+		expect(home.months[0]?.projects[1]).toMatchObject({ recorded: false, totalAmount: null });
 	});
 
 	// 一度も同期していなければ対象月度が無い。案件は全件出し、どれも提出待ちにしない

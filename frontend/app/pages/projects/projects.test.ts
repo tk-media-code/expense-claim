@@ -4,7 +4,7 @@ import { readBody, setResponseStatus, type H3Event } from 'h3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
-import type { Project } from '~/types/project';
+import type { ProjectDetail } from '~/types/project';
 import type { Venue } from '~/types/venue';
 import DetailPage from './[id]/index.vue';
 import NewPage from './new.vue';
@@ -14,7 +14,7 @@ const venues: Venue[] = [
 	{ id: 1, code: 'AAA', name: '甲ホール', source: 'master', routes: [] },
 	{ id: 2, code: 'BBB', name: '乙迎賓館', source: 'master', routes: [] },
 ];
-const existing: Project = {
+const existing: ProjectDetail = {
 	id: 3,
 	projectNo: '100000001',
 	serviceDate: '2026-09-05',
@@ -23,9 +23,11 @@ const existing: Project = {
 	venueName: '甲ホール',
 	coupleName: '〇〇様△△様',
 	source: 'mail',
+	record: null,
+	taxiCount: 0,
 };
 
-let project: Project;
+let project: ProjectDetail;
 const posted = vi.fn<(body: Record<string, unknown>) => void>();
 const patched = vi.fn<(body: Record<string, unknown>) => void>();
 const removed = vi.fn<() => void>();
@@ -49,7 +51,7 @@ registerEndpoint('/api/projects/3', async (event: H3Event) => {
 	if (event.method === 'PATCH') {
 		const body = await readBody<Record<string, unknown>>(event);
 		patched(body);
-		project = { ...project, ...body } as Project;
+		project = { ...project, ...body } as ProjectDetail;
 	}
 	return project;
 });
@@ -120,6 +122,44 @@ describe('/projects/:id（02-screens.md 3.3）', () => {
 
 	// 2.3 / 3.5。詳細から開くときは ?from=detail を付け、詳細へ戻る
 	it('施行済みなら「記録する」が from=detail 付きで記録画面へ繋がる', async () => {
+		wrapper = await mountSuspended(DetailPage, { route: '/projects/3' });
+		await vi.waitFor(() => expect(wrapper!.text()).toContain('甲ホール'));
+		expect(wrapper.find('a[href="/projects/3/record?from=detail"]').exists()).toBe(true);
+	});
+
+	// 3.3。記録済みなら要約（合計・ルート名）が出て、直す入口になる
+	it('記録済みなら要約を出し、「記録を直す」が記録画面へ繋がる', async () => {
+		project = {
+			...existing,
+			record: {
+				tripType: 'one_way',
+				total: 1110,
+				outboundRouteName: '丁駅乗換',
+				returnRouteName: '戊駅直通',
+				recordedAt: '2026-09-05T10:03:00Z',
+			},
+		};
+		wrapper = await mountSuspended(DetailPage, { route: '/projects/3' });
+		await vi.waitFor(() => expect(wrapper!.text()).toContain('甲ホール'));
+		const summary = wrapper.find('[data-testid="record-summary"]').text();
+		expect(summary).toContain('1,110円');
+		expect(summary).toContain('往路 丁駅乗換 ／ 復路 戊駅直通');
+		expect(summary).toContain('記録を直す');
+	});
+
+	// 3.3「ただし記録が既にあるなら押せる」。施行日を後から未来へ直した案件が、直せないまま残らない
+	it('施行前でも記録があれば「記録を直す」を押せる', async () => {
+		project = {
+			...existing,
+			serviceDate: '2026-09-06',
+			record: {
+				tripType: 'round',
+				total: 1060,
+				outboundRouteName: '乙駅乗換',
+				returnRouteName: '乙駅乗換',
+				recordedAt: '2026-09-05T10:03:00Z',
+			},
+		};
 		wrapper = await mountSuspended(DetailPage, { route: '/projects/3' });
 		await vi.waitFor(() => expect(wrapper!.text()).toContain('甲ホール'));
 		expect(wrapper.find('a[href="/projects/3/record?from=detail"]').exists()).toBe(true);

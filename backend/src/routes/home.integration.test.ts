@@ -83,3 +83,77 @@ describe('GET /api/home', () => {
 		expect(home.months[1]?.projects.map((p) => p.projectNo)).toEqual(['100000011']);
 	});
 });
+
+// F-21。記録すると、ホームの案件カードが記録済みと合計を持つ
+describe('GET /api/home の記録の済み／未', () => {
+	it('記録した案件は recorded が真で合計を持つ', async () => {
+		const res = await app.request('/api/projects', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				projectNo: '100000001',
+				serviceDate: '2026-09-05',
+				venueCode: 'AAA',
+				coupleName: '〇〇様△△様',
+			}),
+		});
+		const project = (await res.json()) as { id: number };
+		const venues = (await (await app.request('/api/venues')).json()) as {
+			venues: { id: number }[];
+		};
+		const station = async (name: string) =>
+			(
+				(await (
+					await app.request('/api/stations', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ name }),
+					})
+				).json()) as { id: number }
+			).id;
+		const x = await station('X鉄甲駅');
+		const y = await station('X鉄乙駅');
+		const segment = (
+			(await (
+				await app.request('/api/segments', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ fromStationId: x, toStationId: y, oneWayFare: 320 }),
+				})
+			).json()) as { id: number }
+		).id;
+		const route = (
+			(await (
+				await app.request('/api/routes', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						venueId: venues.venues[0]?.id,
+						name: '直通',
+						segmentIds: [segment],
+					}),
+				})
+			).json()) as { id: number }
+		).id;
+		await app.request(`/api/projects/${project.id}/expense-record`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ tripType: 'round', outboundRouteId: route }),
+		});
+
+		const home = (await (await app.request('/api/home')).json()) as {
+			months: { projects: { recorded: boolean; totalAmount: number | null }[] }[];
+		};
+		expect(home.months[0]?.projects[0]).toMatchObject({ recorded: true, totalAmount: 640 });
+
+		const detail = (await (await app.request(`/api/projects/${project.id}`)).json()) as {
+			record: unknown;
+		};
+		expect(detail.record).toMatchObject({
+			tripType: 'round',
+			total: 640,
+			outboundRouteName: '直通',
+			returnRouteName: '直通',
+		});
+	});
+});

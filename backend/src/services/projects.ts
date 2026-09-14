@@ -1,7 +1,10 @@
 import { AppError } from '../domain/app-error.js';
+import { totalOf } from '../domain/expense-record.js';
 import type { CalendarDate } from '../domain/month.js';
-import type { Project } from '../domain/project.js';
+import type { Project, ProjectDetail } from '../domain/project.js';
+import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
+import type { RoutesRepository } from '../repositories/routes.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 
 /** 手で足すときの本文（02-screens.md 3.4）。会場は会場コードで選び、会場名はサーバーが引く */
@@ -20,6 +23,8 @@ export type ProjectUpdateInput = Partial<ProjectCreateInput>;
 export function createProjectsService(
 	repository: ProjectsRepository,
 	venuesRepository: VenuesRepository,
+	expenseRecordsRepository: ExpenseRecordsRepository,
+	routesRepository: RoutesRepository,
 ) {
 	// 会場コードは会場一覧から選ぶ（02-screens.md 3.3 / 3.4）。無いコードは本文の値の問題なので 422。
 	// 取り込み（9-4）はこれを通らない。マスタに無いコードの案件も取り込む（03-database.md 8章）
@@ -29,11 +34,27 @@ export function createProjectsService(
 		return venue.name;
 	}
 
+	// 記録の要約（02-screens.md 3.3）。ルート名は表示用で、ルートが消えていれば null のまま出す
+	async function summaryOf(projectId: number): Promise<ProjectDetail['record']> {
+		const record = await expenseRecordsRepository.findByProjectId(projectId);
+		if (record === null) return null;
+		const nameOf = async (routeId: number | null) =>
+			routeId === null ? null : ((await routesRepository.findById(routeId))?.name ?? null);
+		return {
+			tripType: record.tripType,
+			total: totalOf(record.legs),
+			outboundRouteName: await nameOf(record.outboundRouteId),
+			returnRouteName: await nameOf(record.returnRouteId),
+			recordedAt: record.recordedAt,
+		};
+	}
+
 	return {
-		async get(id: number): Promise<Project> {
+		// 詳細は資源単位（04-api.md 3.1）だが、3.3 の「記録の要約」はここに載る
+		async get(id: number): Promise<ProjectDetail> {
 			const project = await repository.findById(id);
 			if (project === null) throw new AppError('NOT_FOUND');
-			return project;
+			return { ...project, record: await summaryOf(id), taxiCount: 0 };
 		},
 
 		// 手で足す案件は source = 'manual' 固定（F-10 / 04-api.md 4.4）。

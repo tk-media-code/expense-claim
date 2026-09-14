@@ -66,13 +66,11 @@ export function previewLegs(
 						toStationName: leg.toStationName,
 						amount: leg.oneWayFare,
 					})),
-					...[...inbound]
-						.reverse()
-						.map((leg) => ({
-							fromStationName: leg.toStationName,
-							toStationName: leg.fromStationName,
-							amount: leg.oneWayFare,
-						})),
+					...[...inbound].reverse().map((leg) => ({
+						fromStationName: leg.toStationName,
+						toStationName: leg.fromStationName,
+						amount: leg.oneWayFare,
+					})),
 				];
 	return rows.map((row, index) => ({ sortOrder: index + 1, ...row }));
 }

@@ -45,12 +45,22 @@ export function createApp({ db }: AppDependencies): Hono {
 	const routesRepository = createRoutesRepository(db);
 	const routesService = createRoutesService(routesRepository, venuesRepository, segmentsRepository);
 	const projectsRepository = createProjectsRepository(db);
-	// 案件は会場コードから会場名を引くので、会場の repository を共有する
-	const projectsService = createProjectsService(projectsRepository, venuesRepository);
-	const homeService = createHomeService(projectsRepository, createSyncStateRepository(db));
+	const expenseRecordsRepository = createExpenseRecordsRepository(db);
+	// 案件は会場コードから会場名を引き、詳細は記録の要約とルート名を添える（02-screens.md 3.3）
+	const projectsService = createProjectsService(
+		projectsRepository,
+		venuesRepository,
+		expenseRecordsRepository,
+		routesRepository,
+	);
+	const homeService = createHomeService(
+		projectsRepository,
+		createSyncStateRepository(db),
+		expenseRecordsRepository,
+	);
 	// 記録は案件 → 会場 → ルートと辿って既定値を組む（04-api.md 5.2）
 	const expenseRecordsService = createExpenseRecordsService(
-		createExpenseRecordsRepository(db),
+		expenseRecordsRepository,
 		projectsRepository,
 		venuesRepository,
 		routesRepository,

@@ -23,3 +23,18 @@ export type ProjectFormValue = {
 	venueCode: string;
 	coupleName: string;
 };
+
+/** 案件の詳細に載せる記録の要約（02-screens.md 3.3） */
+export type ProjectRecordSummary = {
+	tripType: 'round' | 'one_way';
+	total: number;
+	outboundRouteName: string | null;
+	returnRouteName: string | null;
+	recordedAt: string;
+};
+
+/** GET /api/projects/:id */
+export type ProjectDetail = Project & {
+	record: ProjectRecordSummary | null;
+	taxiCount: number;
+};

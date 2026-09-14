@@ -1,6 +1,10 @@
 import type { Home, HomeMonth, HomeProject } from '../domain/home.js';
 import { firstDayOf, isSameMonth, type ProjectMonth } from '../domain/month.js';
 import type { Project } from '../domain/project.js';
+import type {
+	ExpenseRecordSummary,
+	ExpenseRecordsRepository,
+} from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 
@@ -9,9 +13,10 @@ import type { SyncStateRepository } from '../repositories/sync-state.js';
 export function createHomeService(
 	projectsRepository: ProjectsRepository,
 	syncStateRepository: SyncStateRepository,
+	expenseRecordsRepository: ExpenseRecordsRepository,
 ) {
-	// Phase 4-5 で記録の有無、Phase 11-7 で提出状態、Phase 7-3 で要確認件数がここに乗る
-	function toHomeProject(project: Project): HomeProject {
+	// 記録の済み／未（F-21 / 02-screens.md 4.1）。Phase 11-7 で提出状態、7-3 で要確認件数、10 でタクシーが乗る
+	function toHomeProject(project: Project, record: ExpenseRecordSummary | undefined): HomeProject {
 		return {
 			id: project.id,
 			projectNo: project.projectNo,
@@ -19,8 +24,8 @@ export function createHomeService(
 			venueCode: project.venueCode,
 			venueName: project.venueName,
 			coupleName: project.coupleName,
-			recorded: false,
-			totalAmount: null,
+			recorded: record !== undefined,
+			totalAmount: record?.total ?? null,
 			taxiCount: 0,
 		};
 	}
@@ -34,6 +39,9 @@ export function createHomeService(
 			const projects = await projectsRepository.listFrom(
 				targetMonth === null ? null : firstDayOf(targetMonth),
 			);
+
+			// 記録の有無は案件ごとに読まず、1クエリでまとめて引く（月6〜10件ぶん往復させない）
+			const records = await expenseRecordsRepository.summarize(projects.map((p) => p.id));
 
 			// 月度ごとに束ねる。案件は施行日の昇順で来るので、月度も昇順に並ぶ。最後に降順へ返す
 			const byMonth = new Map<ProjectMonth, HomeMonth>();
@@ -52,7 +60,7 @@ export function createHomeService(
 					};
 					byMonth.set(project.month, month);
 				}
-				month.projects.push(toHomeProject(project));
+				month.projects.push(toHomeProject(project, records.get(project.id)));
 			}
 
 			return {

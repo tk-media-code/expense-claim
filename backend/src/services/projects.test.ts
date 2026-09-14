@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { AppError } from '../domain/app-error.js';
 import { parseCalendarDate, type CalendarDate } from '../domain/month.js';
 import type { Project } from '../domain/project.js';
+import type { ExpenseRecord } from '../domain/expense-record.js';
+import type { ExpenseRecordsRepository } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
+import type { RoutesRepository } from '../repositories/routes.js';
 import type { VenuesRepository } from '../repositories/venues.js';
 import { createProjectsService } from './projects.js';
 
@@ -26,7 +29,13 @@ const existing: Project = {
 	source: 'mail',
 };
 
-function createFakes(options: { projects?: Project[]; duplicatedId?: number | null } = {}) {
+function createFakes(
+	options: {
+		projects?: Project[];
+		duplicatedId?: number | null;
+		record?: ExpenseRecord | null;
+	} = {},
+) {
 	const findById = vi.fn<ProjectsRepository['findById']>((id) =>
 		Promise.resolve(options.projects?.find((project) => project.id === id) ?? null),
 	);
@@ -58,7 +67,28 @@ function createFakes(options: { projects?: Project[]; duplicatedId?: number | nu
 		),
 	} as unknown as VenuesRepository;
 
-	return { service: createProjectsService(repository, venuesRepository), create, update, remove };
+	const expenseRecordsRepository = {
+		findByProjectId: vi.fn<ExpenseRecordsRepository['findByProjectId']>(() =>
+			Promise.resolve(options.record ?? null),
+		),
+	} as unknown as ExpenseRecordsRepository;
+	const routesRepository = {
+		findById: vi.fn<RoutesRepository['findById']>((id) =>
+			Promise.resolve(id === 1 ? { id: 1, venueId: 1, name: '乙駅乗換', legs: [] } : null),
+		),
+	} as unknown as RoutesRepository;
+
+	return {
+		service: createProjectsService(
+			repository,
+			venuesRepository,
+			expenseRecordsRepository,
+			routesRepository,
+		),
+		create,
+		update,
+		remove,
+	};
 }
 
 function failure(promise: Promise<unknown>): Promise<AppError | null> {
@@ -76,10 +106,37 @@ const input = {
 };
 
 describe('projects service', () => {
-	it('get は無ければ NOT_FOUND を投げる', async () => {
+	it('get は無ければ NOT_FOUND を投げ、未記録なら record が null', async () => {
 		const { service } = createFakes({ projects: [existing] });
-		await expect(service.get(1)).resolves.toBe(existing);
+		await expect(service.get(1)).resolves.toEqual({ ...existing, record: null, taxiCount: 0 });
 		expect((await failure(service.get(2)))?.code).toBe('NOT_FOUND');
+	});
+
+	// 02-screens.md 3.3 の記録の要約。ルート名は表示用で、消えたルート（SET NULL）は null のまま
+	it('get は記録の要約（合計・ルート名）を添える', async () => {
+		const { service } = createFakes({
+			projects: [existing],
+			record: {
+				id: 12,
+				tripType: 'one_way',
+				outboundRouteId: 1,
+				returnRouteId: null,
+				recordedAt: new Date('2026-09-05T10:03:00Z'),
+				legs: [
+					{ sortOrder: 1, fromStationName: 'a', toStationName: 'b', amount: 380 },
+					{ sortOrder: 2, fromStationName: 'b', toStationName: 'a', amount: 520 },
+				],
+			},
+		});
+		await expect(service.get(1)).resolves.toMatchObject({
+			record: {
+				tripType: 'one_way',
+				total: 900,
+				outboundRouteName: '乙駅乗換',
+				returnRouteName: null,
+				recordedAt: new Date('2026-09-05T10:03:00Z'),
+			},
+		});
 	});
 
 	describe('create', () => {

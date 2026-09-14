@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Project, ProjectFormValue } from '~/types/project';
+import type { Project, ProjectDetail, ProjectFormValue } from '~/types/project';
 import type { Venue } from '~/types/venue';
 
 definePageMeta({
@@ -13,7 +13,7 @@ const router = useRouter();
 const id = String(route.params.id);
 
 // 資源単位（04-api.md 3.1）。経路から外れた画面なので集約しない
-const { data, status, error, refresh } = await useApiFetch<Project>(`/projects/${id}`);
+const { data, status, error, refresh } = await useApiFetch<ProjectDetail>(`/projects/${id}`);
 const venuesFetch = await useApiFetch<{ venues: Venue[] }>('/venues');
 const venues = computed(() => venuesFetch.data.value?.venues ?? []);
 
@@ -42,10 +42,17 @@ watch(
 );
 
 const today = todayInJst();
-// 施行前は「記録する」を押せない（3.3 / 4.1）。記録が既にあるなら押せる（4-5 で足す）
+// 施行前は「記録する」を押せない（3.3 / 4.1）。ただし記録が既にあるなら押せる。
+// 施行日を後から未来へ直した案件が、直せないまま残ってしまう
 const upcoming = computed(() =>
 	project.value ? isUpcoming(project.value.serviceDate, today) : false,
 );
+const recordLocked = computed(() => upcoming.value && project.value?.record === null);
+
+function routeSummary(record: NonNullable<ProjectDetail['record']>): string {
+	if (record.tripType === 'round') return `往復 ${record.outboundRouteName ?? '（消えたルート）'}`;
+	return `往路 ${record.outboundRouteName ?? '（消えたルート）'} ／ 復路 ${record.returnRouteName ?? '（消えたルート）'}`;
+}
 
 const saving = ref(false);
 const confirmOpen = ref(false);
@@ -105,21 +112,32 @@ function sourceLabel(p: Project) {
 				}}</UBadge>
 			</div>
 
-			<!-- 記録の要約（3.3）。記録済みの記録を直す入口はここである。4-5 で要約が入る -->
+			<!-- 記録の要約（3.3）。記録済みの記録を直す入口はここである -->
 			<UCard data-testid="record-summary">
-				<p class="text-muted text-sm">まだ交通費を記録していない。</p>
+				<template v-if="project.record">
+					<p class="font-semibold">{{ project.record.total.toLocaleString() }}円</p>
+					<p class="text-muted text-sm">{{ routeSummary(project.record) }}</p>
+					<p class="text-muted text-sm">
+						{{ project.taxiCount > 0 ? `タクシー${project.taxiCount}回` : 'タクシーなし' }} ·
+						{{ formatDateTime(project.record.recordedAt) }} に記録
+					</p>
+				</template>
+				<p v-else class="text-muted text-sm">まだ交通費を記録していない。</p>
 				<template #footer>
 					<UButton
-						:to="upcoming ? undefined : `/projects/${project.id}/record?from=detail`"
-						:disabled="upcoming"
+						:to="recordLocked ? undefined : `/projects/${project.id}/record?from=detail`"
+						:disabled="recordLocked"
 						icon="i-lucide-pen-line"
+						:variant="project.record ? 'outline' : 'solid'"
 						block
 						data-testid="record"
 					>
-						記録する
+						{{ project.record ? '記録を直す' : '記録する' }}
 					</UButton>
 					<!-- 押せない理由を添える -->
-					<p v-if="upcoming" class="text-muted mt-2 text-sm">施行前なので、まだ記録できない。</p>
+					<p v-if="recordLocked" class="text-muted mt-2 text-sm">
+						施行前なので、まだ記録できない。
+					</p>
 				</template>
 			</UCard>
 

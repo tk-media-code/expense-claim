@@ -26,3 +26,20 @@ export type Project = {
 /** projects の VARCHAR の長さ（03-database.md 5.2）。routes の検証がこれを見る */
 export const PROJECT_NO_MAX_LENGTH = 32;
 export const COUPLE_NAME_MAX_LENGTH = 255;
+
+/** 案件の詳細に載せる記録の要約（02-screens.md 3.3）。ルート名は表示用で、ルートが消えると null */
+export type ProjectRecordSummary = {
+	tripType: 'round' | 'one_way';
+	/** 区間の金額の合計 */
+	total: number;
+	outboundRouteName: string | null;
+	returnRouteName: string | null;
+	recordedAt: Date;
+};
+
+/** GET /api/projects/:id（04-api.md 4.4「詳細。記録の要約を含む」） */
+export type ProjectDetail = Project & {
+	record: ProjectRecordSummary | null;
+	/** タクシー乗車の件数。Phase 10 で実値になる */
+	taxiCount: number;
+};
