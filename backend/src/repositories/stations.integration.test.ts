@@ -1,8 +1,9 @@
+import { eq } from 'drizzle-orm';
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
-import { segments } from '../db/schema.js';
+import { segments, stations } from '../db/schema.js';
 import { AppError } from '../domain/app-error.js';
 import { createStationsRepository } from './stations.js';
 
@@ -26,6 +27,14 @@ function rejection(promise: Promise<unknown>): Promise<unknown> {
 		() => null,
 		(cause: unknown) => cause,
 	);
+}
+
+async function updatedAtOf(id: number): Promise<Date | undefined> {
+	const rows = await db
+		.select({ updatedAt: stations.updatedAt })
+		.from(stations)
+		.where(eq(stations.id, id));
+	return rows[0]?.updatedAt;
 }
 
 beforeEach(async () => {
@@ -77,5 +86,62 @@ describe('stations repository', () => {
 		expect(error).toBeInstanceOf(AppError);
 		expect((error as AppError).code).toBe('STATION_NAME_DUPLICATED');
 		expect((error as AppError).status).toBe(409);
+	});
+
+	// 1-4 の PUT / DELETE は、これ1本で「無い」と「使用中」を分ける。
+	it('findById は segmentCount つきで返し、無い id では null を返す', async () => {
+		const x = await repository.create('X鉄乙駅');
+		const y = await repository.create('Y鉄乙駅');
+		await insertSegment(x.id, y.id);
+
+		await expect(repository.findById(x.id)).resolves.toEqual({
+			id: x.id,
+			name: 'X鉄乙駅',
+			segmentCount: 1,
+		});
+		await expect(repository.findById(y.id)).resolves.toMatchObject({ segmentCount: 1 });
+		await expect(repository.findById(x.id + y.id + 1)).resolves.toBeNull();
+	});
+
+	// DATETIME は秒までしか持たないので、動いたことを見るには過去へ寄せてから比べる。
+	it('update は名前を差し替え、updatedAt を進める', async () => {
+		const created = await repository.create('X鉄乙駅');
+		await db.update(stations).set({ updatedAt: at }).where(eq(stations.id, created.id));
+
+		await repository.update(created.id, 'X鉄丙駅');
+
+		await expect(repository.findById(created.id)).resolves.toMatchObject({ name: 'X鉄丙駅' });
+		expect((await updatedAtOf(created.id))?.getTime()).toBeGreaterThan(at.getTime());
+	});
+
+	// create と同じ二重の網。services の先読みをすり抜けた重複を、同じ 409 に写す。
+	it('update が既存の名前に当たると STATION_NAME_DUPLICATED を投げる', async () => {
+		await repository.create('X鉄乙駅');
+		const target = await repository.create('Y鉄乙駅');
+
+		const error = await rejection(repository.update(target.id, 'X鉄乙駅'));
+		expect(error).toBeInstanceOf(AppError);
+		expect((error as AppError).code).toBe('STATION_NAME_DUPLICATED');
+		await expect(repository.findById(target.id)).resolves.toMatchObject({ name: 'Y鉄乙駅' });
+	});
+
+	it('remove は駅を消す', async () => {
+		const created = await repository.create('X鉄乙駅');
+		await repository.remove(created.id);
+		await expect(repository.findById(created.id)).resolves.toBeNull();
+	});
+
+	// 03-database.md 6.2 の stations → segments は RESTRICT。二重の網の2枚目で、
+	// services の先読みをすり抜けた「使用中」を同じ 409 に写す（決定22）。
+	it('remove が使用中の駅に当たると STATION_IN_USE を投げ、駅も区間も残る', async () => {
+		const from = await repository.create('X鉄甲駅');
+		const to = await repository.create('X鉄乙駅');
+		await insertSegment(from.id, to.id);
+
+		const error = await rejection(repository.remove(to.id));
+		expect(error).toBeInstanceOf(AppError);
+		expect((error as AppError).code).toBe('STATION_IN_USE');
+		expect((error as AppError).status).toBe(409);
+		await expect(repository.findById(to.id)).resolves.toMatchObject({ segmentCount: 1 });
 	});
 });

@@ -13,3 +13,11 @@ function causeCodeOf(error: unknown): string | null {
 export function isDuplicateEntry(error: unknown): boolean {
 	return causeCodeOf(error) === 'ER_DUP_ENTRY';
 }
+
+/**
+ * 外部キーの RESTRICT に当たった（ER_ROW_IS_REFERENCED_2）。まだ使われている行を消そうとした。
+ * 03-database.md 6.2 の RESTRICT を、API は 409 として言い直す（決定22）。
+ */
+export function isRowReferenced(error: unknown): boolean {
+	return causeCodeOf(error) === 'ER_ROW_IS_REFERENCED_2';
+}

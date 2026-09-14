@@ -28,3 +28,20 @@ export function parseBody<T>(schema: ZodType<T>, body: unknown): T {
 	const message = issue && issue.path.length > 0 ? issue.message : undefined;
 	throw new AppError('INVALID_VALUE', { message, cause: parsed.error });
 }
+
+// 主キーは INT UNSIGNED の AUTO_INCREMENT なので、正の整数しか振られない（03-database.md 5章）。
+// 先頭の 0・符号・小数点を弾く。通してから Number にする
+const POSITIVE_INTEGER = /^[1-9][0-9]*$/;
+
+// :id を読む。規則に合わなければ 404（04-api.md 2.5「404 資源が無い」）。
+//
+// 422 にしない。整数でない id はどの行も指さないので、本人から見れば「その駅が無い」でしかない。
+// 分けると、同じ1つの失敗が abc は 422・9999 は 404 と2つの形に割れる。
+export function parseIdParam(c: Context): number {
+	const raw = c.req.param('id');
+	// 桁があふれると Number が別の値へ丸まり、無関係の行を指しかねない
+	if (raw === undefined || !POSITIVE_INTEGER.test(raw) || !Number.isSafeInteger(Number(raw))) {
+		throw new AppError('NOT_FOUND');
+	}
+	return Number(raw);
+}
