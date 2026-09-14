@@ -3,6 +3,8 @@ import { logger } from 'hono/logger';
 
 import type { Database } from './db/client.js';
 import { AppError } from './domain/app-error.js';
+import type { GmailClient } from './integrations/gmail/client.js';
+import { createGmailClient } from './integrations/gmail/googleapis.js';
 import type {
 	GoogleAuthorizationClient,
 	GoogleClientProvider,
@@ -15,6 +17,7 @@ import { createSheetsClient } from './integrations/sheets/googleapis.js';
 import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
+import { createImportedMailsRepository } from './repositories/imported-mails.js';
 import { createExpenseRecordsRepository } from './repositories/expense-records.js';
 import { createProjectsRepository } from './repositories/projects.js';
 import { createRoutesRepository } from './repositories/routes.js';
@@ -64,6 +67,8 @@ export type AppConfig = {
 	/** 提出シートなどの環境依存値（05-integration.md 9章）。空なら未設定 */
 	spreadsheetId: string;
 	sheetName: string;
+	gmailSender: string;
+	alertTo: string;
 };
 
 // アプリが外から受け取るもの。index.ts は本物の DB と Google を、統合テストは test スキーマの DB と偽物を渡す。
@@ -76,6 +81,7 @@ export type AppDependencies = {
 	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider;
 	/** 省くと googleapis の実装を組む。テストは偽物を渡す */
 	sheetsClient?: SheetsClient;
+	gmailClient?: GmailClient;
 };
 
 // OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
@@ -94,6 +100,7 @@ export function createApp({
 	loginProvider,
 	googleAuth,
 	sheetsClient,
+	gmailClient,
 }: AppDependencies): Hono {
 	const app = new Hono();
 	app.use('*', logger());
@@ -168,7 +175,16 @@ export function createApp({
 	const settingsService = createSettingsService(syncStateRepository, google, sheets, {
 		sheetName: config.sheetName,
 	});
-	const syncService = createSyncService(sheets, syncStateRepository, attentionsService);
+	const gmail =
+		gmailClient ??
+		createGmailClient(google, { sender: config.gmailSender, alertTo: config.alertTo });
+	const syncService = createSyncService(
+		sheets,
+		gmail,
+		syncStateRepository,
+		createImportedMailsRepository(db),
+		attentionsService,
+	);
 
 	// 本人以外は使えない（NF-06）。/api/health とログインの入口だけを除いて、全部に被せる
 	app.use('/api/*', requireSession(authService, config.sessionSecret));

@@ -99,6 +99,12 @@ export function isBefore(month: ProjectMonth, target: TargetMonth): boolean {
 	return (month as string) < (target as string);
 }
 
+/** n 日ずらした暦日。Gmail の after: を前回の取り込み日の1日前から取る（05-integration.md 4.1）ときに使う */
+export function addDays(date: CalendarDate, days: number): CalendarDate {
+	const shifted = new Date(Date.parse(`${date}T00:00:00Z`) + days * 24 * 60 * 60 * 1000);
+	return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}` as CalendarDate;
+}
+
 /** 施行日が今日より後なら「施行前」（02-screens.md 4.1）。今日を含まない */
 export function isAfter(serviceDate: CalendarDate, today: CalendarDate): boolean {
 	return (serviceDate as string) > (today as string);

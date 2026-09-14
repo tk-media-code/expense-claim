@@ -20,6 +20,8 @@ const app = createApp({
 		},
 		spreadsheetId: env.SPREADSHEET_ID,
 		sheetName: env.MY_SHEET_NAME,
+		gmailSender: env.GMAIL_SENDER,
+		alertTo: env.ALERT_TO,
 	},
 });
 

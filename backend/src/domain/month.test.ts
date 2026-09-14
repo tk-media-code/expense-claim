@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	addDays,
 	belongsTo,
 	calendarDateOf,
 	dayOfMonth,
@@ -42,6 +43,11 @@ describe('parseCalendarDate', () => {
 		['2026-09-05T00:00:00Z', '時刻付き'],
 	])('%s は読まない（%s）', (value) => {
 		expect(parseCalendarDate(value)).toBeNull();
+	});
+
+	it('addDays は月と年をまたいでずらす', () => {
+		expect(addDays(date('2026-09-01'), -1)).toBe('2026-08-31');
+		expect(addDays(date('2026-12-31'), 1)).toBe('2027-01-01');
 	});
 
 	it('calendarDateOf は年月日から組み、末日を越えれば null', () => {

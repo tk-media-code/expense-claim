@@ -7,8 +7,9 @@ import type {
 	GoogleAuthorizationClient,
 	GoogleClientProvider,
 } from '../src/integrations/google/auth.js';
-import { GoogleApiFailure } from '../src/integrations/google/errors.js';
 import type { LoginProvider } from '../src/integrations/google/oauth.js';
+import type { FetchedMail, GmailClient } from '../src/integrations/gmail/client.js';
+import { GoogleApiFailure } from '../src/integrations/google/errors.js';
 import type { SheetsClient, SheetStructure } from '../src/integrations/sheets/client.js';
 import { AppError, type ErrorCode } from '../src/domain/app-error.js';
 import { parseTargetMonth, type TargetMonth } from '../src/domain/month.js';
@@ -23,6 +24,8 @@ export const TEST_CONFIG: AppConfig = {
 	google: { clientId: '', clientSecret: '', redirectUriLogin: '', redirectUriAuthorization: '' },
 	spreadsheetId: 'test-spreadsheet-id',
 	sheetName: '9999 テスト太郎',
+	gmailSender: 'requests@example.test',
+	alertTo: 'me@example.test',
 };
 
 /** 偽物のログイン。exchange が返す本人の情報をテストが差し替える */
@@ -126,6 +129,34 @@ export function createFakeSheets(
 	return fake;
 }
 
+/** 偽物の Gmail。届いているメールをテストが決める。fails なら一覧が失敗する */
+export function createFakeGmail(
+	options: { mails?: FetchedMail[]; fails?: 'unauthorized' | 'other' | null } = {},
+): GmailClient & { sent: { subject: string; body: string }[]; listedAfter: (string | null)[] } {
+	const mails = options.mails ?? [];
+	const fake = {
+		sent: [] as { subject: string; body: string }[],
+		listedAfter: [] as (string | null)[],
+		listRequestMailIds: (after: string | null) => {
+			fake.listedAfter.push(after);
+			if (options.fails)
+				return Promise.reject(
+					new GoogleApiFailure(options.fails, options.fails === 'unauthorized' ? 401 : 500),
+				);
+			return Promise.resolve(mails.map((mail) => mail.id));
+		},
+		fetch: (id: string) => {
+			const mail = mails.find((m) => m.id === id);
+			return mail ? Promise.resolve(mail) : Promise.reject(new GoogleApiFailure('not_found', 404));
+		},
+		sendAlert: (subject: string, body: string) => {
+			fake.sent.push({ subject, body });
+			return Promise.resolve();
+		},
+	};
+	return fake;
+}
+
 export async function sessionCookie(iat = Math.floor(Date.now() / 1000)): Promise<string> {
 	return `session=${await signSession(TEST_CONFIG.sessionSecret, { sub: 'sub-1', iat })}`;
 }
@@ -141,6 +172,7 @@ export function createAuthedApp(
 	loginProvider?: LoginProvider,
 	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider,
 	sheetsClient?: SheetsClient,
+	gmailClient?: GmailClient,
 ): TestApp {
 	const app = createApp({
 		db,
@@ -148,6 +180,7 @@ export function createAuthedApp(
 		loginProvider: loginProvider ?? createFakeLoginProvider(),
 		googleAuth: googleAuth ?? createFakeGoogleAuth(),
 		sheetsClient: sheetsClient ?? createFakeSheets(),
+		gmailClient: gmailClient ?? createFakeGmail(),
 	});
 	return {
 		app,

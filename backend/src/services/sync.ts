@@ -1,40 +1,106 @@
 import { AppError } from '../domain/app-error.js';
-import { formatMonthJa } from '../domain/month.js';
+import { parseRequestMail } from '../domain/mail-parse.js';
+import { addDays, formatMonthJa, todayInJst } from '../domain/month.js';
 import type { SyncResult, SyncWarning } from '../domain/sync.js';
+import type { GmailClient } from '../integrations/gmail/client.js';
+import { classifyGoogleError } from '../integrations/google/errors.js';
 import type { SheetsClient } from '../integrations/sheets/client.js';
+import type { ImportedMailsRepository } from '../repositories/imported-mails.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 import type { AttentionsService } from './attentions.js';
 
 // POST /api/sync（04-api.md 4.3）。提出シートの A1 を読んで対象月度を持ち、依頼メールを取り込む。
-// 手順1〜2（月度の検知と削除）は 8-3 と 11-8、手順4〜5（取り込み）は 9-4 で育つ。
+// 手順2〜3（月度切替の削除と要確認事項）は 11-8 で育つ。
 // 全体を1つのトランザクションにしない。手順ごとに効かせる（06-error-handling.md 6.4）
 export function createSyncService(
 	sheets: SheetsClient,
+	gmail: GmailClient,
 	syncStateRepository: SyncStateRepository,
+	importedMailsRepository: ImportedMailsRepository,
 	attentions: AttentionsService,
 ) {
+	function formatJst(date: Date | null): string {
+		if (!date) return '日時不明';
+		const shifted = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+		return `${shifted.getUTCMonth() + 1}/${shifted.getUTCDate()} ${String(shifted.getUTCHours()).padStart(2, '0')}:${String(shifted.getUTCMinutes()).padStart(2, '0')}`;
+	}
+
+	// 手順4。1通ずつ囲む。途中で落ちても取り込めたぶんは残り、次回スキップされる（06-error-handling.md 6.4）。
+	// 取り込みは月度で絞らない（05-integration.md 4.4）。1回の実行で複数の月度の案件ができる
+	async function importMails(
+		lastImportedAt: Date | null,
+		now: Date,
+		warnings: SyncWarning[],
+	): Promise<{ imported: number; failed: boolean }> {
+		let ids: string[];
+		try {
+			// 前回の取り込み日の1日前から。境界が日付粒度なので広めに取り、id で弾く（4.1）
+			const after = lastImportedAt ? addDays(todayInJst(lastImportedAt), -1) : null;
+			ids = await gmail.listRequestMailIds(after);
+		} catch (cause) {
+			const failure = classifyGoogleError(cause);
+			warnings.push({
+				code: failure.kind === 'unauthorized' ? 'GOOGLE_UNAUTHORIZED' : 'GMAIL_UNREACHABLE',
+				message:
+					failure.kind === 'unauthorized'
+						? '依頼メールを読もうとしましたが、Google の認可が切れています。設定から再認可してください'
+						: `依頼メールを読めませんでした（${failure.message}）`,
+			});
+			return { imported: 0, failed: true };
+		}
+
+		const known = await importedMailsRepository.existingIds(ids);
+		let imported = 0;
+		let failed = false;
+		for (const id of ids) {
+			if (known.has(id)) continue;
+			try {
+				const mail = await gmail.fetch(id);
+				const meta = { id: mail.id, threadId: mail.threadId, internalDate: mail.internalDate };
+				const parsed = parseRequestMail(mail.subject, mail.plainBody);
+				if (parsed.kind === 'project') {
+					if (
+						(await importedMailsRepository.recordProject(meta, parsed.project, now)) === 'created'
+					) {
+						imported += 1;
+					}
+				} else if (parsed.kind === 'no_request') {
+					await importedMailsRepository.record(meta, 'no_request', now);
+				} else {
+					// F-07。裏取りが通らなかった。件名・受信日時・取り出せなかった項目名を残し、本文は残さない（4.2）
+					await importedMailsRepository.record(meta, 'parse_failed', now);
+					await attentions.record(
+						'mail_parse_failed',
+						`${formatJst(mail.internalDate)} に届いた件名「${mail.subject}」のメールから、${parsed.missing.join('・')}を取り出せませんでした。案件を手で足してください`,
+						now,
+					);
+				}
+			} catch (cause) {
+				const failure = classifyGoogleError(cause);
+				console.error(failure);
+				warnings.push({
+					code: 'GMAIL_UNREACHABLE',
+					message: `メールを1通読めませんでした（${failure.message}）`,
+				});
+				failed = true;
+			}
+		}
+		return { imported, failed };
+	}
+
 	return {
 		async run(now: Date): Promise<SyncResult> {
 			const warnings: SyncWarning[] = [];
 			const previous = await syncStateRepository.find();
-			let targetMonth: SyncResult['targetMonth'] = null;
 			let rolledOver = false;
 
 			// 手順1。A1 を読み、last_seen_target_month と比べる（F-31 / F-32）。
 			// 読めなくても取り込みは続ける（04-api.md 4.3「片方が失敗しても、もう片方は走る」）
+			let readMonth: SyncResult['targetMonth'] = null;
 			try {
-				targetMonth = await sheets.readTargetMonth();
+				readMonth = await sheets.readTargetMonth();
 				rolledOver =
-					previous?.lastSeenTargetMonth !== null &&
-					previous?.lastSeenTargetMonth !== undefined &&
-					previous.lastSeenTargetMonth !== targetMonth;
-				await syncStateRepository.save({
-					lastImportedAt: previous?.lastImportedAt ?? null,
-					lastSeenTargetMonth: targetMonth,
-					lastAlertSentOn: previous?.lastAlertSentOn ?? null,
-					lastCronRunAt: previous?.lastCronRunAt ?? null,
-					updatedAt: now,
-				});
+					previous?.lastSeenTargetMonth != null && previous.lastSeenTargetMonth !== readMonth;
 			} catch (cause) {
 				const error =
 					cause instanceof AppError ? cause : new AppError('SHEET_UNREACHABLE', { cause });
@@ -50,15 +116,31 @@ export function createSyncService(
 				);
 			}
 
-			if (rolledOver && targetMonth) {
+			if (rolledOver && readMonth) {
 				// 11-8 で削除と「提出せずに切り替わった」を足す。ここでは切り替わったことだけ返す
 				warnings.push({
 					code: 'TARGET_MONTH_ROLLED_OVER',
-					message: `対象月度が${formatMonthJa(targetMonth)}に切り替わりました`,
+					message: `対象月度が${formatMonthJa(readMonth)}に切り替わりました`,
 				});
 			}
 
-			return { targetMonth, rolledOver, importedCount: 0, warnings };
+			// 手順4〜5。取り込み、last_imported_at を更新する。1件も取り込まなかった実行でも更新するが、
+			// Gmail の取り込みが失敗した実行では更新しない（06-error-handling.md 6.4）
+			const { imported, failed } = await importMails(
+				previous?.lastImportedAt ?? null,
+				now,
+				warnings,
+			);
+
+			await syncStateRepository.save({
+				lastImportedAt: failed ? (previous?.lastImportedAt ?? null) : now,
+				lastSeenTargetMonth: readMonth ?? previous?.lastSeenTargetMonth ?? null,
+				lastAlertSentOn: previous?.lastAlertSentOn ?? null,
+				lastCronRunAt: previous?.lastCronRunAt ?? null,
+				updatedAt: now,
+			});
+
+			return { targetMonth: readMonth, rolledOver, importedCount: imported, warnings };
 		},
 	};
 }
