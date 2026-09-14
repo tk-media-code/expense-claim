@@ -401,3 +401,23 @@ export const receipts = mysqlTable(
 	// 乗車1回につき1件（R-12）。1乗車に領収書が2件できない（4.4）
 	(t) => [unique('receipts_taxi_ride_id_unique').on(t.taxiRideId)],
 );
+
+// 提出記録。実績データだが月度切替で消さない（03-database.md 6.1）。
+//
+// 提出は何度でも実行できる（F-29）ので月度ごとに複数行になる。「提出済みか」は行の有無で、
+// 「いつ提出したか」は最新の executed_at で決まる。消すと「提出したから消した」という判断の根拠が
+// 判断と同時に失われる。行を挿入したことはここに持たず、要確認事項に残す
+export const submissions = mysqlTable(
+	'submissions',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 対象月度。月初のみ（CHECK）。DATE は文字列で扱う（4.2）
+		targetMonth: date('target_month', { mode: 'string' }).notNull(),
+		executedAt: datetime('executed_at').notNull(),
+		writtenRows: smallint('written_rows', { unsigned: true }).notNull(),
+	},
+	(t) => [
+		index('submissions_target_month_executed_at_index').on(t.targetMonth, t.executedAt),
+		check('submissions_target_month_is_first_day', sql`dayofmonth(${t.targetMonth}) = 1`),
+	],
+);
