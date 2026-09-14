@@ -38,7 +38,7 @@ async function createStation(name: string): Promise<number> {
 	return created.id;
 }
 
-/** 区間を1本足して、その駅を「使用中」にする。区間の API はまだ無い（1-6） */
+/** 区間を1本足して、その駅を「使用中」にする。駅 API の挙動を見るテストなので、区間 API は経由しない */
 async function createSegment(fromStationId: number, toStationId: number): Promise<void> {
 	const at = new Date('2026-09-14T00:00:00Z');
 	await db
