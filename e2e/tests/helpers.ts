@@ -24,10 +24,12 @@ export async function ensureVenue(
 	const res = await request.post('/api/venues', { data: { code, name } });
 	if (res.status() === 201) return ((await res.json()) as { id: number }).id;
 	const list = (await (await request.get('/api/venues')).json()) as {
-		venues: { id: number; code: string }[];
+		venues: { id: number; code: string; routes: { id: number }[] }[];
 	};
 	const found = list.venues.find((venue) => venue.code === code);
 	if (!found) throw new Error(`会場 ${code} を用意できなかった: ${res.status()}`);
+	// 前の実行が途中で落ちて残ったルートは消しておく。「ルートが1本の会場」が前提のテストがあるため
+	for (const route of found.routes) await request.delete(`/api/routes/${route.id}`);
 	return found.id;
 }
 
