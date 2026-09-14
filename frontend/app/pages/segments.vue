@@ -82,12 +82,7 @@ function reload() {
 						class="hover:bg-elevated flex w-full flex-col items-start gap-0.5 rounded-sm px-1 py-3 text-left"
 						@click="openStation(station)"
 					>
-						<span class="flex w-full items-baseline justify-between gap-2">
-							<span class="min-w-0 truncate font-medium">{{ station.name }}</span>
-							<span class="text-muted shrink-0 text-sm tabular-nums">
-								{{ station.segmentCount }}区間
-							</span>
-						</span>
+						<span class="min-w-0 truncate font-medium">{{ station.name }}</span>
 						<span class="text-muted text-sm">
 							{{
 								station.segmentCount > 0
