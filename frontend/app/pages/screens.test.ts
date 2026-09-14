@@ -31,9 +31,9 @@ describe('画面と URL（02-screens.md 2.1）', () => {
 
 	// `projects/[id].vue` と `projects/[id]/record.vue` を同居させると、記録が詳細の入れ子になり
 	// `<NuxtPage />` が無い親だけが出る。兄弟ルート（`[id]/index.vue`）であることを描画で固定する。
-	it('記録画面は詳細の中に入れ子にせず、自分の仮置きを出す', async () => {
+	// API は登録していないので読み込みに失敗するが、記録画面自身の文面が出ればよい
+	it('記録画面は詳細の中に入れ子にせず、自分の中身を出す', async () => {
 		const wrapper = await mountSuspended(RecordPage, { route: '/projects/1/record' });
-		expect(wrapper.text()).toContain('4-4');
-		expect(wrapper.get('a[href="/venues"]').text()).toContain('会場とルートを開く');
+		expect(wrapper.text()).toContain('記録画面を読み込めませんでした');
 	});
 });
