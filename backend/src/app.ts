@@ -25,6 +25,7 @@ import { createProjectsRepository } from './repositories/projects.js';
 import { createRoutesRepository } from './repositories/routes.js';
 import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
+import { createSubmissionsRepository } from './repositories/submissions.js';
 import { createSyncStateRepository } from './repositories/sync-state.js';
 import { createTaxiRidesRepository } from './repositories/taxi-rides.js';
 import { createVenuesRepository } from './repositories/venues.js';
@@ -40,6 +41,7 @@ import { requireSession } from './routes/require-session.js';
 import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
 import { createSettingsRoute } from './routes/settings.js';
+import { createSubmissionsRoute } from './routes/submissions.js';
 import { createSyncRoute } from './routes/sync.js';
 import { createTaxiRidesRoute } from './routes/taxi-rides.js';
 import { createStationsRoute } from './routes/stations.js';
@@ -53,6 +55,7 @@ import { createProjectsService } from './services/projects.js';
 import { createRoutesService } from './services/routes.js';
 import { createSegmentsService } from './services/segments.js';
 import { createSettingsService } from './services/settings.js';
+import { createSubmissionsService } from './services/submissions.js';
 import { createSyncService } from './services/sync.js';
 import { createTaxiRidesService } from './services/taxi-rides.js';
 import { createStationsService } from './services/stations.js';
@@ -199,6 +202,16 @@ export function createApp({
 		attentionsService,
 	);
 	const taxiRidesRoute = createTaxiRidesRoute(taxiRidesService);
+	// 提出（04-api.md 6章）。確認と実行の2段構えで、書き込み先は環境変数で決まる
+	const submissionsService = createSubmissionsService(
+		sheets,
+		projectsRepository,
+		expenseRecordsRepository,
+		taxiRidesRepository,
+		createSubmissionsRepository(db),
+		attentionsRepository,
+		attentionsService,
+	);
 	const syncService = createSyncService(
 		sheets,
 		gmail,
@@ -214,6 +227,7 @@ export function createApp({
 	app.route('/api/auth', createAuthRoute(authService, { sessionSecret: config.sessionSecret }));
 	app.route('/api/home', createHomeRoute(homeService));
 	app.route('/api/sync', createSyncRoute(syncService));
+	app.route('/api/submissions', createSubmissionsRoute(submissionsService));
 	app.route('/api/stations', createStationsRoute(stationsService));
 	app.route('/api/segments', createSegmentsRoute(segmentsService));
 	app.route('/api/venues', createVenuesRoute(venuesService));

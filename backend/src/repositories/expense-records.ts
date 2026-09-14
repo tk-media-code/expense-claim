@@ -92,6 +92,49 @@ export function createExpenseRecordsRepository(db: Database) {
 			return saved;
 		},
 
+		// 提出（11-2）。対象月度の案件の記録を legs つきでまとめて引く
+		async findByProjectIds(projectIds: number[]): Promise<Map<number, ExpenseRecord>> {
+			const result = new Map<number, ExpenseRecord>();
+			if (projectIds.length === 0) return result;
+			const records = await db
+				.select({
+					id: expenseRecords.id,
+					projectId: expenseRecords.projectId,
+					tripType: expenseRecords.tripType,
+					outboundRouteId: expenseRecords.outboundRouteId,
+					returnRouteId: expenseRecords.returnRouteId,
+					recordedAt: expenseRecords.recordedAt,
+				})
+				.from(expenseRecords)
+				.where(inArray(expenseRecords.projectId, projectIds));
+			if (records.length === 0) return result;
+			const legs = await db
+				.select({
+					expenseRecordId: expenseRecordLegs.expenseRecordId,
+					sortOrder: expenseRecordLegs.sortOrder,
+					fromStationName: expenseRecordLegs.fromStationName,
+					toStationName: expenseRecordLegs.toStationName,
+					amount: expenseRecordLegs.amount,
+				})
+				.from(expenseRecordLegs)
+				.where(
+					inArray(
+						expenseRecordLegs.expenseRecordId,
+						records.map((r) => r.id),
+					),
+				)
+				.orderBy(asc(expenseRecordLegs.sortOrder));
+			for (const { projectId, ...record } of records) {
+				result.set(projectId, {
+					...record,
+					legs: legs
+						.filter((leg) => leg.expenseRecordId === record.id)
+						.map(({ expenseRecordId: _id, ...leg }) => leg),
+				});
+			}
+			return result;
+		},
+
 		// ホームの案件カードが「記録済み」と合計を出すために、案件をまとめて引く（4-5）。
 		// 案件ごとに findByProjectId を呼ぶと月6〜10件ぶん往復するので、1クエリで足す
 		async summarize(projectIds: number[]): Promise<Map<number, ExpenseRecordSummary>> {

@@ -51,9 +51,11 @@ function createFakes(
 	);
 	const remove = vi.fn<ProjectsRepository['remove']>(() => Promise.resolve());
 	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() => Promise.resolve([]));
+	const listInMonth = vi.fn<ProjectsRepository['listInMonth']>(() => Promise.resolve([]));
 	const repository: ProjectsRepository = {
 		findById,
 		listFrom,
+		listInMonth,
 		findIdByProjectNo,
 		create,
 		update,

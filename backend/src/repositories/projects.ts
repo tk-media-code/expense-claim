@@ -1,9 +1,16 @@
-import { asc, eq, gte } from 'drizzle-orm';
+import { and, asc, eq, gte, lt } from 'drizzle-orm';
 
 import type { Database } from '../db/client.js';
 import { projects } from '../db/schema.js';
 import { AppError } from '../domain/app-error.js';
-import { parseCalendarDate, projectMonthOf, type CalendarDate } from '../domain/month.js';
+import {
+	firstDayOf,
+	firstDayOfNextMonth,
+	parseCalendarDate,
+	projectMonthOf,
+	type CalendarDate,
+	type TargetMonth,
+} from '../domain/month.js';
 import type { Project, ProjectSource } from '../domain/project.js';
 import { isDuplicateEntry } from './mysql-error.js';
 
@@ -66,6 +73,21 @@ export function createProjectsRepository(db: Database) {
 				.select(columns)
 				.from(projects)
 				.where(from === null ? undefined : gte(projects.serviceDate, from))
+				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
+			return rows.map(toProject);
+		},
+
+		// 提出（F-28 / 03-database.md 9.1）。対象月度の案件だけを、施行日の昇順・案件番号の昇順で
+		async listInMonth(target: TargetMonth): Promise<Project[]> {
+			const rows = await db
+				.select(columns)
+				.from(projects)
+				.where(
+					and(
+						gte(projects.serviceDate, firstDayOf(target)),
+						lt(projects.serviceDate, firstDayOfNextMonth(target)),
+					),
+				)
 				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
 			return rows.map(toProject);
 		},
