@@ -2,7 +2,14 @@ import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
+import { parseTargetMonth, type TargetMonth } from '../domain/month.js';
 import { createSyncStateRepository } from './sync-state.js';
+
+function month(value: string): TargetMonth {
+	const parsed = parseTargetMonth(value);
+	if (!parsed) throw new Error(`対象月度として読めない: ${value}`);
+	return parsed;
+}
 
 const pool: Pool = createTestPool();
 const repository = createSyncStateRepository(createTestDatabase(pool));
@@ -23,7 +30,7 @@ describe('createSyncStateRepository', () => {
 	it('書いた値をそのまま読み戻せる', async () => {
 		const state = {
 			lastImportedAt: new Date('2026-09-09T03:04:05Z'),
-			lastSeenTargetMonth: '2026-09-01',
+			lastSeenTargetMonth: month('2026-09'),
 			lastAlertSentOn: '2026-09-03',
 			lastCronRunAt: new Date('2026-09-09T00:00:00Z'),
 			updatedAt: new Date('2026-09-09T03:04:05Z'),
@@ -49,17 +56,22 @@ describe('createSyncStateRepository', () => {
 
 	// 03-database.md 4.2。DATE を Date オブジェクトへ通すと 1 日ずれ、
 	// 決定12（月度は施行日で決まる）を気づかないうちに壊す。
+	// 対象月度は DATE 列に月初で入り、domain には YYYY-MM の型で戻る（01-architecture.md 5.4）
 	it('DATE が文字列のまま往復し、日がずれない', async () => {
 		await repository.save({
 			lastImportedAt: null,
-			lastSeenTargetMonth: '2026-09-01',
+			lastSeenTargetMonth: month('2026-09'),
 			lastAlertSentOn: '2026-12-01',
 			lastCronRunAt: null,
 			updatedAt: new Date('2026-09-09T00:00:00Z'),
 		});
 		const found = await repository.find();
-		expect(found?.lastSeenTargetMonth).toBe('2026-09-01');
+		expect(found?.lastSeenTargetMonth).toBe('2026-09');
 		expect(found?.lastAlertSentOn).toBe('2026-12-01');
+		const [rows] = await pool.query(
+			"SELECT DATE_FORMAT(last_seen_target_month, '%Y-%m-%d') AS m FROM sync_state",
+		);
+		expect(String((rows as { m: unknown }[])[0]?.m)).toBe('2026-09-01');
 	});
 
 	it('二度 save しても行が増えない（単一行）', async () => {
@@ -71,11 +83,11 @@ describe('createSyncStateRepository', () => {
 			updatedAt: new Date('2026-09-09T00:00:00Z'),
 		};
 		await repository.save(base);
-		await repository.save({ ...base, lastSeenTargetMonth: '2026-10-01' });
+		await repository.save({ ...base, lastSeenTargetMonth: month('2026-10') });
 
 		const [rows] = await pool.query('SELECT COUNT(*) AS count FROM sync_state');
 		expect(Number((rows as { count: number }[])[0]?.count)).toBe(1);
-		await expect(repository.find()).resolves.toMatchObject({ lastSeenTargetMonth: '2026-10-01' });
+		await expect(repository.find()).resolves.toMatchObject({ lastSeenTargetMonth: '2026-10' });
 	});
 });
 
