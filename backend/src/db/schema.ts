@@ -4,6 +4,7 @@ import {
 	date,
 	datetime,
 	int,
+	mysqlEnum,
 	mysqlTable,
 	tinyint,
 	unique,
@@ -84,4 +85,26 @@ export const segments = mysqlTable(
 		// 出発駅と到着駅が同じ区間は作れない（5.1）
 		check('segments_from_to_differ', sql`${t.fromStationId} <> ${t.toStationId}`),
 	],
+);
+
+// 会場。設定データで、消えない（03-database.md 5.1 / 6.1）
+//
+// 空で始め、会場マスタの取り込み（F-13 / 8-2）が code を鍵に upsert で入れる（10.3）。
+// 手で足した会場（F-14）は source = 'manual' で持ち、取り込みで触らない。毎回入れ直すと
+// 巻き込んで消しかねないためである。削除する API は持たない（04-api.md 7章）。
+export const venues = mysqlTable(
+	'venues',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 会場コード。3文字前後の英数字。案件はこの文字列で会場を指し、外部キーではない（8章）
+		code: varchar('code', { length: 16 }).notNull(),
+		name: varchar('name', { length: 255 }).notNull(),
+		// マスタ由来（F-13）／自分で追加（F-14）。API から受け取らない（04-api.md 7章）
+		source: mysqlEnum('source', ['master', 'manual']).notNull(),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	// 取り込みの upsert が鍵にする（5.1）
+	(t) => [unique('venues_code_unique').on(t.code)],
 );
