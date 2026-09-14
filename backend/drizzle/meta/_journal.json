@@ -43,6 +43,13 @@
       "when": 1789396821487,
       "tag": "0005_projects",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1789397543007,
+      "tag": "0006_expense-records",
+      "breakpoints": true
     }
   ]
 }

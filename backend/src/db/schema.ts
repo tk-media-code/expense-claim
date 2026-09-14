@@ -194,3 +194,65 @@ export const projects = mysqlTable(
 		index('projects_service_date_index').on(t.serviceDate),
 	],
 );
+
+// 交通費記録。実績データで、月度切替で消える（03-database.md 5.2 / 6.1）。
+//
+// ルートへの2本の外部キーは提出に使わない。「どのルートで行ったか」を画面に出すためだけに持ち、
+// ルートが消えても実績は自立している（SET NULL / 7章）。提出行は expense_record_legs から作る。
+// trip_type は区間側に持たせない。案件の中で往復と片道は混ざらない（要件定義 5.3）。
+export const expenseRecords = mysqlTable(
+	'expense_records',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 案件を消せば記録も消える（6.2 CASCADE / F-12）
+		projectId: int('project_id', { unsigned: true })
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		// 提出シートの G列。全行に同じ値を書く
+		tripType: mysqlEnum('trip_type', ['round', 'one_way']).notNull(),
+		// 表示用。ルートは実績より長く生きるが、消えても実績は残る（6.2 SET NULL）
+		outboundRouteId: int('outbound_route_id', { unsigned: true }).references(() => routes.id, {
+			onDelete: 'set null',
+		}),
+		returnRouteId: int('return_route_id', { unsigned: true }).references(() => routes.id, {
+			onDelete: 'set null',
+		}),
+		// 記録した日時。UTC
+		recordedAt: datetime('recorded_at').notNull(),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	// 案件1対 0..1（要件定義 6.2）。1案件に交通費記録が2件できない（4.4）
+	(t) => [unique('expense_records_project_id_unique').on(t.projectId)],
+);
+
+// 提出行の正本（03-database.md 5.2 / 7章）。提出シートの1行に1行で対応する。
+//
+// 駅名は記録時点の文字列で持ち、駅への外部キーではない。金額は往復なら ×2、復路は反転を
+// 記録時に済ませてあり、H列へ無加工で書ける値である。ルートを直しても消しても過去の記録は動かない。
+// 作成・更新日時は持たない。行は記録の部品で、記録の側の recorded_at で足りる（5.2 の表どおり）
+export const expenseRecordLegs = mysqlTable(
+	'expense_record_legs',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 区間の行は記録の部品（6.2 CASCADE）
+		expenseRecordId: int('expense_record_id', { unsigned: true })
+			.notNull()
+			.references(() => expenseRecords.id, { onDelete: 'cascade' }),
+		// 提出シートに書く順。1 始まり
+		sortOrder: smallint('sort_order', { unsigned: true }).notNull(),
+		// E列・F列。記録時点の駅名
+		fromStationName: varchar('from_station_name', { length: 100 }).notNull(),
+		toStationName: varchar('to_station_name', { length: 100 }).notNull(),
+		// H列。そのまま書く額。UNSIGNED で負の額を DB でも弾く（4.4）
+		amount: int('amount', { unsigned: true }).notNull(),
+	},
+	// 順序を持つ子は (親, sort_order) を UNIQUE にする（4.3）
+	(t) => [
+		unique('expense_record_legs_expense_record_id_sort_order_unique').on(
+			t.expenseRecordId,
+			t.sortOrder,
+		),
+	],
+);
