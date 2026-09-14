@@ -3,6 +3,7 @@ import {
 	check,
 	date,
 	datetime,
+	index,
 	int,
 	mysqlEnum,
 	mysqlTable,
@@ -160,4 +161,36 @@ export const routeSegments = mysqlTable(
 	// UNIQUE (route_id, segment_id) は張らない。想定していない経路を DB が先に禁じることになり、
 	// 「上限を設けない」「名寄せをしない」と同じ理由で設定データを機械が狭めにいかない（5.1）
 	(t) => [unique('route_segments_route_id_sort_order_unique').on(t.routeId, t.sortOrder)],
+);
+
+// 案件。実績データで、月度切替で消える（03-database.md 5.2 / 6.1）。
+//
+// 月度の列を持たない（9章）。施行日から導出し、範囲検索で引く。持たせると施行日を直したときに
+// 月度が置き去りになる。会場コードは venues.code を指す外部キーにしない（8章）。マスタに無い
+// コードの案件が実際に来ており、外部キーにすると取り込めなくなる。会場名を持つのも同じ理由で、
+// マスタに無い会場は venues に名前が無い。取り込み元メール（imported_mail_id）は 9-1 で足す。
+export const projects = mysqlTable(
+	'projects',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 案件番号。手で足した案件も必ず持つ（F-10）。数字9桁だが識別子であって数値ではない（4.3）
+		projectNo: varchar('project_no', { length: 32 }).notNull(),
+		// 施行日。DATE は文字列で扱う（4.2。Date を経由すると 1 日ずれ、決定12 を壊す）
+		serviceDate: date('service_date', { mode: 'string' }).notNull(),
+		venueCode: varchar('venue_code', { length: 16 }).notNull(),
+		venueName: varchar('venue_name', { length: 255 }).notNull(),
+		// ご両家名。〇〇様△△様 の形
+		coupleName: varchar('couple_name', { length: 255 }).notNull(),
+		// 自動取込／手動追加。API から受け取らない（04-api.md 7章）
+		source: mysqlEnum('source', ['mail', 'manual']).notNull(),
+		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
+		createdAt: datetime('created_at').notNull(),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	(t) => [
+		// 二重取り込みの一段目（F-08）。NOT NULL なので例外なく効く
+		unique('projects_project_no_unique').on(t.projectNo),
+		// 月度での絞り込みと並び順（9.1）
+		index('projects_service_date_index').on(t.serviceDate),
+	],
 );
