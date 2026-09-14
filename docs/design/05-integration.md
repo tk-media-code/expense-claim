@@ -534,6 +534,8 @@ sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)),
 ### 7.3 様式（7行目のヘッダー）— `values.get`
 
 `<自分のシート名>!A7:M7` を読み、**想定の並びと照合する**（要件定義 5.2 手順3）。
+**照合するのは A〜J の10列である。** K（車両）・L（備考）・M（領収書）の見出しは6〜7行目の
+結合セルにあり、7行目の値には現れない（`tools/sheet-probe/` の実測・2026-09-15）。
 
 **違えば中止する**（`NF-10` / 502 `SHEET_FORMAT_CHANGED`）。
 **列の意味が変わったことに気づかずに書けば、別の欄へ値を書き込むことになる。**
