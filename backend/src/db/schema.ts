@@ -9,6 +9,7 @@ import {
 	mysqlEnum,
 	mysqlTable,
 	smallint,
+	text,
 	tinyint,
 	unique,
 	varchar,
@@ -299,4 +300,33 @@ export const googleCredentials = mysqlTable(
 		updatedAt: datetime('updated_at').notNull(),
 	},
 	(t) => [check('google_credentials_single_row', sql`${t.id} = 1`)],
+);
+
+// 要確認事項。システムデータ（03-database.md 5.3）。どこにも繋がない（3章）。
+//
+// アプリが起こしたことの記録で、外から積むエンドポイントを持たない（04-api.md 4.9）。
+// 確認済みの行を消さない。未確認だけを数えればホームの見え方は同じで、いつ何が起きたかを後から読める。
+// detail は本人が読む日本語の文面1つで、構造を持たせない（06-error-handling.md 4章）。識別子を入れない
+export const attentions = mysqlTable(
+	'attentions',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 7種（06-error-handling.md 3.1）。種別を足すときは画面の表も一緒に足す
+		kind: mysqlEnum('kind', [
+			'mail_parse_failed',
+			'venue_code_unknown',
+			'sheet_unreachable',
+			'drive_upload_failed',
+			'rows_inserted',
+			'month_rolled_over_unsubmitted',
+			'alert_send_failed',
+		]).notNull(),
+		detail: text('detail').notNull(),
+		// 発生日時。UTC
+		occurredAt: datetime('occurred_at').notNull(),
+		// NULL なら未確認（F-34）
+		checkedAt: datetime('checked_at'),
+	},
+	// ホームの件数は「未確認のもの」だけを数える（02-screens.md 3.2）
+	(t) => [index('attentions_checked_at_occurred_at_index').on(t.checkedAt, t.occurredAt)],
 );

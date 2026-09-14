@@ -1,6 +1,7 @@
 import type { Home, HomeMonth, HomeProject } from '../domain/home.js';
 import { firstDayOf, isSameMonth, type ProjectMonth } from '../domain/month.js';
 import type { Project } from '../domain/project.js';
+import type { AttentionsRepository } from '../repositories/attentions.js';
 import type {
 	ExpenseRecordSummary,
 	ExpenseRecordsRepository,
@@ -14,6 +15,7 @@ export function createHomeService(
 	projectsRepository: ProjectsRepository,
 	syncStateRepository: SyncStateRepository,
 	expenseRecordsRepository: ExpenseRecordsRepository,
+	attentionsRepository: AttentionsRepository,
 ) {
 	// 記録の済み／未（F-21 / 02-screens.md 4.1）。Phase 11-7 で提出状態、7-3 で要確認件数、10 でタクシーが乗る
 	function toHomeProject(project: Project, record: ExpenseRecordSummary | undefined): HomeProject {
@@ -67,7 +69,8 @@ export function createHomeService(
 				targetMonth,
 				lastImportedAt: syncState?.lastImportedAt ?? null,
 				lastCronRunAt: syncState?.lastCronRunAt ?? null,
-				attentionCount: 0,
+				// 未確認だけを数える（02-screens.md 4.4）。0件のとき出さないのはクライアントの判断
+				attentionCount: await attentionsRepository.countUnchecked(),
 				months: [...byMonth.values()].reverse(),
 			};
 		},

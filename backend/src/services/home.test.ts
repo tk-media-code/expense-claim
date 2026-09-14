@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { parseCalendarDate, parseTargetMonth, type CalendarDate } from '../domain/month.js';
 import type { Project } from '../domain/project.js';
 import type { SyncState } from '../domain/sync-state.js';
+import type { AttentionsRepository } from '../repositories/attentions.js';
 import type {
 	ExpenseRecordSummary,
 	ExpenseRecordsRepository,
@@ -43,6 +44,7 @@ function createFakes(
 		syncState?: SyncState | null;
 		/** 記録済みの案件 id → 要約 */
 		records?: ExpenseRecordSummary[];
+		attentionCount?: number;
 	} = {},
 ) {
 	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() =>
@@ -56,8 +58,18 @@ function createFakes(
 		Promise.resolve(new Map((options.records ?? []).map((r) => [r.projectId, r]))),
 	);
 	const expenseRecordsRepository = { summarize } as unknown as ExpenseRecordsRepository;
+	const attentionsRepository = {
+		countUnchecked: vi.fn<AttentionsRepository['countUnchecked']>(() =>
+			Promise.resolve(options.attentionCount ?? 0),
+		),
+	} as unknown as AttentionsRepository;
 	return {
-		service: createHomeService(projectsRepository, syncStateRepository, expenseRecordsRepository),
+		service: createHomeService(
+			projectsRepository,
+			syncStateRepository,
+			expenseRecordsRepository,
+			attentionsRepository,
+		),
 		listFrom,
 		summarize,
 	};
@@ -135,5 +147,11 @@ describe('home service', () => {
 	it('案件が無ければ months は空', async () => {
 		const { service } = createFakes({ syncState: synced });
 		await expect(service.get()).resolves.toMatchObject({ months: [], attentionCount: 0 });
+	});
+
+	// 02-screens.md 3.2 / 4.4。未確認の要確認事項の件数
+	it('未確認の要確認事項の件数を添える', async () => {
+		const { service } = createFakes({ syncState: synced, attentionCount: 3 });
+		await expect(service.get()).resolves.toMatchObject({ attentionCount: 3 });
 	});
 });

@@ -10,6 +10,7 @@ import type {
 import { createGoogleAuth } from './integrations/google/auth-googleapis.js';
 import type { LoginProvider } from './integrations/google/oauth.js';
 import { createGoogleLoginProvider } from './integrations/google/oauth-googleapis.js';
+import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
 import { createExpenseRecordsRepository } from './repositories/expense-records.js';
@@ -19,6 +20,7 @@ import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
 import { createSyncStateRepository } from './repositories/sync-state.js';
 import { createVenuesRepository } from './repositories/venues.js';
+import { createAttentionsRoute } from './routes/attentions.js';
 import { createAuthRoute } from './routes/auth.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { createExpenseRecordsRoute } from './routes/expense-records.js';
@@ -32,6 +34,7 @@ import { createSegmentsRoute } from './routes/segments.js';
 import { createSettingsRoute } from './routes/settings.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
+import { createAttentionsService } from './services/attentions.js';
 import { createAuthService } from './services/auth.js';
 import { createExpenseRecordsService } from './services/expense-records.js';
 import { createGoogleAuthorizationService } from './services/google-authorization.js';
@@ -102,10 +105,13 @@ export function createApp({ db, config, loginProvider, googleAuth }: AppDependen
 		routesRepository,
 	);
 	const syncStateRepository = createSyncStateRepository(db);
+	const attentionsRepository = createAttentionsRepository(db);
+	const attentionsService = createAttentionsService(attentionsRepository);
 	const homeService = createHomeService(
 		projectsRepository,
 		syncStateRepository,
 		expenseRecordsRepository,
+		attentionsRepository,
 	);
 	// 記録は案件 → 会場 → ルートと辿って既定値を組む（04-api.md 5.2）
 	const expenseRecordsService = createExpenseRecordsService(
@@ -162,6 +168,7 @@ export function createApp({ db, config, loginProvider, googleAuth }: AppDependen
 		}),
 	);
 	app.route('/api/settings', createSettingsRoute(settingsService));
+	app.route('/api/attentions', createAttentionsRoute(attentionsService));
 	// 失敗は必ず 04-api.md 2.5 の形で返す。ここを通らない経路を作らない。
 	app.onError(handleError);
 	app.notFound(handleNotFound);
