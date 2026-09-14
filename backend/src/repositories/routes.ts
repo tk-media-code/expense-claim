@@ -74,6 +74,17 @@ export function createRoutesRepository(db: Database) {
 	return {
 		findById,
 
+		// 記録画面が会場のルートを区間の中身つきで出すために使う（04-api.md 5.2）。
+		// 会場あたり1〜数本なので、ルートごとに legs を引いて足りる。名前順
+		async listByVenueId(venueId: number): Promise<Route[]> {
+			const rows = await db
+				.select({ id: routes.id, venueId: routes.venueId, name: routes.name })
+				.from(routes)
+				.where(eq(routes.venueId, venueId))
+				.orderBy(asc(routes.name));
+			return Promise.all(rows.map(async (row) => ({ ...row, legs: await legsOf(row.id) })));
+		},
+
 		// 重複の先読み用。id を返すのは、PUT が「判定から自分自身を除く」ため（stations と同じ）
 		async findIdByVenueAndName(venueId: number, name: string): Promise<number | null> {
 			const rows = await db

@@ -53,7 +53,15 @@ function createFakes(
 		Promise.resolve({ id, venueId: input.venueId, name: input.name, legs: [] }),
 	);
 	const remove = vi.fn<RoutesRepository['remove']>(() => Promise.resolve());
-	const repository: RoutesRepository = { findById, findIdByVenueAndName, create, update, remove };
+	const listByVenueId = vi.fn<RoutesRepository['listByVenueId']>(() => Promise.resolve([]));
+	const repository: RoutesRepository = {
+		findById,
+		listByVenueId,
+		findIdByVenueAndName,
+		create,
+		update,
+		remove,
+	};
 
 	const venues = options.venues ?? [venue];
 	const venuesRepository = {
