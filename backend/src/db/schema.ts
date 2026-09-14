@@ -256,3 +256,19 @@ export const expenseRecordLegs = mysqlTable(
 		),
 	],
 );
+
+// セッション失効の基準（単一行）。03-database.md 5.3 / 04-api.md 4.1。
+//
+// 署名付き Cookie はサーバー側に状態を持たない。端末ごとの行ではなく「失効の基準時刻」を1つだけ持ち、
+// POST /api/auth/logout-all がここに現在時刻を書く。発行時刻がそれより前の Cookie は次のリクエストで
+// 弾かれる。google_credentials（Google API の認可）とは別の行にし、ログインと API の認可を混ぜない。
+export const authState = mysqlTable(
+	'auth_state',
+	{
+		id: tinyint('id', { unsigned: true }).notNull().default(1).primaryKey(),
+		// ここより前に発行された Cookie を弾く。NULL なら失効なし。UTC
+		sessionsValidAfter: datetime('sessions_valid_after'),
+		updatedAt: datetime('updated_at').notNull(),
+	},
+	(t) => [check('auth_state_single_row', sql`${t.id} = 1`)],
+);
