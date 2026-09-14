@@ -60,6 +60,13 @@ export function createVenuesRepository(db: Database) {
 			return { ...row, routes: byVenue.get(row.id) ?? [] };
 		},
 
+		// 案件が会場コードで会場を引くために使う（02-screens.md 3.3「会場名は会場コードに連動」）。
+		// ルートまでは要らないので詰めない
+		async findByCode(code: string): Promise<Omit<Venue, 'routes'> | null> {
+			const rows = await db.select(columns).from(venues).where(eq(venues.code, code)).limit(1);
+			return rows[0] ?? null;
+		},
+
 		// 重複の先読み用（03-database.md 10.2。UNIQUE をアプリ側検証の代わりにしない）
 		async findIdByCode(code: string): Promise<number | null> {
 			const rows = await db

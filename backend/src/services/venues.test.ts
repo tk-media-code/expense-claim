@@ -9,13 +9,14 @@ import { createVenuesService } from './venues.js';
 function createFakeRepository(options: { venues?: Venue[]; duplicatedId?: number | null } = {}) {
 	const list = vi.fn<VenuesRepository['list']>(() => Promise.resolve(options.venues ?? []));
 	const findById = vi.fn<VenuesRepository['findById']>(() => Promise.resolve(null));
+	const findByCode = vi.fn<VenuesRepository['findByCode']>(() => Promise.resolve(null));
 	const findIdByCode = vi.fn<VenuesRepository['findIdByCode']>(() =>
 		Promise.resolve(options.duplicatedId ?? null),
 	);
 	const create = vi.fn<VenuesRepository['create']>((input) =>
 		Promise.resolve({ id: 10, ...input, routes: [] }),
 	);
-	const repository: VenuesRepository = { list, findById, findIdByCode, create };
+	const repository: VenuesRepository = { list, findById, findByCode, findIdByCode, create };
 	return { repository, create, findIdByCode };
 }
 
