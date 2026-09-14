@@ -21,3 +21,11 @@ export function isDuplicateEntry(error: unknown): boolean {
 export function isRowReferenced(error: unknown): boolean {
 	return causeCodeOf(error) === 'ER_ROW_IS_REFERENCED_2';
 }
+
+/**
+ * 外部キーの参照先が無い（ER_NO_REFERENCED_ROW_2）。存在しない親を指す行を入れようとした。
+ * services の先読みの後に親が消された競合で起きる。API は本文の値の問題として 422 に写す。
+ */
+export function isNoReferencedRow(error: unknown): boolean {
+	return causeCodeOf(error) === 'ER_NO_REFERENCED_ROW_2';
+}

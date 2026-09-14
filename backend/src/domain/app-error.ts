@@ -20,6 +20,7 @@ export const errorCatalog = {
 	PROJECT_NO_DUPLICATED: { status: 409, message: 'その案件番号は既に登録されています' },
 	STATION_NAME_DUPLICATED: { status: 409, message: 'その駅名は既に登録されています' },
 	STATION_IN_USE: { status: 409, message: 'この駅を使っている区間があるため、削除できません' },
+	SEGMENT_DUPLICATED: { status: 409, message: 'その区間は既に登録されています' },
 	INVALID_VALUE: { status: 422, message: '入力した値が正しくありません' },
 	INTERNAL_ERROR: { status: 500, message: '予期しないエラーが発生しました' },
 	SHEET_UNREACHABLE: {

@@ -2,10 +2,13 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 
 import type { Database } from './db/client.js';
+import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { healthRoute } from './routes/health.js';
+import { createSegmentsRoute } from './routes/segments.js';
 import { createStationsRoute } from './routes/stations.js';
+import { createSegmentsService } from './services/segments.js';
 import { createStationsService } from './services/stations.js';
 
 // アプリが外から受け取るもの。index.ts は本物の DB を、統合テストは test スキーマの DB を渡す。
@@ -17,10 +20,14 @@ export function createApp({ db }: AppDependencies): Hono {
 	app.use('*', logger());
 
 	// 組み立てはここだけで行う。routes が受け取るのは services だけである（01-architecture.md 5.2）。
-	const stationsService = createStationsService(createStationsRepository(db));
+	const stationsRepository = createStationsRepository(db);
+	const stationsService = createStationsService(stationsRepository);
+	// 区間の登録は駅の存在を先読みするので、駅の repository を共有する
+	const segmentsService = createSegmentsService(createSegmentsRepository(db), stationsRepository);
 
 	app.route('/api/health', healthRoute);
 	app.route('/api/stations', createStationsRoute(stationsService));
+	app.route('/api/segments', createSegmentsRoute(segmentsService));
 	// 失敗は必ず 04-api.md 2.5 の形で返す。ここを通らない経路を作らない。
 	app.onError(handleError);
 	app.notFound(handleNotFound);

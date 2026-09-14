@@ -129,7 +129,7 @@ JavaScript から読める場所にトークンを置かない。
 | **401** | **未ログイン。セッションが切れた・失効させられた** | `UNAUTHENTICATED` |
 | **403** | **許可アドレス以外**（F-01 / N-03）。`Origin` が合わない | `NOT_ALLOWED` |
 | 404 | 資源が無い。**`:id` が正の整数でない場合を含む** | `NOT_FOUND` |
-| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した・**使われているものを消そうとした** | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` / `STATION_IN_USE` |
+| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した・駅ペアが重複した・**使われているものを消そうとした** | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` / `SEGMENT_DUPLICATED` / `STATION_IN_USE` |
 | **422** | **値が規則に合わない**（負の金額など） | `INVALID_VALUE` |
 | 500 | 想定外の例外。**バグである** | `INTERNAL_ERROR` |
 | **502** | **Google API が失敗した** | `SHEET_UNREACHABLE` / `DRIVE_UPLOAD_FAILED` / `SHEET_FORMAT_CHANGED` |
@@ -493,6 +493,15 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 **金額が入る入口はここだけになった**（F-20 / 5.3）ので、**ここで弾かなければ他に網が無い。**
 `one_way_fare` は `INT UNSIGNED` だが、**DB は二重の網であって一枚目ではない**
 （N-09 / `03-database.md` 4.4）。
+
+**本文の `fromStationId` / `toStationId` が存在しない駅を指すときも 422（`INVALID_VALUE`）である。**
+「出発駅が見つかりません」のように、どちらの駅かを文面で言う。
+**404 にしない。** 2.5 の 404 は URL の `:id` が指す資源が無いことで、こちらは本文の値が規則に合わない。
+同一駅・負の運賃と同じ列に揃え、**画面が 404 と 422 を書き分けずに済む**ようにする。
+
+**`GET /api/segments` は駅名（`fromStationName` / `toStationName`）を含めて返す。**
+画面は `出発駅名 → 到着駅名` を出す（`02-screens.md` 3.8）。**駅一覧と突き合わせさせない。**
+書き方は 5.2 の `legs` と同じである。並びは出発駅名 → 到着駅名で、**駅一覧が名前順なのに揃える。**
 **駅を差し替えられると、その区間を使っている全ルートの経路が黙って変わる。**
 
 **`DELETE /api/segments/:id` は、使っているルートがあれば 409 を返す。**
