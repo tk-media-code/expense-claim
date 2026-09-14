@@ -25,6 +25,11 @@ export const errorCatalog = {
 		status: 409,
 		message: 'この区間を使っているルートがあるため、削除できません',
 	},
+	VENUE_CODE_DUPLICATED: { status: 409, message: 'その会場コードは既に登録されています' },
+	ROUTE_NAME_DUPLICATED: {
+		status: 409,
+		message: 'その会場には同じ名前のルートが既にあります',
+	},
 	INVALID_VALUE: { status: 422, message: '入力した値が正しくありません' },
 	INTERNAL_ERROR: { status: 500, message: '予期しないエラーが発生しました' },
 	SHEET_UNREACHABLE: {

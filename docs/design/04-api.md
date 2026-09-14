@@ -129,7 +129,7 @@ JavaScript から読める場所にトークンを置かない。
 | **401** | **未ログイン。セッションが切れた・失効させられた** | `UNAUTHENTICATED` |
 | **403** | **許可アドレス以外**（F-01 / N-03）。`Origin` が合わない | `NOT_ALLOWED` |
 | 404 | 資源が無い。**`:id` が正の整数でない場合を含む** | `NOT_FOUND` |
-| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した・駅ペアが重複した・**使われているものを消そうとした** | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` / `SEGMENT_DUPLICATED` / `STATION_IN_USE` / `SEGMENT_IN_USE` |
+| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した・駅ペアが重複した・会場コードが重複した・同じ会場にルート名が重複した・**使われているものを消そうとした** | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` / `SEGMENT_DUPLICATED` / `VENUE_CODE_DUPLICATED` / `ROUTE_NAME_DUPLICATED` / `STATION_IN_USE` / `SEGMENT_IN_USE` |
 | **422** | **値が規則に合わない**（負の金額など） | `INVALID_VALUE` |
 | 500 | 想定外の例外。**バグである** | `INTERNAL_ERROR` |
 | **502** | **Google API が失敗した** | `SHEET_UNREACHABLE` / `DRIVE_UPLOAD_FAILED` / `SHEET_FORMAT_CHANGED` |
