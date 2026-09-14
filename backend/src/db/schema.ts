@@ -173,6 +173,24 @@ export const routeSegments = mysqlTable(
 	(t) => [unique('route_segments_route_id_sort_order_unique').on(t.routeId, t.sortOrder)],
 );
 
+// 取り込み済みメール。システムデータ（03-database.md 5.3）。主キーは Gmail の message id。
+//
+// 案件を手で削除しても行は残す（要件定義 6.3）。残さないと次に開いたときに同じ案件がまた入ってくる。
+// result に「依頼無しで除外」と「解析に失敗」を持つのは、次回に飛ばすため。解析に失敗したメールを
+// 毎回読み直しても、同じ失敗を繰り返して要確認事項が増えるだけになる
+export const importedMails = mysqlTable(
+	'imported_mails',
+	{
+		id: varchar('id', { length: 64 }).primaryKey(),
+		threadId: varchar('thread_id', { length: 64 }),
+		result: mysqlEnum('result', ['project', 'no_request', 'parse_failed']).notNull(),
+		// Gmail の internalDate。UTC
+		internalDate: datetime('internal_date'),
+		processedAt: datetime('processed_at').notNull(),
+	},
+	(t) => [index('imported_mails_processed_at_index').on(t.processedAt)],
+);
+
 // 案件。実績データで、月度切替で消える（03-database.md 5.2 / 6.1）。
 //
 // 月度の列を持たない（9章）。施行日から導出し、範囲検索で引く。持たせると施行日を直したときに
@@ -193,6 +211,10 @@ export const projects = mysqlTable(
 		coupleName: varchar('couple_name', { length: 255 }).notNull(),
 		// 自動取込／手動追加。API から受け取らない（04-api.md 7章）
 		source: mysqlEnum('source', ['mail', 'manual']).notNull(),
+		// 取り込み元メール。手動追加では NULL。そもそもメールを消さないので RESTRICT（6.2）
+		importedMailId: varchar('imported_mail_id', { length: 64 }).references(() => importedMails.id, {
+			onDelete: 'restrict',
+		}),
 		// DB 既定値を持たせない。アプリが UTC で入れる（4.2。stations と同じ）
 		createdAt: datetime('created_at').notNull(),
 		updatedAt: datetime('updated_at').notNull(),
@@ -200,6 +222,8 @@ export const projects = mysqlTable(
 	(t) => [
 		// 二重取り込みの一段目（F-08）。NOT NULL なので例外なく効く
 		unique('projects_project_no_unique').on(t.projectNo),
+		// 1通の案件詳細メールは1案件になる（要求分析 6.3）。NULL は重複してよい
+		unique('projects_imported_mail_id_unique').on(t.importedMailId),
 		// 月度での絞り込みと並び順（9.1）
 		index('projects_service_date_index').on(t.serviceDate),
 	],
