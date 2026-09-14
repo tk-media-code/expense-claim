@@ -40,7 +40,15 @@ function createFakes(options: { projects?: Project[]; duplicatedId?: number | nu
 		Promise.resolve({ ...existing, id, ...patch } as Project),
 	);
 	const remove = vi.fn<ProjectsRepository['remove']>(() => Promise.resolve());
-	const repository: ProjectsRepository = { findById, findIdByProjectNo, create, update, remove };
+	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() => Promise.resolve([]));
+	const repository: ProjectsRepository = {
+		findById,
+		listFrom,
+		findIdByProjectNo,
+		create,
+		update,
+		remove,
+	};
 
 	const venuesRepository = {
 		findByCode: vi.fn<VenuesRepository['findByCode']>((code) =>

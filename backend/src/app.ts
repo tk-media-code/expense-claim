@@ -6,14 +6,17 @@ import { createProjectsRepository } from './repositories/projects.js';
 import { createRoutesRepository } from './repositories/routes.js';
 import { createSegmentsRepository } from './repositories/segments.js';
 import { createStationsRepository } from './repositories/stations.js';
+import { createSyncStateRepository } from './repositories/sync-state.js';
 import { createVenuesRepository } from './repositories/venues.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { healthRoute } from './routes/health.js';
+import { createHomeRoute } from './routes/home.js';
 import { createProjectsRoute } from './routes/projects.js';
 import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
+import { createHomeService } from './services/home.js';
 import { createProjectsService } from './services/projects.js';
 import { createRoutesService } from './services/routes.js';
 import { createSegmentsService } from './services/segments.js';
@@ -41,10 +44,13 @@ export function createApp({ db }: AppDependencies): Hono {
 		venuesRepository,
 		segmentsRepository,
 	);
+	const projectsRepository = createProjectsRepository(db);
 	// 案件は会場コードから会場名を引くので、会場の repository を共有する
-	const projectsService = createProjectsService(createProjectsRepository(db), venuesRepository);
+	const projectsService = createProjectsService(projectsRepository, venuesRepository);
+	const homeService = createHomeService(projectsRepository, createSyncStateRepository(db));
 
 	app.route('/api/health', healthRoute);
+	app.route('/api/home', createHomeRoute(homeService));
 	app.route('/api/stations', createStationsRoute(stationsService));
 	app.route('/api/segments', createSegmentsRoute(segmentsService));
 	app.route('/api/venues', createVenuesRoute(venuesService));

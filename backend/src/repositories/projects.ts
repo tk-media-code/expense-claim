@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { asc, eq, gte } from 'drizzle-orm';
 
 import type { Database } from '../db/client.js';
 import { projects } from '../db/schema.js';
@@ -57,6 +57,18 @@ export function createProjectsRepository(db: Database) {
 
 	return {
 		findById,
+
+		// ホームに出す範囲（F-09 / 03-database.md 9.1）。「提出待ちの月度と、それ以降の施行日を持つ案件」。
+		// カレンダーの月で切らない。from が無ければ（一度も同期していなければ）全件。
+		// 並びは施行日の昇順、同じ日なら案件番号の昇順、それでも決まらなければ id（要件定義 5.3）
+		async listFrom(from: CalendarDate | null): Promise<Project[]> {
+			const rows = await db
+				.select(columns)
+				.from(projects)
+				.where(from === null ? undefined : gte(projects.serviceDate, from))
+				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
+			return rows.map(toProject);
+		},
 
 		// 重複の先読み用（03-database.md 10.2。UNIQUE をアプリ側検証の代わりにしない）。
 		// id を返すのは、PATCH が「判定から自分自身を除く」ため（stations と同じ）

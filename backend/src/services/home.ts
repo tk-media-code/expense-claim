@@ -1,0 +1,69 @@
+import type { Home, HomeMonth, HomeProject } from '../domain/home.js';
+import { firstDayOf, isSameMonth, type ProjectMonth } from '../domain/month.js';
+import type { Project } from '../domain/project.js';
+import type { ProjectsRepository } from '../repositories/projects.js';
+import type { SyncStateRepository } from '../repositories/sync-state.js';
+
+// ホームの集約（04-api.md 4.3 / 5.1）。DB しか読まない。外部 API を叩かない。
+// 取り込みの完了を待たずに一覧を出す（02-screens.md 3.2）ために、同期（POST /api/sync）とは別のリクエストである。
+export function createHomeService(
+	projectsRepository: ProjectsRepository,
+	syncStateRepository: SyncStateRepository,
+) {
+	// Phase 4-5 で記録の有無、Phase 11-7 で提出状態、Phase 7-3 で要確認件数がここに乗る
+	function toHomeProject(project: Project): HomeProject {
+		return {
+			id: project.id,
+			projectNo: project.projectNo,
+			serviceDate: project.serviceDate,
+			venueCode: project.venueCode,
+			venueName: project.venueName,
+			coupleName: project.coupleName,
+			recorded: false,
+			totalAmount: null,
+			taxiCount: 0,
+		};
+	}
+
+	return {
+		async get(): Promise<Home> {
+			const syncState = await syncStateRepository.find();
+			const targetMonth = syncState?.lastSeenTargetMonth ?? null;
+
+			// 提出待ちの月度と、それ以降の施行日を持つ案件（F-09）。並びは repository が決めている
+			const projects = await projectsRepository.listFrom(
+				targetMonth === null ? null : firstDayOf(targetMonth),
+			);
+
+			// 月度ごとに束ねる。案件は施行日の昇順で来るので、月度も昇順に並ぶ。最後に降順へ返す
+			const byMonth = new Map<ProjectMonth, HomeMonth>();
+			for (const project of projects) {
+				let month = byMonth.get(project.month);
+				if (!month) {
+					month = {
+						month: project.month,
+						// 対象月度なら提出待ち、それより後ならこれから稼働（02-screens.md 4.2）。
+						// 対象月度より前の案件は listFrom が返さない（提出せずに残ったものは要確認事項で気づく）。
+						// 対象月度が分からないうちは、どれも提出待ちとして扱わない
+						state:
+							targetMonth !== null && isSameMonth(project.month, targetMonth) ? 'due' : 'upcoming',
+						submittedAt: null,
+						projects: [],
+					};
+					byMonth.set(project.month, month);
+				}
+				month.projects.push(toHomeProject(project));
+			}
+
+			return {
+				targetMonth,
+				lastImportedAt: syncState?.lastImportedAt ?? null,
+				lastCronRunAt: syncState?.lastCronRunAt ?? null,
+				attentionCount: 0,
+				months: [...byMonth.values()].reverse(),
+			};
+		},
+	};
+}
+
+export type HomeService = ReturnType<typeof createHomeService>;
