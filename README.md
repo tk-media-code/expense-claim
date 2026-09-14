@@ -100,9 +100,18 @@ MYSQL_ROOT_PASSWORD=expense
 Google のログインだけが使えない（E2E はセッション Cookie を自分で載せる）。本番では全部を渡す。
 
 ```
-SESSION_SECRET=                 # セッション Cookie の署名鍵。16文字以上
-ALLOWED_EMAIL=                  # 許可するメールアドレス（本人）
-GOOGLE_CLIENT_ID=               # 「ウェブ アプリケーション」型の OAuth クライアント
+SESSION_SECRET=                     # セッション Cookie の署名鍵。16文字以上
+ALLOWED_EMAIL=                      # 許可するメールアドレス（本人）
+TOKEN_ENCRYPTION_KEY=               # リフレッシュトークンの暗号鍵。16文字以上
+GOOGLE_CLIENT_ID=                   # 「ウェブ アプリケーション」型の OAuth クライアント
 GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI_LOGIN=      # https://<ホスト>/api/auth/callback
+GOOGLE_REDIRECT_URI_LOGIN=          # https://<ホスト>/api/auth/callback
+GOOGLE_REDIRECT_URI_AUTHORIZATION=  # https://<ホスト>/api/google/authorization/callback
+SPREADSHEET_ID=                     # 提出先スプレッドシートのID
+MY_SHEET_NAME=                      # 自分のシート名
+DRIVE_FOLDER_ID=                    # 領収書の保管先フォルダ
+GMAIL_SENDER=                       # 依頼メールの差出人アドレス
+ALERT_TO=                           # 提出アラートの宛先（本人）
 ```
+
+`SPREADSHEET_ID` 以降が空でも起動し、その連携（取り込み・提出・領収書・アラート）だけが使えない。

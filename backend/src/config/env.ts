@@ -9,10 +9,19 @@ const envSchema = z.object({
 	SESSION_SECRET: z.string().min(16, 'SESSION_SECRET は16文字以上にしてください'),
 	// 許可するメールアドレス（05-integration.md 3.5 / N-18）
 	ALLOWED_EMAIL: z.string().min(1, 'ALLOWED_EMAIL が空です'),
-	// OAuth クライアント（05-integration.md 3章）。空なら Google のログインは使えない（開発では E2E が Cookie を直接載せる）
+	// OAuth クライアント（05-integration.md 3章）。空なら Google のログインと認可は使えない（開発では E2E が Cookie を直接載せる）
 	GOOGLE_CLIENT_ID: z.string().default(''),
 	GOOGLE_CLIENT_SECRET: z.string().default(''),
 	GOOGLE_REDIRECT_URI_LOGIN: z.string().default(''),
+	GOOGLE_REDIRECT_URI_AUTHORIZATION: z.string().default(''),
+	// リフレッシュトークンの暗号鍵（01-architecture.md 7.2）。漏れるとトークンと同じ危険度
+	TOKEN_ENCRYPTION_KEY: z.string().min(16, 'TOKEN_ENCRYPTION_KEY は16文字以上にしてください'),
+	// 提出シート・領収書・メール（05-integration.md 9章）。空なら、その連携だけが使えない
+	SPREADSHEET_ID: z.string().default(''),
+	MY_SHEET_NAME: z.string().default(''),
+	DRIVE_FOLDER_ID: z.string().default(''),
+	GMAIL_SENDER: z.string().default(''),
+	ALERT_TO: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

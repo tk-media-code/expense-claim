@@ -27,6 +27,7 @@ services:
     environment:
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-session-secret-change-me}
       ALLOWED_EMAIL: ${ALLOWED_EMAIL:-dev@example.com}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-dev-only-token-encryption-key}
     # MySQL コンテナはこのファイルにしか居ないので、待ち合わせもここで宣言する。
     # 本番のデータベースは RDS なので、compose.yaml 側に書くと使わない MySQL が
     # healthy になるまで backend が起動しなくなる。

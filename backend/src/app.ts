@@ -3,9 +3,15 @@ import { logger } from 'hono/logger';
 
 import type { Database } from './db/client.js';
 import { AppError } from './domain/app-error.js';
+import type {
+	GoogleAuthorizationClient,
+	GoogleClientProvider,
+} from './integrations/google/auth.js';
+import { createGoogleAuth } from './integrations/google/auth-googleapis.js';
 import type { LoginProvider } from './integrations/google/oauth.js';
 import { createGoogleLoginProvider } from './integrations/google/oauth-googleapis.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
+import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
 import { createExpenseRecordsRepository } from './repositories/expense-records.js';
 import { createProjectsRepository } from './repositories/projects.js';
 import { createRoutesRepository } from './repositories/routes.js';
@@ -16,20 +22,24 @@ import { createVenuesRepository } from './repositories/venues.js';
 import { createAuthRoute } from './routes/auth.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { createExpenseRecordsRoute } from './routes/expense-records.js';
+import { createGoogleAuthorizationRoute } from './routes/google-authorization.js';
 import { healthRoute } from './routes/health.js';
 import { createHomeRoute } from './routes/home.js';
 import { createProjectsRoute } from './routes/projects.js';
 import { requireSession } from './routes/require-session.js';
 import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
+import { createSettingsRoute } from './routes/settings.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
 import { createAuthService } from './services/auth.js';
 import { createExpenseRecordsService } from './services/expense-records.js';
+import { createGoogleAuthorizationService } from './services/google-authorization.js';
 import { createHomeService } from './services/home.js';
 import { createProjectsService } from './services/projects.js';
 import { createRoutesService } from './services/routes.js';
 import { createSegmentsService } from './services/segments.js';
+import { createSettingsService } from './services/settings.js';
 import { createStationsService } from './services/stations.js';
 import { createVenuesService } from './services/venues.js';
 
@@ -37,7 +47,15 @@ import { createVenuesService } from './services/venues.js';
 export type AppConfig = {
 	sessionSecret: string;
 	allowedEmail: string;
-	google: { clientId: string; clientSecret: string; redirectUriLogin: string };
+	tokenEncryptionKey: string;
+	google: {
+		clientId: string;
+		clientSecret: string;
+		redirectUriLogin: string;
+		redirectUriAuthorization: string;
+	};
+	/** 提出シートなどの環境依存値（05-integration.md 9章）。空なら未設定 */
+	sheetName: string;
 };
 
 // アプリが外から受け取るもの。index.ts は本物の DB と Google を、統合テストは test スキーマの DB と偽物を渡す。
@@ -46,6 +64,8 @@ export type AppDependencies = {
 	config: AppConfig;
 	/** 省くと config.google から googleapis の実装を組む。テストは偽物を渡す */
 	loginProvider?: LoginProvider;
+	/** 省くと config.google から googleapis の実装を組む。テストは偽物を渡す */
+	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider;
 };
 
 // OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
@@ -58,7 +78,7 @@ function unconfiguredLoginProvider(): LoginProvider {
 }
 
 // ログは標準出力へ1行テキストで出し、Docker に拾わせる（07-development.md 6章）。
-export function createApp({ db, config, loginProvider }: AppDependencies): Hono {
+export function createApp({ db, config, loginProvider, googleAuth }: AppDependencies): Hono {
 	const app = new Hono();
 	app.use('*', logger());
 
@@ -81,9 +101,10 @@ export function createApp({ db, config, loginProvider }: AppDependencies): Hono 
 		expenseRecordsRepository,
 		routesRepository,
 	);
+	const syncStateRepository = createSyncStateRepository(db);
 	const homeService = createHomeService(
 		projectsRepository,
-		createSyncStateRepository(db),
+		syncStateRepository,
 		expenseRecordsRepository,
 	);
 	// 記録は案件 → 会場 → ルートと辿って既定値を組む（04-api.md 5.2）
@@ -105,6 +126,22 @@ export function createApp({ db, config, loginProvider }: AppDependencies): Hono 
 	const authService = createAuthService(provider, createAuthStateRepository(db), {
 		allowedEmail: config.allowedEmail,
 	});
+	// Google API の認可（05-integration.md 2.3）。トークンはこの中に閉じ、services は有無しか知らない
+	const google =
+		googleAuth ??
+		createGoogleAuth(
+			{
+				clientId: config.google.clientId,
+				clientSecret: config.google.clientSecret,
+				redirectUri: config.google.redirectUriAuthorization,
+				tokenEncryptionKey: config.tokenEncryptionKey,
+			},
+			createGoogleCredentialsRepository(db),
+		);
+	const googleAuthorizationService = createGoogleAuthorizationService(google);
+	const settingsService = createSettingsService(syncStateRepository, google, {
+		sheetName: config.sheetName,
+	});
 
 	// 本人以外は使えない（NF-06）。/api/health とログインの入口だけを除いて、全部に被せる
 	app.use('/api/*', requireSession(authService, config.sessionSecret));
@@ -118,6 +155,13 @@ export function createApp({ db, config, loginProvider }: AppDependencies): Hono 
 	app.route('/api/routes', createRoutesRoute(routesService));
 	app.route('/api/projects', createProjectsRoute(projectsService));
 	app.route('/api/projects', createExpenseRecordsRoute(expenseRecordsService));
+	app.route(
+		'/api/google/authorization',
+		createGoogleAuthorizationRoute(googleAuthorizationService, {
+			sessionSecret: config.sessionSecret,
+		}),
+	);
+	app.route('/api/settings', createSettingsRoute(settingsService));
 	// 失敗は必ず 04-api.md 2.5 の形で返す。ここを通らない経路を作らない。
 	app.onError(handleError);
 	app.notFound(handleNotFound);

@@ -11,11 +11,14 @@ const app = createApp({
 	config: {
 		sessionSecret: env.SESSION_SECRET,
 		allowedEmail: env.ALLOWED_EMAIL,
+		tokenEncryptionKey: env.TOKEN_ENCRYPTION_KEY,
 		google: {
 			clientId: env.GOOGLE_CLIENT_ID,
 			clientSecret: env.GOOGLE_CLIENT_SECRET,
 			redirectUriLogin: env.GOOGLE_REDIRECT_URI_LOGIN,
+			redirectUriAuthorization: env.GOOGLE_REDIRECT_URI_AUTHORIZATION,
 		},
+		sheetName: env.MY_SHEET_NAME,
 	},
 });
 

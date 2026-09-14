@@ -6,6 +6,7 @@ const required = {
 	DATABASE_URL: 'mysql://u:p@h:3306/d',
 	SESSION_SECRET: 'a-secret-long-enough-for-hmac',
 	ALLOWED_EMAIL: 'me@example.com',
+	TOKEN_ENCRYPTION_KEY: 'a-key-long-enough-for-aes',
 };
 
 describe('loadEnv', () => {
@@ -25,14 +26,17 @@ describe('loadEnv', () => {
 		['SESSION_SECRET', { ...required, SESSION_SECRET: undefined }],
 		['SESSION_SECRET', { ...required, SESSION_SECRET: 'short' }],
 		['ALLOWED_EMAIL', { ...required, ALLOWED_EMAIL: '' }],
+		['TOKEN_ENCRYPTION_KEY', { ...required, TOKEN_ENCRYPTION_KEY: 'short' }],
 	])('%s が正しくなければ落ちる', (name, source) => {
 		expect(() => loadEnv(source)).toThrow(new RegExp(name));
 	});
 
-	// OAuth クライアントは無くても起動する。ログインの入口だけが使えない
-	it('Google の設定は省ける', () => {
+	// OAuth クライアントと提出シートなどは無くても起動する。その連携だけが使えない
+	it('Google と外部連携の設定は省ける', () => {
 		const env = loadEnv(required);
 		expect(env.GOOGLE_CLIENT_ID).toBe('');
+		expect(env.SPREADSHEET_ID).toBe('');
+		expect(env.MY_SHEET_NAME).toBe('');
 	});
 
 	it('PORT が数値でなければ落ちる', () => {
