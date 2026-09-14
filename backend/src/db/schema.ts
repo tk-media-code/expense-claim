@@ -354,3 +354,50 @@ export const attentions = mysqlTable(
 	// ホームの件数は「未確認のもの」だけを数える（02-screens.md 3.2）
 	(t) => [index('attentions_checked_at_occurred_at_index').on(t.checkedAt, t.occurredAt)],
 );
+
+// タクシー乗車。実績データで、月度切替で消える（03-database.md 5.2 / 6.1）。
+//
+// 1回ずつ持つ（F-22 / R-12）。1日に複数回乗ることがある。提出シートの I列には案件ごとに合算した額を書き、
+// 領収書の URL は乗車ごとに並べる。乗車の数と行の数は一致しない。
+// expense_records の子ではなく projects にぶら下がる。乗車は交通費記録と独立している（04-api.md 4.6）
+export const taxiRides = mysqlTable(
+	'taxi_rides',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 案件を消せば乗車も消える（6.2 CASCADE）
+		projectId: int('project_id', { unsigned: true })
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		// 乗車日。DATE は文字列で扱う（4.2）
+		rodeOn: date('rode_on', { mode: 'string' }).notNull(),
+		// この1回の金額。UNSIGNED で負の額を DB でも弾く（4.4）
+		amount: int('amount', { unsigned: true }).notNull(),
+		createdAt: datetime('created_at').notNull(),
+	},
+	(t) => [index('taxi_rides_project_id_index').on(t.projectId)],
+);
+
+// 領収書。実績データ（03-database.md 5.2）。乗車1回につき1件（R-12）。
+//
+// URL を持つのは組み立て直さないため。ファイルIDから復元する作りにすると、ドライブの URL 書式が
+// 変わったときに過去に提出した URL と食い違う。ファイル名はアプリが付ける（<YYYYMMDD>_<会場コード>_<連番>）。
+// ドライブ上のファイル実体はアプリから消さない。行が消えてもファイルは残る（要件定義 6.4）
+export const receipts = mysqlTable(
+	'receipts',
+	{
+		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
+		// 乗車が消えれば領収書の行も消える（6.2 CASCADE）。ファイル実体は消えない
+		taxiRideId: int('taxi_ride_id', { unsigned: true })
+			.notNull()
+			.references(() => taxiRides.id, { onDelete: 'cascade' }),
+		driveFileId: varchar('drive_file_id', { length: 128 }).notNull(),
+		// 提出シートの M列へ書く URL（R-15）
+		driveUrl: varchar('drive_url', { length: 512 }).notNull(),
+		fileName: varchar('file_name', { length: 255 }).notNull(),
+		// 画像または PDF（R-13）
+		mimeType: varchar('mime_type', { length: 100 }).notNull(),
+		storedAt: datetime('stored_at').notNull(),
+	},
+	// 乗車1回につき1件（R-12）。1乗車に領収書が2件できない（4.4）
+	(t) => [unique('receipts_taxi_ride_id_unique').on(t.taxiRideId)],
+);
