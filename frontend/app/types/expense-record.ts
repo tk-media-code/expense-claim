@@ -28,6 +28,14 @@ export type ExpenseRecordDefaults = {
 	legs: ExpenseRecordLeg[];
 };
 
+/** タクシー乗車と領収書（backend/src/domain/taxi-ride.ts の写し）。driveFileId は返らない（N-08） */
+export type TaxiRide = {
+	id: number;
+	rodeOn: string;
+	amount: number;
+	receipt: { fileName: string; driveUrl: string };
+};
+
 /** GET /api/projects/:id/expense-record（04-api.md 5.2） */
 export type ExpenseRecordView = {
 	project: {
@@ -40,7 +48,8 @@ export type ExpenseRecordView = {
 	routes: Route[];
 	defaults: ExpenseRecordDefaults;
 	record: ExpenseRecord | null;
-	taxiRides: unknown[];
+	/** 乗車は交通費記録と独立している（04-api.md 4.6） */
+	taxiRides: TaxiRide[];
 };
 
 /**

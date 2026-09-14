@@ -1,6 +1,6 @@
-import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime';
+import { mockNuxtImport, mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime';
 import type { VueWrapper } from '@vue/test-utils';
-import { readBody } from 'h3';
+import { readBody, setResponseStatus } from 'h3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
@@ -77,6 +77,51 @@ const noRoutes: ExpenseRecordView = {
 
 let view: ExpenseRecordView;
 const put = vi.fn<(body: Record<string, unknown>) => void>();
+const taxiPosted = vi.fn<(fields: Record<string, string>) => void>();
+const taxiRemoved = vi.fn<(id: number) => void>();
+let taxiFails = false;
+
+// テスト環境の $fetch は multipart を組み立てられない（content-type が付かず h3 が読めない）ので、
+// タクシーの POST だけ useApi を差し替えて、送ろうとした FormData の中身を直接見る。他の呼び出しは実物へ通す
+mockNuxtImport('useApi', () => {
+	return () => {
+		const real = useNuxtApp().$api;
+		return ((url: string, options?: { method?: string; body?: unknown }) => {
+			if (url === '/projects/3/taxi-rides' && options?.body instanceof FormData) {
+				const fields: Record<string, string> = {};
+				for (const [name, value] of options.body.entries()) {
+					fields[name] = value instanceof File ? `file:${value.name}:${value.type}` : String(value);
+				}
+				taxiPosted(fields);
+				if (taxiFails) {
+					return Promise.reject(new Error('DRIVE_UPLOAD_FAILED'));
+				}
+				const created = {
+					id: 7,
+					rodeOn: '2026-09-05',
+					amount: Number(fields.amount),
+					receipt: {
+						fileName: '20260905_AAA_1.jpg',
+						driveUrl: 'https://drive.google.com/file/d/x/view',
+					},
+				};
+				view = { ...view, taxiRides: [...view.taxiRides, created] };
+				return Promise.resolve(created);
+			}
+			return real(url, options as never);
+		}) as typeof real;
+	};
+});
+
+registerEndpoint('/api/taxi-rides/7', {
+	method: 'DELETE',
+	handler: (event) => {
+		taxiRemoved(7);
+		view = { ...view, taxiRides: view.taxiRides.filter((r) => r.id !== 7) };
+		setResponseStatus(event, 204);
+		return null;
+	},
+});
 
 for (const id of [3, 4, 5]) {
 	registerEndpoint(`/api/projects/${id}/expense-record`, { method: 'GET', handler: () => view });
@@ -112,8 +157,15 @@ async function choose(page: VueWrapper, testId: string, value: string) {
 
 beforeEach(() => {
 	view = oneRoute;
+	taxiFails = false;
 	vi.clearAllMocks();
 });
+
+async function chooseFile(page: VueWrapper, file: File) {
+	const input = page.find<HTMLInputElement>('[data-testid="taxi-receipt"]');
+	Object.defineProperty(input.element, 'files', { value: [file], configurable: true });
+	await input.trigger('change');
+}
 
 afterEach(() => {
 	wrapper?.unmount();
@@ -212,5 +264,89 @@ describe('/projects/:id/record（02-screens.md 3.5）', () => {
 		wrapper = await mountSuspended(RecordPage, { route: '/projects/4/record?from=detail' });
 		await vi.waitFor(() => expect(wrapper!.find('[data-testid="return"]').exists()).toBe(true));
 		expect(legTexts(wrapper)).toHaveLength(3);
+	});
+
+	// 3.5。既定では畳んでおく。タクシーに乗った日は +2手（金額とアップロード）
+	it('タクシーは畳まれており、開いて金額を入れ領収書を選ぶと、その場で POST が飛ぶ', async () => {
+		wrapper = await mountSuspended(RecordPage, { route: '/projects/3/record' });
+		await vi.waitFor(() => expect(legTexts(wrapper!)).toHaveLength(2));
+		expect(wrapper.find('[data-testid="taxi-body"]').exists()).toBe(false);
+
+		await wrapper.find('[data-testid="taxi-toggle"]').trigger('click');
+		await nextTick();
+		await wrapper.find('[data-testid="taxi-amount"]').setValue('1800');
+		await chooseFile(
+			wrapper,
+			new File([new Uint8Array([1, 2, 3])], 'IMG_1234.jpg', { type: 'image/jpeg' }),
+		);
+		await vi.waitFor(() =>
+			expect(taxiPosted).toHaveBeenCalledWith({
+				amount: '1800',
+				receipt: 'file:IMG_1234.jpg:image/jpeg',
+			}),
+		);
+		await vi.waitFor(() => expect(wrapper!.findAll('[data-testid="taxi-ride"]')).toHaveLength(1));
+		expect(wrapper.find('[data-testid="taxi-ride"]').text()).toContain('1,800円');
+		expect(wrapper.find('[data-testid="taxi-ride"] a').attributes('href')).toContain(
+			'drive.google.com',
+		);
+	});
+
+	it('金額より先に領収書を選ぶと持っておき、「追加する」で送る', async () => {
+		wrapper = await mountSuspended(RecordPage, { route: '/projects/3/record' });
+		await vi.waitFor(() => expect(legTexts(wrapper!)).toHaveLength(2));
+		await wrapper.find('[data-testid="taxi-toggle"]').trigger('click');
+		await nextTick();
+		await chooseFile(wrapper, new File(['%PDF'], 'receipt.pdf', { type: 'application/pdf' }));
+		await nextTick();
+		expect(taxiPosted).not.toHaveBeenCalled();
+		await wrapper.find('[data-testid="taxi-amount"]').setValue('1400');
+		await wrapper.find('[data-testid="taxi-submit"]').trigger('click');
+		await vi.waitFor(() =>
+			expect(taxiPosted).toHaveBeenCalledWith({
+				amount: '1400',
+				receipt: 'file:receipt.pdf:application/pdf',
+			}),
+		);
+	});
+
+	// F-26。保存に失敗したら乗車は記録されない。金額は残す
+	it('保存に失敗しても乗車は増えず、金額は残る', async () => {
+		taxiFails = true;
+		wrapper = await mountSuspended(RecordPage, { route: '/projects/3/record' });
+		await vi.waitFor(() => expect(legTexts(wrapper!)).toHaveLength(2));
+		await wrapper.find('[data-testid="taxi-toggle"]').trigger('click');
+		await nextTick();
+		await wrapper.find('[data-testid="taxi-amount"]').setValue('1800');
+		await chooseFile(wrapper, new File([new Uint8Array([1])], 'IMG.jpg', { type: 'image/jpeg' }));
+		await vi.waitFor(() => expect(taxiPosted).toHaveBeenCalled());
+		await nextTick();
+		expect(wrapper.findAll('[data-testid="taxi-ride"]')).toHaveLength(0);
+		expect(wrapper.find<HTMLInputElement>('[data-testid="taxi-amount"]').element.value).toBe(
+			'1800',
+		);
+	});
+
+	it('記録済みの乗車は開いた状態で並び、消せる', async () => {
+		view = {
+			...oneRoute,
+			taxiRides: [
+				{
+					id: 7,
+					rodeOn: '2026-09-05',
+					amount: 1800,
+					receipt: {
+						fileName: '20260905_AAA_1.jpg',
+						driveUrl: 'https://drive.google.com/file/d/x/view',
+					},
+				},
+			],
+		};
+		wrapper = await mountSuspended(RecordPage, { route: '/projects/3/record' });
+		await vi.waitFor(() => expect(wrapper!.findAll('[data-testid="taxi-ride"]')).toHaveLength(1));
+		expect(wrapper.find('[data-testid="taxi-toggle"]').text()).toContain('1回・1,800円');
+		await wrapper.find('[data-testid="taxi-ride"] button').trigger('click');
+		await vi.waitFor(() => expect(taxiRemoved).toHaveBeenCalledWith(7));
+		await vi.waitFor(() => expect(wrapper!.findAll('[data-testid="taxi-ride"]')).toHaveLength(0));
 	});
 });

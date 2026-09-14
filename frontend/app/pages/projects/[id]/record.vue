@@ -199,7 +199,12 @@ async function save() {
 					</p>
 				</div>
 
-				<!-- タクシーと領収書は 10-5 で足す。既定では畳んでおく（3.5） -->
+				<!-- タクシーと領収書。乗車は交通費記録と独立していて、選んだ時点で送る（04-api.md 4.6） -->
+				<TaxiRides
+					:project-id="view.project.id"
+					:taxi-rides="view.taxiRides"
+					@changed="refresh()"
+				/>
 
 				<!-- 2手目 -->
 				<UButton
