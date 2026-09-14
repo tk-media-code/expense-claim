@@ -8,5 +8,7 @@ export default defineVitestConfig({
 			nuxt: { domEnvironment: 'happy-dom' },
 		},
 		include: ['app/**/*.test.ts'],
+		// 全画面に掛かる認証の middleware を、ログイン済みとして通す
+		setupFiles: ['./test/setup.ts'],
 	},
 });
