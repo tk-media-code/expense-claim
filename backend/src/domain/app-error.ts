@@ -18,6 +18,7 @@ export const errorCatalog = {
 		message: '提出シートの対象月度が変わりました。確認し直してください',
 	},
 	PROJECT_NO_DUPLICATED: { status: 409, message: 'その案件番号は既に登録されています' },
+	STATION_NAME_DUPLICATED: { status: 409, message: 'その駅名は既に登録されています' },
 	INVALID_VALUE: { status: 422, message: '入力した値が正しくありません' },
 	INTERNAL_ERROR: { status: 500, message: '予期しないエラーが発生しました' },
 	SHEET_UNREACHABLE: {

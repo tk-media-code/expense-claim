@@ -125,7 +125,7 @@ JavaScript から読める場所にトークンを置かない。
 | **401** | **未ログイン。セッションが切れた・失効させられた** | `UNAUTHENTICATED` |
 | **403** | **許可アドレス以外**（F-01 / N-03）。`Origin` が合わない | `NOT_ALLOWED` |
 | 404 | 資源が無い | `NOT_FOUND` |
-| **409** | **競合。** 対象月度が変わった・案件番号が重複した | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` |
+| **409** | **競合。** 対象月度が変わった・案件番号が重複した・駅名が重複した | `TARGET_MONTH_CHANGED` / `PROJECT_NO_DUPLICATED` / `STATION_NAME_DUPLICATED` |
 | **422** | **値が規則に合わない**（負の金額など） | `INVALID_VALUE` |
 | 500 | 想定外の例外。**バグである** | `INTERNAL_ERROR` |
 | **502** | **Google API が失敗した** | `SHEET_UNREACHABLE` / `DRIVE_UPLOAD_FAILED` / `SHEET_FORMAT_CHANGED` |
@@ -461,7 +461,7 @@ F-26 は「**保存に失敗したら、乗車の記録を残さずに知らせ�
 | GET | `/api/routes/:id` | ルート1本。**区間の中身つき** | F-16 |
 | PUT | `/api/routes/:id` | 更新。**`segmentIds` の配列ごと置き換える** | F-16 |
 | DELETE | `/api/routes/:id` | 削除。**使う区間の並びだけが消える**（CASCADE）。**区間そのものは残る** | F-16 |
-| GET | `/api/stations` | 駅一覧 | F-15 |
+| GET | `/api/stations` | 駅一覧。**使っている区間数まで含める**（`02-screens.md` 3.8） | F-15 |
 | POST | `/api/stations` | 駅を登録。**名前は鉄道会社の略称込み** | F-15 |
 | PUT | `/api/stations/:id` | **名前を直す。使われていても直せる**（下記） | F-15 |
 | DELETE | `/api/stations/:id` | 削除。**使っている区間があれば 409** | F-15 |
