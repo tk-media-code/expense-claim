@@ -77,6 +77,39 @@ export function createVenuesRepository(db: Database) {
 			return rows[0]?.id ?? null;
 		},
 
+		// 会場マスタの取り込み（F-13 / 8-2）。code を鍵にした upsert で、manual の行は触らない。
+		// 毎回入れ直すと、手で足した会場を巻き込んで消しかねない（03-database.md 5.1）
+		async upsertMaster(
+			rows: { code: string; name: string }[],
+		): Promise<{ inserted: number; updated: number; unchanged: number; skipped: number }> {
+			const now = new Date();
+			const result = { inserted: 0, updated: 0, unchanged: 0, skipped: 0 };
+			const existing = await db
+				.select({ id: venues.id, code: venues.code, name: venues.name, source: venues.source })
+				.from(venues);
+			const byCode = new Map(existing.map((row) => [row.code, row]));
+			for (const row of rows) {
+				const found = byCode.get(row.code);
+				if (!found) {
+					await db
+						.insert(venues)
+						.values({ ...row, source: 'master', createdAt: now, updatedAt: now });
+					result.inserted += 1;
+				} else if (found.source === 'manual') {
+					result.skipped += 1;
+				} else if (found.name !== row.name) {
+					await db
+						.update(venues)
+						.set({ name: row.name, updatedAt: now })
+						.where(eq(venues.id, found.id));
+					result.updated += 1;
+				} else {
+					result.unchanged += 1;
+				}
+			}
+			return result;
+		},
+
 		async create(input: VenueInput): Promise<Venue> {
 			// DB 既定値が無いのでアプリが入れる。UTC（03-database.md 4.2）
 			const now = new Date();

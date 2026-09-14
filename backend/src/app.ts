@@ -10,6 +10,8 @@ import type {
 import { createGoogleAuth } from './integrations/google/auth-googleapis.js';
 import type { LoginProvider } from './integrations/google/oauth.js';
 import { createGoogleLoginProvider } from './integrations/google/oauth-googleapis.js';
+import type { SheetsClient } from './integrations/sheets/client.js';
+import { createSheetsClient } from './integrations/sheets/googleapis.js';
 import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
@@ -32,6 +34,7 @@ import { requireSession } from './routes/require-session.js';
 import { createRoutesRoute } from './routes/routes.js';
 import { createSegmentsRoute } from './routes/segments.js';
 import { createSettingsRoute } from './routes/settings.js';
+import { createSyncRoute } from './routes/sync.js';
 import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
 import { createAttentionsService } from './services/attentions.js';
@@ -43,6 +46,7 @@ import { createProjectsService } from './services/projects.js';
 import { createRoutesService } from './services/routes.js';
 import { createSegmentsService } from './services/segments.js';
 import { createSettingsService } from './services/settings.js';
+import { createSyncService } from './services/sync.js';
 import { createStationsService } from './services/stations.js';
 import { createVenuesService } from './services/venues.js';
 
@@ -58,6 +62,7 @@ export type AppConfig = {
 		redirectUriAuthorization: string;
 	};
 	/** 提出シートなどの環境依存値（05-integration.md 9章）。空なら未設定 */
+	spreadsheetId: string;
 	sheetName: string;
 };
 
@@ -69,6 +74,8 @@ export type AppDependencies = {
 	loginProvider?: LoginProvider;
 	/** 省くと config.google から googleapis の実装を組む。テストは偽物を渡す */
 	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider;
+	/** 省くと googleapis の実装を組む。テストは偽物を渡す */
+	sheetsClient?: SheetsClient;
 };
 
 // OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
@@ -81,7 +88,13 @@ function unconfiguredLoginProvider(): LoginProvider {
 }
 
 // ログは標準出力へ1行テキストで出し、Docker に拾わせる（07-development.md 6章）。
-export function createApp({ db, config, loginProvider, googleAuth }: AppDependencies): Hono {
+export function createApp({
+	db,
+	config,
+	loginProvider,
+	googleAuth,
+	sheetsClient,
+}: AppDependencies): Hono {
 	const app = new Hono();
 	app.use('*', logger());
 
@@ -92,7 +105,6 @@ export function createApp({ db, config, loginProvider, googleAuth }: AppDependen
 	const stationsService = createStationsService(stationsRepository);
 	// 区間の登録は駅の存在を先読みするので、駅の repository を共有する（ルートも同じ形）
 	const segmentsService = createSegmentsService(segmentsRepository, stationsRepository);
-	const venuesService = createVenuesService(venuesRepository);
 	const routesRepository = createRoutesRepository(db);
 	const routesService = createRoutesService(routesRepository, venuesRepository, segmentsRepository);
 	const projectsRepository = createProjectsRepository(db);
@@ -145,9 +157,18 @@ export function createApp({ db, config, loginProvider, googleAuth }: AppDependen
 			createGoogleCredentialsRepository(db),
 		);
 	const googleAuthorizationService = createGoogleAuthorizationService(google);
-	const settingsService = createSettingsService(syncStateRepository, google, {
+	// 提出シート（05-integration.md 7章 / 8章）。書き込み先は環境変数で、実行時に決めない
+	const sheets =
+		sheetsClient ??
+		createSheetsClient(google, {
+			spreadsheetId: config.spreadsheetId,
+			sheetName: config.sheetName,
+		});
+	const venuesService = createVenuesService(venuesRepository, sheets);
+	const settingsService = createSettingsService(syncStateRepository, google, sheets, {
 		sheetName: config.sheetName,
 	});
+	const syncService = createSyncService(sheets, syncStateRepository, attentionsService);
 
 	// 本人以外は使えない（NF-06）。/api/health とログインの入口だけを除いて、全部に被せる
 	app.use('/api/*', requireSession(authService, config.sessionSecret));
@@ -155,6 +176,7 @@ export function createApp({ db, config, loginProvider, googleAuth }: AppDependen
 	app.route('/api/health', healthRoute);
 	app.route('/api/auth', createAuthRoute(authService, { sessionSecret: config.sessionSecret }));
 	app.route('/api/home', createHomeRoute(homeService));
+	app.route('/api/sync', createSyncRoute(syncService));
 	app.route('/api/stations', createStationsRoute(stationsService));
 	app.route('/api/segments', createSegmentsRoute(segmentsService));
 	app.route('/api/venues', createVenuesRoute(venuesService));

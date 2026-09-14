@@ -18,6 +18,7 @@ const app = createApp({
 			redirectUriLogin: env.GOOGLE_REDIRECT_URI_LOGIN,
 			redirectUriAuthorization: env.GOOGLE_REDIRECT_URI_AUTHORIZATION,
 		},
+		spreadsheetId: env.SPREADSHEET_ID,
 		sheetName: env.MY_SHEET_NAME,
 	},
 });

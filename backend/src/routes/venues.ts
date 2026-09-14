@@ -22,8 +22,7 @@ const venueInput = z.object({
 		.max(VENUE_NAME_MAX_LENGTH, `会場名は${VENUE_NAME_MAX_LENGTH}文字以内で入れてください`),
 });
 
-// 04-api.md 4.7 の一覧と追加。取り込み（POST /api/venues/import）は 8-2 で足す。
-// 会場を削除するエンドポイントは持たない（7章）
+// 04-api.md 4.7 の一覧・追加・取り込み。会場を削除するエンドポイントは持たない（7章）
 export function createVenuesRoute(service: VenuesService) {
 	return (
 		new Hono()
@@ -33,5 +32,7 @@ export function createVenuesRoute(service: VenuesService) {
 				const input = parseBody(venueInput, await readJsonBody(c));
 				return c.json(await service.create(input), 201);
 			})
+			// 会場マスタを取り込む（F-13）。本文は無い。書き込み先は環境変数で、受け取らない（7章）
+			.post('/import', async (c) => c.json(await service.importMaster()))
 	);
 }

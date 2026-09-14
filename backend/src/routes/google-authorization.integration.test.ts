@@ -115,7 +115,8 @@ describe('GET /api/settings（04-api.md 4.10）', () => {
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as Record<string, unknown>;
 		expect(body).toEqual({
-			spreadsheetName: null,
+			// 偽物の提出シートが返すブック名。読めなければ null（sync.integration.test.ts）
+			spreadsheetName: '交通費精算',
 			sheetName: '9999 テスト太郎',
 			targetMonth: null,
 			google: {

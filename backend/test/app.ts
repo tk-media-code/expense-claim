@@ -9,6 +9,9 @@ import type {
 } from '../src/integrations/google/auth.js';
 import { GoogleApiFailure } from '../src/integrations/google/errors.js';
 import type { LoginProvider } from '../src/integrations/google/oauth.js';
+import type { SheetsClient, SheetStructure } from '../src/integrations/sheets/client.js';
+import { AppError, type ErrorCode } from '../src/domain/app-error.js';
+import { parseTargetMonth, type TargetMonth } from '../src/domain/month.js';
 import { signSession } from '../src/routes/session-cookie.js';
 
 // 統合テストのための createApp。/api/* に認証が被さる（5-5）ので、ログイン済みの Cookie を
@@ -18,6 +21,7 @@ export const TEST_CONFIG: AppConfig = {
 	allowedEmail: 'me@example.com',
 	tokenEncryptionKey: 'test-token-encryption-key-0123',
 	google: { clientId: '', clientSecret: '', redirectUriLogin: '', redirectUriAuthorization: '' },
+	spreadsheetId: 'test-spreadsheet-id',
 	sheetName: '9999 テスト太郎',
 };
 
@@ -71,6 +75,57 @@ export function createFakeGoogleAuth(
 	return fake;
 }
 
+/** 偽物の提出シート。読める値をテストが決め、失敗させたければ fails に code を入れる */
+export function createFakeSheets(
+	options: {
+		targetMonth?: string;
+		venueMaster?: { code: string; name: string }[];
+		structure?: Partial<SheetStructure>;
+		fails?: ErrorCode | null;
+	} = {},
+): SheetsClient & { inserted: number[]; written: { rows: unknown[]; receiptCell: string }[] } {
+	const fail = () => {
+		if (options.fails) throw new AppError(options.fails);
+	};
+	const fake = {
+		inserted: [] as number[],
+		written: [] as { rows: unknown[]; receiptCell: string }[],
+		readTargetMonth: () => {
+			fail();
+			const month = parseTargetMonth(options.targetMonth ?? '2026-08');
+			if (!month) throw new AppError('TARGET_MONTH_UNREADABLE');
+			return Promise.resolve(month as TargetMonth);
+		},
+		readStructure: () => {
+			fail();
+			return Promise.resolve({
+				spreadsheetTitle: '交通費精算',
+				firstBodyRow: 8,
+				lastBodyRow: 32,
+				writableRows: 25,
+				...options.structure,
+			});
+		},
+		assertHeader: () => {
+			fail();
+			return Promise.resolve();
+		},
+		readVenueMaster: () => {
+			fail();
+			return Promise.resolve(options.venueMaster ?? []);
+		},
+		insertRows: (count: number) => {
+			fake.inserted.push(count);
+			return Promise.resolve();
+		},
+		writeBody: (rows: unknown[], receiptCell: string) => {
+			fake.written.push({ rows, receiptCell });
+			return Promise.resolve();
+		},
+	};
+	return fake;
+}
+
 export async function sessionCookie(iat = Math.floor(Date.now() / 1000)): Promise<string> {
 	return `session=${await signSession(TEST_CONFIG.sessionSecret, { sub: 'sub-1', iat })}`;
 }
@@ -85,12 +140,14 @@ export function createAuthedApp(
 	db: Database,
 	loginProvider?: LoginProvider,
 	googleAuth?: GoogleAuthorizationClient & GoogleClientProvider,
+	sheetsClient?: SheetsClient,
 ): TestApp {
 	const app = createApp({
 		db,
 		config: TEST_CONFIG,
 		loginProvider: loginProvider ?? createFakeLoginProvider(),
 		googleAuth: googleAuth ?? createFakeGoogleAuth(),
+		sheetsClient: sheetsClient ?? createFakeSheets(),
 	});
 	return {
 		app,
