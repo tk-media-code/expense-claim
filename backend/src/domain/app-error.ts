@@ -21,6 +21,10 @@ export const errorCatalog = {
 	STATION_NAME_DUPLICATED: { status: 409, message: 'その駅名は既に登録されています' },
 	STATION_IN_USE: { status: 409, message: 'この駅を使っている区間があるため、削除できません' },
 	SEGMENT_DUPLICATED: { status: 409, message: 'その区間は既に登録されています' },
+	SEGMENT_IN_USE: {
+		status: 409,
+		message: 'この区間を使っているルートがあるため、削除できません',
+	},
 	INVALID_VALUE: { status: 422, message: '入力した値が正しくありません' },
 	INTERNAL_ERROR: { status: 500, message: '予期しないエラーが発生しました' },
 	SHEET_UNREACHABLE: {

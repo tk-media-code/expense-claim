@@ -5,7 +5,7 @@ import type { Database } from '../db/client.js';
 import { routeSegments, segments, stations } from '../db/schema.js';
 import { AppError } from '../domain/app-error.js';
 import type { Segment } from '../domain/segment.js';
-import { isDuplicateEntry, isNoReferencedRow } from './mysql-error.js';
+import { isDuplicateEntry, isNoReferencedRow, isRowReferenced } from './mysql-error.js';
 
 /** 登録に要る列。id と routeCount はサーバーが決める */
 export type SegmentInput = { fromStationId: number; toStationId: number; oneWayFare: number };
@@ -112,6 +112,39 @@ export function createSegmentsRepository(db: Database) {
 			const created = await findById(id);
 			if (created === null) throw new Error(`入れたばかりの区間 ${id} を読み直せなかった`);
 			return created;
+		},
+
+		// 3列とも受け取る。使用中なら駅を変えられない（決定22）が、それは services が先に決めて
+		// 現在値を詰めて渡してくる。repository は「何が変わるか」を知らない。
+		async update(id: number, input: SegmentInput): Promise<Segment> {
+			try {
+				await db
+					.update(segments)
+					.set({ ...input, updatedAt: new Date() })
+					.where(eq(segments.id, id));
+			} catch (cause) {
+				// create と同じ二重の網。判定から自分自身を除いた先読みをすり抜けた重複と「駅が無い」を写す
+				if (isDuplicateEntry(cause)) throw new AppError('SEGMENT_DUPLICATED', { cause });
+				if (isNoReferencedRow(cause)) {
+					throw new AppError('INVALID_VALUE', { message: '指定した駅が見つかりません', cause });
+				}
+				throw cause;
+			}
+			const updated = await findById(id);
+			if (updated === null) throw new Error(`直したばかりの区間 ${id} を読み直せなかった`);
+			return updated;
+		},
+
+		// delete は予約語で repository.delete(…) が読みにくいので remove にする（stations と同じ）。
+		async remove(id: number): Promise<void> {
+			try {
+				await db.delete(segments).where(eq(segments.id, id));
+			} catch (cause) {
+				// 二重の網。services の先読みをすり抜けた「使用中」を、同じ 409 に写す。
+				// segments を参照する外部キーは route_segments の1本だけなので、制約名までは見ない
+				if (isRowReferenced(cause)) throw new AppError('SEGMENT_IN_USE', { cause });
+				throw cause;
+			}
 		},
 	};
 }

@@ -57,6 +57,14 @@ async function useInRoute(segmentId: number): Promise<void> {
 		.values({ routeId: route.id, sortOrder: 1, segmentId, createdAt: at, updatedAt: at });
 }
 
+async function put(id: number, body: string): Promise<Response> {
+	return app.request(`/api/segments/${id}`, {
+		method: 'PUT',
+		headers: { 'content-type': 'application/json' },
+		body,
+	});
+}
+
 async function list(): Promise<Record<string, unknown>[]> {
 	const body = (await (await app.request('/api/segments')).json()) as {
 		segments: Record<string, unknown>[];
@@ -282,5 +290,174 @@ describe('POST /api/segments', () => {
 		await expect(res.json()).resolves.toEqual({
 			error: { code: 'BAD_REQUEST', message: errorCatalog.BAD_REQUEST.message },
 		});
+	});
+});
+
+describe('PUT /api/segments/:id', () => {
+	it('200 で直した区間を駅名つきで返し、一覧にも反映される', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await put(id, JSON.stringify({ oneWayFare: 330 }));
+		expect(res.status).toBe(200);
+		await expect(res.json()).resolves.toEqual({
+			id,
+			fromStationId: x,
+			fromStationName: 'X鉄甲駅',
+			toStationId: y,
+			toStationName: 'X鉄乙駅',
+			oneWayFare: 330,
+			routeCount: 0,
+		});
+		await expect(list()).resolves.toEqual([expect.objectContaining({ oneWayFare: 330 })]);
+	});
+
+	// 決定18。片道運賃は使われていても直せ、その区間を使う全ルートに効く
+	it('使用中の区間でも運賃は直せ、routeCount はそのまま返る', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+		await useInRoute(id);
+
+		const res = await put(id, JSON.stringify({ oneWayFare: 330 }));
+		expect(res.status).toBe(200);
+		await expect(res.json()).resolves.toMatchObject({ oneWayFare: 330, routeCount: 1 });
+	});
+
+	// 04-api.md 4.7。1本でもあれば from / to を送っても 409。黙って経路が変わるのを防ぐ
+	it('使用中の区間に駅を送ると 409 を返し、運賃も駅も元のまま', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const z = await createStation('X鉄丙駅');
+		const id = await createSegment(x, y, 320);
+		await useInRoute(id);
+
+		const res = await put(id, JSON.stringify({ oneWayFare: 330, toStationId: z }));
+		expect(res.status).toBe(409);
+		await expect(res.json()).resolves.toEqual({
+			error: {
+				code: 'SEGMENT_IN_USE',
+				message: 'この区間を使っているルートがあるため、出発駅・到着駅は変えられません',
+			},
+		});
+		await expect(list()).resolves.toEqual([
+			expect.objectContaining({ toStationId: y, oneWayFare: 320 }),
+		]);
+	});
+
+	it('未使用なら駅も差し替えられる', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const z = await createStation('X鉄丙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await put(
+			id,
+			JSON.stringify({ oneWayFare: 410, fromStationId: y, toStationId: z }),
+		);
+		expect(res.status).toBe(200);
+		await expect(res.json()).resolves.toMatchObject({
+			fromStationName: 'X鉄乙駅',
+			toStationName: 'X鉄丙駅',
+			oneWayFare: 410,
+		});
+	});
+
+	it('片方だけ送って同一駅になれば 422 を返す', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await put(id, JSON.stringify({ oneWayFare: 320, fromStationId: y }));
+		expect(res.status).toBe(422);
+		await expect(res.json()).resolves.toEqual({
+			error: { code: 'INVALID_VALUE', message: '出発駅と到着駅は別の駅にしてください' },
+		});
+	});
+
+	it('他の区間と同じ駅ペアにすると 409 を返す', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const z = await createStation('X鉄丙駅');
+		await createSegment(x, y, 320);
+		const xz = await createSegment(x, z, 500);
+
+		const res = await put(xz, JSON.stringify({ oneWayFare: 500, toStationId: y }));
+		expect(res.status).toBe(409);
+		await expect(res.json()).resolves.toMatchObject({ error: { code: 'SEGMENT_DUPLICATED' } });
+	});
+
+	it('自分と同じ駅ペアで送れば 200 を返す', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await put(
+			id,
+			JSON.stringify({ oneWayFare: 320, fromStationId: x, toStationId: y }),
+		);
+		expect(res.status).toBe(200);
+	});
+
+	it('負の運賃なら 422 で項目の文面を返す', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await put(id, JSON.stringify({ oneWayFare: -1 }));
+		expect(res.status).toBe(422);
+		await expect(res.json()).resolves.toEqual({
+			error: { code: 'INVALID_VALUE', message: '片道運賃は0以上で入れてください' },
+		});
+	});
+
+	it.each([
+		['無い id', '9999'],
+		['整数でない id', 'abc'],
+	])('%s なら 404 を返す', async (_label, id) => {
+		const res = await app.request(`/api/segments/${id}`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ oneWayFare: 320 }),
+		});
+		expect(res.status).toBe(404);
+		await expect(res.json()).resolves.toEqual({
+			error: { code: 'NOT_FOUND', message: errorCatalog.NOT_FOUND.message },
+		});
+	});
+});
+
+describe('DELETE /api/segments/:id', () => {
+	// 04-api.md 2.3。消したものを返す意味が無いので本文を持たない
+	it('204 で本文を返さず、一覧から消える', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+
+		const res = await app.request(`/api/segments/${id}`, { method: 'DELETE' });
+		expect(res.status).toBe(204);
+		expect(await res.text()).toBe('');
+		await expect(list()).resolves.toEqual([]);
+	});
+
+	// 決定22。使われている区間は消せない。RESTRICT を 409 として言い直す
+	it('使っているルートがあれば 409 を返し、区間は残る', async () => {
+		const x = await createStation('X鉄甲駅');
+		const y = await createStation('X鉄乙駅');
+		const id = await createSegment(x, y, 320);
+		await useInRoute(id);
+
+		const res = await app.request(`/api/segments/${id}`, { method: 'DELETE' });
+		expect(res.status).toBe(409);
+		await expect(res.json()).resolves.toEqual({
+			error: { code: 'SEGMENT_IN_USE', message: errorCatalog.SEGMENT_IN_USE.message },
+		});
+		await expect(list()).resolves.toHaveLength(1);
+	});
+
+	it('無い id なら 404 を返す', async () => {
+		const res = await app.request('/api/segments/9999', { method: 'DELETE' });
+		expect(res.status).toBe(404);
 	});
 });

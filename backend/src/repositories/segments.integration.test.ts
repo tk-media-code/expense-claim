@@ -155,4 +155,72 @@ describe('segments repository', () => {
 		expect((error as AppError).status).toBe(422);
 		expect((error as AppError).message).toBe('指定した駅が見つかりません');
 	});
+
+	it('update は3列とも書き換え、駅名つきで読み直して返す', async () => {
+		const x = await stations.create('X鉄甲駅');
+		const y = await stations.create('X鉄乙駅');
+		const z = await stations.create('X鉄丙駅');
+		const created = await repository.create({
+			fromStationId: x.id,
+			toStationId: y.id,
+			oneWayFare: 320,
+		});
+		const updated = await repository.update(created.id, {
+			fromStationId: y.id,
+			toStationId: z.id,
+			oneWayFare: 410,
+		});
+		expect(updated).toEqual({
+			id: created.id,
+			fromStationId: y.id,
+			fromStationName: 'X鉄乙駅',
+			toStationId: z.id,
+			toStationName: 'X鉄丙駅',
+			oneWayFare: 410,
+			routeCount: 0,
+		});
+		await expect(repository.findById(created.id)).resolves.toEqual(updated);
+	});
+
+	// 判定から自分自身を除いた先読みをすり抜けた重複を、UNIQUE で拾って同じ 409 に写す（二重の網）
+	it('update で他の区間と同じ駅ペアにすると SEGMENT_DUPLICATED を投げる', async () => {
+		const x = await stations.create('X鉄甲駅');
+		const y = await stations.create('X鉄乙駅');
+		const z = await stations.create('X鉄丙駅');
+		await repository.create({ fromStationId: x.id, toStationId: y.id, oneWayFare: 320 });
+		const xz = await repository.create({ fromStationId: x.id, toStationId: z.id, oneWayFare: 500 });
+		const error = await rejection(
+			repository.update(xz.id, { fromStationId: x.id, toStationId: y.id, oneWayFare: 500 }),
+		);
+		expect((error as AppError).code).toBe('SEGMENT_DUPLICATED');
+	});
+
+	it('remove は区間を消す', async () => {
+		const x = await stations.create('X鉄甲駅');
+		const y = await stations.create('X鉄乙駅');
+		const created = await repository.create({
+			fromStationId: x.id,
+			toStationId: y.id,
+			oneWayFare: 320,
+		});
+		await repository.remove(created.id);
+		await expect(repository.findById(created.id)).resolves.toBeNull();
+	});
+
+	// services の先読みをすり抜けた「使用中」を、RESTRICT で拾って同じ 409 に写す（二重の網）
+	it('使われている区間を remove すると SEGMENT_IN_USE を投げ、区間は残る', async () => {
+		const x = await stations.create('X鉄甲駅');
+		const y = await stations.create('X鉄乙駅');
+		const created = await repository.create({
+			fromStationId: x.id,
+			toStationId: y.id,
+			oneWayFare: 320,
+		});
+		await useSegment(await insertRoute('A'), 1, created.id);
+		const error = await rejection(repository.remove(created.id));
+		expect(error).toBeInstanceOf(AppError);
+		expect((error as AppError).code).toBe('SEGMENT_IN_USE');
+		expect((error as AppError).status).toBe(409);
+		await expect(repository.findById(created.id)).resolves.toEqual({ ...created, routeCount: 1 });
+	});
 });
