@@ -59,9 +59,12 @@ export function classifyGoogleError(error: unknown): GoogleApiFailure {
 export function toAppError(
 	error: unknown,
 	unreachable: 'SHEET_UNREACHABLE' | 'DRIVE_UPLOAD_FAILED',
+	// error が「どの段で落ちたか」の印で、Google の失敗そのものが別にあるとき（drive）
+	googleError: unknown = error,
 ): AppError {
-	const failure = classifyGoogleError(error);
-	if (failure.kind === 'unauthorized')
+	const failure = classifyGoogleError(googleError);
+	if (failure.kind === 'unauthorized') {
 		return new AppError('GOOGLE_UNAUTHORIZED', { cause: failure });
-	return new AppError(unreachable, { cause: failure });
+	}
+	return new AppError(unreachable, { cause: error === googleError ? failure : error });
 }
