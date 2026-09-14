@@ -237,6 +237,15 @@ Docker が居ない・起こせないときは `3`（環境問題）で抜ける
 | `frontend/app/error.vue` | 無いパス。「画面が見つかりません」と「ホームへ」。`app.vue` の外なので `UApp` を自分で持つ |
 | `frontend/app/plugins/api.ts` | `/api` を叩く `$fetch` の派生。**失敗を `ApiError` にしてトーストに出し、再試行しない** |
 | `frontend/app/composables/useApi.ts` | 画面からの入口 `useApi()` / `useApiFetch()`。**素の `$fetch` / `useFetch` で `/api` を叩かない**（トーストに乗らず、再試行も切れない） |
+| `frontend/app/types/` | API の型の写し（`station.ts` など）。**バックエンドの `domain/` と対で置く** |
+
+**シート（[`02-screens.md`](02-screens.md) 2.1）は `USlideover` の `side="bottom"` で作る。**
+下から上がる形にするのは、**親指の届く位置に操作を置く**ためである（NF-01）。
+**URL を持たない。** 画面を替えない寄り道なので、`definePageMeta` も増やさない。
+
+**失敗してもシートを閉じない。** 閉じると打った内容ごと消え、重ねているシートまで巻き込む。
+**文面は画面に持たない。** 検証も重複もサーバーの `message` をそのまま出す
+（[`04-api.md`](04-api.md) 2.5）。**同じ日本語を設計書・バックエンド・フロントの3か所に散らさない。**
 
 **アイコンは `@iconify-json/lucide` をローカルに入れる。**
 入れないと `@nuxt/icon` が実行時に API を叩きに行く。
