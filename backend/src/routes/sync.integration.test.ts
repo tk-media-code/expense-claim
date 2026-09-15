@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { createAuthedApp, createFakeSheets } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
+import { submissions } from '../db/schema.js';
 
 // POST /api/sync の月度の検知（04-api.md 4.3 手順1）と、会場マスタの取り込み（4.7）、
 // 設定のスプレッドシート名（4.10）を、偽物の提出シートで確かめる
@@ -188,5 +189,111 @@ describe('POST /api/venues/import（F-13）', () => {
 		);
 		const res = await request('/api/venues/import', { method: 'POST' });
 		expect(res.status).toBe(503);
+	});
+
+	// F-32 / 03-database.md 6.3。切替先より前で、かつ提出が済んだ月度だけを消す。片方でも欠けたら消さない
+	describe('POST /api/sync（月度切替の削除）', () => {
+		async function addProject(
+			request: ReturnType<typeof createAuthedApp>['request'],
+			no: string,
+			date: string,
+		) {
+			await request('/api/projects', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					projectNo: no,
+					serviceDate: date,
+					venueCode: 'AAA',
+					coupleName: '〇〇様△△様',
+				}),
+			});
+		}
+
+		it('切り替わりを検知すると、提出済みの前月度の案件を消し、未提出の月度は残して要確認事項に出す', async () => {
+			const august = createAuthedApp(
+				db,
+				undefined,
+				undefined,
+				createFakeSheets({ targetMonth: '2026-08' }),
+			);
+			await august.request('/api/venues', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ code: 'AAA', name: '甲ホール' }),
+			});
+			await addProject(august.request, '100000011', '2026-07-30'); // 7月度。提出していない
+			await addProject(august.request, '100000012', '2026-08-22'); // 8月度。提出済み
+			await addProject(august.request, '100000001', '2026-09-05'); // 9月度。これから稼働
+			await august.request('/api/sync', { method: 'POST' });
+			await db.insert(submissions).values({
+				targetMonth: '2026-08-01',
+				executedAt: new Date('2026-09-02T01:00:00Z'),
+				writtenRows: 2,
+			});
+
+			// A1 が 9月に切り替わった
+			const september = createAuthedApp(
+				db,
+				undefined,
+				undefined,
+				createFakeSheets({ targetMonth: '2026-09' }),
+			);
+			const res = await september.request('/api/sync', { method: 'POST' });
+			await expect(res.json()).resolves.toMatchObject({
+				targetMonth: '2026-09',
+				rolledOver: true,
+				warnings: [
+					{
+						code: 'TARGET_MONTH_ROLLED_OVER',
+						message: expect.stringContaining('1件を消しました') as unknown,
+					},
+				],
+			});
+
+			// 8月度は消え、7月度（未提出）と9月度（これから稼働）は残る
+			const home = (await (await september.request('/api/home')).json()) as {
+				months: { month: string }[];
+			};
+			expect(home.months.map((m) => m.month)).toEqual(['2026-09']);
+			const all = (await (await september.request('/api/projects/1')).json()) as {
+				projectNo?: string;
+			};
+			expect(all.projectNo).toBe('100000011');
+
+			const attentions = (await (
+				await september.request('/api/attentions?checked=false')
+			).json()) as {
+				attentions: { kind: string; detail: string }[];
+			};
+			expect(attentions.attentions.map((a) => a.kind)).toEqual(['month_rolled_over_unsubmitted']);
+			expect(attentions.attentions[0]?.detail).toContain('2026年7月度の案件1件');
+			// 9月度（切替先以降）は要確認事項に出ない。毎月の切替で誤検知が上がらない
+			expect(attentions.attentions[0]?.detail).not.toContain('9月度の案件');
+		});
+
+		it('同じ月度を読み直しただけなら何も消さない', async () => {
+			const app = createAuthedApp(
+				db,
+				undefined,
+				undefined,
+				createFakeSheets({ targetMonth: '2026-09' }),
+			);
+			await app.request('/api/venues', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ code: 'AAA', name: '甲ホール' }),
+			});
+			await addProject(app.request, '100000012', '2026-08-22');
+			await db.insert(submissions).values({
+				targetMonth: '2026-08-01',
+				executedAt: new Date('2026-09-02T01:00:00Z'),
+				writtenRows: 2,
+			});
+			await app.request('/api/sync', { method: 'POST' });
+			const res = await app.request('/api/sync', { method: 'POST' });
+			await expect(res.json()).resolves.toMatchObject({ rolledOver: false });
+			expect((await app.request('/api/projects/1')).status).toBe(200);
+		});
 	});
 });

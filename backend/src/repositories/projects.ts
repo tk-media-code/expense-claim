@@ -1,7 +1,7 @@
-import { and, asc, eq, gte, lt } from 'drizzle-orm';
+import { and, asc, eq, exists, gte, lt, sql } from 'drizzle-orm';
 
 import type { Database } from '../db/client.js';
-import { projects } from '../db/schema.js';
+import { projects, submissions } from '../db/schema.js';
 import { AppError } from '../domain/app-error.js';
 import {
 	firstDayOf,
@@ -73,6 +73,35 @@ export function createProjectsRepository(db: Database) {
 				.select(columns)
 				.from(projects)
 				.where(from === null ? undefined : gte(projects.serviceDate, from))
+				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
+			return rows.map(toProject);
+		},
+
+		// 月度切替の削除（F-32 / 03-database.md 6.3）。切替先より前で、かつ提出が済んだ月度の案件だけを消す。
+		// 子（記録・区間の行・乗車・領収書）は CASCADE で落ちる。1文なのでトランザクションを開かない（06-error-handling.md 6.4）
+		async deleteSubmittedBefore(target: TargetMonth): Promise<number> {
+			const result = await db.delete(projects).where(
+				and(
+					lt(projects.serviceDate, firstDayOf(target)),
+					exists(
+						db
+							.select({ one: sql`1` })
+							.from(submissions)
+							.where(
+								sql`${submissions.targetMonth} = date_format(${projects.serviceDate}, '%Y-%m-01')`,
+							),
+					),
+				),
+			);
+			return result[0].affectedRows;
+		},
+
+		// 切替先より前に残った案件（提出していない月度）。要確認事項に出す（F-32 / 02-screens.md 4.4）
+		async listBefore(target: TargetMonth): Promise<Project[]> {
+			const rows = await db
+				.select(columns)
+				.from(projects)
+				.where(lt(projects.serviceDate, firstDayOf(target)))
 				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
 			return rows.map(toProject);
 		},

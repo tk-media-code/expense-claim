@@ -1,11 +1,12 @@
 import { AppError } from '../domain/app-error.js';
 import { parseRequestMail } from '../domain/mail-parse.js';
-import { addDays, formatMonthJa, todayInJst } from '../domain/month.js';
+import { addDays, formatMonthJa, todayInJst, type ProjectMonth } from '../domain/month.js';
 import type { SyncResult, SyncWarning } from '../domain/sync.js';
 import type { GmailClient } from '../integrations/gmail/client.js';
 import { classifyGoogleError } from '../integrations/google/errors.js';
 import type { SheetsClient } from '../integrations/sheets/client.js';
 import type { ImportedMailsRepository } from '../repositories/imported-mails.js';
+import type { ProjectsRepository } from '../repositories/projects.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 import type { AttentionsService } from './attentions.js';
 
@@ -17,6 +18,7 @@ export function createSyncService(
 	gmail: GmailClient,
 	syncStateRepository: SyncStateRepository,
 	importedMailsRepository: ImportedMailsRepository,
+	projectsRepository: ProjectsRepository,
 	attentions: AttentionsService,
 ) {
 	function formatJst(date: Date | null): string {
@@ -132,11 +134,25 @@ export function createSyncService(
 			}
 
 			if (rolledOver && readMonth) {
-				// 11-8 で削除と「提出せずに切り替わった」を足す。ここでは切り替わったことだけ返す
+				// 手順2。切替先より前で、かつ提出が済んだ月度の実績を消す（F-32 / 03-database.md 6.3）。確認を挟まない（決定10）
+				const deleted = await projectsRepository.deleteSubmittedBefore(readMonth);
 				warnings.push({
 					code: 'TARGET_MONTH_ROLLED_OVER',
-					message: `対象月度が${formatMonthJa(readMonth)}に切り替わりました`,
+					message: `対象月度が${formatMonthJa(readMonth)}に切り替わりました${deleted > 0 ? `。提出済みの案件${deleted}件を消しました` : ''}`,
 				});
+				// 手順3。消さずに残ったもの（切替先より前で未提出）を、月度ごとに要確認事項へ（02-screens.md 4.4）。
+				// 切替先以降の月度は出さない。これから稼働する案件で、異常ではない
+				const leftover = await projectsRepository.listBefore(readMonth);
+				const byMonth = new Map<string, number>();
+				for (const project of leftover)
+					byMonth.set(project.month, (byMonth.get(project.month) ?? 0) + 1);
+				for (const [month, count] of byMonth) {
+					await attentions.record(
+						'month_rolled_over_unsubmitted',
+						`提出せずに月度が${formatMonthJa(readMonth)}へ切り替わりました。${formatMonthJa(month as ProjectMonth)}の案件${count}件が残っています。アプリでは扱えないので、提出シートの運用に従って手で入力してください`,
+						now,
+					);
+				}
 			}
 
 			// 手順4〜5。取り込み、last_imported_at を更新する。1件も取り込まなかった実行でも更新するが、

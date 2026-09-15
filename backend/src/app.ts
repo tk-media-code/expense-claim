@@ -219,6 +219,7 @@ export function createApp({
 		gmail,
 		syncStateRepository,
 		createImportedMailsRepository(db),
+		projectsRepository,
 		attentionsService,
 	);
 
