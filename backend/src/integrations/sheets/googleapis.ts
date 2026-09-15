@@ -7,6 +7,7 @@ import { toAppError } from '../google/errors.js';
 import type { SheetStructure, SheetsClient, SubmissionRow, VenueMasterRow } from './client.js';
 import {
 	assertHeaderMatches,
+	bodyRectangle,
 	quoteSheetTitle,
 	sheetTitleOfReference,
 	targetMonthOfCell,
@@ -147,15 +148,58 @@ export function createSheetsClient(
 			return venueMasterOf(await getValues(sheets, `${quoteSheetTitle(title)}!A:B`));
 		},
 
+		// 8.3。書ける範囲の内側（最終行の直前）に挿入する。挿入するとグリッドも保護範囲も伸びる（実測）。
+		// 値の書き込みとは別の呼び出し。挿入だけ成功して書き込みが失敗しても、空行が増えるだけ
 		async insertRows(count: number): Promise<void> {
-			void count;
-			throw new AppError('INTERNAL_ERROR', { message: '行の挿入は 11-4 で入れる' });
+			const sheets = await api();
+			const { sheet } = await findMySheet(sheets);
+			const sheetId = sheet.properties?.sheetId;
+			const range = writableRangeOf(
+				sheet.protectedRanges ?? [],
+				sheet.properties?.gridProperties?.rowCount ?? 0,
+			);
+			if (sheetId === undefined || sheetId === null) throw new AppError('SHEET_NOT_FOUND');
+			// 0 始まりの index。最終行（lastBodyRow）の手前に count 行
+			const startIndex = range.lastBodyRow - 1;
+			try {
+				await sheets.spreadsheets.batchUpdate({
+					spreadsheetId: config.spreadsheetId,
+					requestBody: {
+						requests: [
+							{
+								insertDimension: {
+									range: { sheetId, dimension: 'ROWS', startIndex, endIndex: startIndex + count },
+									inheritFromBefore: true,
+								},
+							},
+						],
+					},
+				});
+			} catch (cause) {
+				rethrow(cause);
+			}
 		},
 
+		// 8.2。本文行の全矩形を1回の values.update で送る。USER_ENTERED で 2026/8/29 が日付として入る（実測）。
+		// 行の範囲は読んだ値を使い、25行を決め打ちにしない。保護範囲（1〜7行目）には触れない
 		async writeBody(rows: SubmissionRow[], receiptCell: string): Promise<void> {
-			void rows;
-			void receiptCell;
-			throw new AppError('INTERNAL_ERROR', { message: '本文行の書き込みは 11-4 で入れる' });
+			const sheets = await api();
+			const structure = await this.readStructure();
+			if (rows.length > structure.writableRows)
+				throw new AppError('WRITABLE_RANGE_UNKNOWN', {
+					message: '書ける行数を超えています。先に行を挿入してください',
+				});
+			const values = bodyRectangle(rows, receiptCell, structure.writableRows);
+			try {
+				await sheets.spreadsheets.values.update({
+					spreadsheetId: config.spreadsheetId,
+					range: `${mine()}!A${structure.firstBodyRow}:M${structure.lastBodyRow}`,
+					valueInputOption: 'USER_ENTERED',
+					requestBody: { values },
+				});
+			} catch (cause) {
+				rethrow(cause);
+			}
 		},
 	};
 }

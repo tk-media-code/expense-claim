@@ -5,7 +5,7 @@ import {
 	type CalendarDate,
 	type TargetMonth,
 } from '../../domain/month.js';
-import type { SheetStructure, VenueMasterRow } from './client.js';
+import type { SheetStructure, SubmissionRow, VenueMasterRow } from './client.js';
 
 // Sheets API の応答を読むための純粋な規則。I/O を持たず、実物の応答の形（要求分析 5章の実測）だけを知る。
 
@@ -98,4 +98,43 @@ export function sheetTitleOfReference(reference: string): string | null {
 /** A1 記法のシート名。空白や記号を含むので引用する */
 export function quoteSheetTitle(title: string): string {
 	return `'${title.replace(/'/g, "''")}'`;
+}
+
+/** 本文行の列数。A〜M */
+export const BODY_COLUMNS = 13;
+
+/**
+ * 本文行の矩形（8.2）。書く行 → 値、残りの行 → 全列 ""。J〜L は常に空。
+ * M列は結合セルの左上（先頭行）にだけ領収書欄を書き、以降は ""（書いても表示されない。実測）。
+ * 矩形1つなら「クリアだけ通った」状態が作れない。決定11（本文行はすべてアプリが持つ）がそのまま出る
+ */
+export function bodyRectangle(
+	rows: SubmissionRow[],
+	receiptCell: string,
+	writableRows: number,
+): (string | number)[][] {
+	const cell = (value: string | number | null) => value ?? '';
+	const rectangle: (string | number)[][] = [];
+	for (let i = 0; i < writableRows; i += 1) {
+		const row = rows[i];
+		const values: (string | number)[] = row
+			? [
+					cell(row.A),
+					cell(row.B),
+					cell(row.C),
+					cell(row.D),
+					row.E,
+					row.F,
+					row.G,
+					row.H,
+					cell(row.I),
+					'',
+					'',
+					'',
+				]
+			: Array<string>(BODY_COLUMNS - 1).fill('');
+		values.push(i === 0 ? receiptCell : '');
+		rectangle.push(values);
+	}
+	return rectangle;
 }

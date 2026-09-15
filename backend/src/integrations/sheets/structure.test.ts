@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	assertHeaderMatches,
+	bodyRectangle,
 	quoteSheetTitle,
 	serialToCalendarDate,
 	sheetTitleOfReference,
@@ -132,5 +133,86 @@ describe('参照とシート名', () => {
 
 	it('シート名を A1 記法で引用する', () => {
 		expect(quoteSheetTitle("1062 甲'乙")).toBe("'1062 甲''乙'");
+	});
+
+	describe('bodyRectangle', () => {
+		// 05-integration.md 8.2 の図。書く行は値、残りは ""。M8 だけ領収書欄、M9 以降は ""
+		it('書ける行数ぶんの矩形を作り、残りは空、M列は先頭だけ', () => {
+			const rows = [
+				{
+					A: '2026/8/22',
+					B: 'CCC',
+					C: '婚礼案件',
+					D: '▲▲様▼▼様',
+					E: 'X鉄甲駅',
+					F: 'X鉄丙駅',
+					G: '往復',
+					H: 620,
+					I: null,
+				},
+				{
+					A: null,
+					B: null,
+					C: null,
+					D: null,
+					E: 'Y鉄丙駅',
+					F: 'Y鉄丁駅',
+					G: '往復',
+					H: 420,
+					I: null,
+				},
+			];
+			const rectangle = bodyRectangle(rows, '(8/23)\nhttps://example.test/r', 4);
+			expect(rectangle).toHaveLength(4);
+			expect(rectangle[0]).toEqual([
+				'2026/8/22',
+				'CCC',
+				'婚礼案件',
+				'▲▲様▼▼様',
+				'X鉄甲駅',
+				'X鉄丙駅',
+				'往復',
+				620,
+				'',
+				'',
+				'',
+				'',
+				'(8/23)\nhttps://example.test/r',
+			]);
+			expect(rectangle[1]).toEqual([
+				'',
+				'',
+				'',
+				'',
+				'Y鉄丙駅',
+				'Y鉄丁駅',
+				'往復',
+				420,
+				'',
+				'',
+				'',
+				'',
+				'',
+			]);
+			expect(rectangle[2]).toEqual(Array<string>(13).fill(''));
+			expect(rectangle.every((r) => r.length === 13)).toBe(true);
+		});
+
+		it('タクシー代は先頭行の I列に数値で入る', () => {
+			const rows = [
+				{
+					A: '2026/9/5',
+					B: 'AAA',
+					C: '婚礼案件',
+					D: '〇〇様△△様',
+					E: 'a',
+					F: 'b',
+					G: '往復',
+					H: 640,
+					I: 3200,
+				},
+			];
+			expect(bodyRectangle(rows, '', 1)[0]?.[8]).toBe(3200);
+		});
 	});
 });

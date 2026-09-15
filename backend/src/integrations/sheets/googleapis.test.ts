@@ -13,6 +13,8 @@ const provider: GoogleClientProvider = { client: () => Promise.resolve({} as OAu
 type Fake = {
 	get: ReturnType<typeof vi.fn>;
 	valuesGet: ReturnType<typeof vi.fn>;
+	valuesUpdate: ReturnType<typeof vi.fn>;
+	batchUpdate: ReturnType<typeof vi.fn>;
 	sheets: sheets_v4.Sheets;
 };
 
@@ -21,11 +23,31 @@ function fakeSheets(options: { get?: unknown; values?: Record<string, unknown[][
 	const valuesGet = vi.fn((params: { range: string }) =>
 		Promise.resolve({ data: { values: options.values?.[params.range] } }),
 	);
+	const valuesUpdate = vi.fn(() => Promise.resolve({ data: {} }));
+	const batchUpdate = vi.fn(() => Promise.resolve({ data: {} }));
 	const sheets = {
-		spreadsheets: { get, values: { get: valuesGet } },
+		spreadsheets: { get, batchUpdate, values: { get: valuesGet, update: valuesUpdate } },
 	} as unknown as sheets_v4.Sheets;
-	return { get, valuesGet, sheets };
+	return { get, valuesGet, valuesUpdate, batchUpdate, sheets };
 }
+
+// 実測の形。1〜7行目は編集できず、8〜32行目に編集権がある。グリッドは 33 行
+const structure = {
+	properties: { title: '交通費精算' },
+	sheets: [
+		{
+			properties: {
+				sheetId: 7,
+				title: '1062 甲乙',
+				gridProperties: { rowCount: 33, columnCount: 13 },
+			},
+			protectedRanges: [
+				{ range: { startRowIndex: 0, endRowIndex: 7 }, requestingUserCanEdit: false },
+				{ range: { startRowIndex: 7, endRowIndex: 32 }, requestingUserCanEdit: true },
+			],
+		},
+	],
+};
 
 function client(fake: Fake) {
 	return createSheetsClient(provider, config, () => fake.sheets);
@@ -175,5 +197,99 @@ describe('sheets client（読む）', () => {
 			() => fakeSheets().sheets,
 		);
 		await expect(c.readTargetMonth()).rejects.toMatchObject({ code: 'SHEET_NOT_FOUND' });
+	});
+
+	describe('sheets client（書く）', () => {
+		// 8.2。1回の values.update。範囲は読んだ値（A8:M32）。USER_ENTERED
+		it('writeBody は本文行の矩形を1回の values.update で送る', async () => {
+			const fake = fakeSheets({ get: structure });
+			await client(fake).writeBody(
+				[
+					{
+						A: '2026/9/5',
+						B: 'AAA',
+						C: '婚礼案件',
+						D: '〇〇様△△様',
+						E: 'X鉄甲駅',
+						F: 'X鉄乙駅',
+						G: '往復',
+						H: 640,
+						I: 3200,
+					},
+				],
+				'(9/5)\nhttps://example.test/r',
+			);
+			expect(fake.valuesUpdate).toHaveBeenCalledTimes(1);
+			const params = fake.valuesUpdate.mock.calls[0]?.[0] as {
+				range: string;
+				valueInputOption: string;
+				requestBody: { values: unknown[][] };
+			};
+			expect(params.range).toBe("'1062 甲乙'!A8:M32");
+			expect(params.valueInputOption).toBe('USER_ENTERED');
+			expect(params.requestBody.values).toHaveLength(25);
+			expect(params.requestBody.values[0]).toEqual([
+				'2026/9/5',
+				'AAA',
+				'婚礼案件',
+				'〇〇様△△様',
+				'X鉄甲駅',
+				'X鉄乙駅',
+				'往復',
+				640,
+				3200,
+				'',
+				'',
+				'',
+				'(9/5)\nhttps://example.test/r',
+			]);
+			expect(params.requestBody.values[24]).toEqual(Array<string>(13).fill(''));
+		});
+
+		it('書ける行数を超える行は書かない（先に挿入する）', async () => {
+			const fake = fakeSheets({ get: structure });
+			const rows = Array.from({ length: 26 }, () => ({
+				A: null,
+				B: null,
+				C: null,
+				D: null,
+				E: 'a',
+				F: 'b',
+				G: '往復',
+				H: 1,
+				I: null,
+			}));
+			await expect(client(fake).writeBody(rows, '')).rejects.toMatchObject({
+				code: 'WRITABLE_RANGE_UNKNOWN',
+			});
+			expect(fake.valuesUpdate).not.toHaveBeenCalled();
+		});
+
+		// 8.3。書ける範囲の内側（最終行の手前）に挿入する。inheritFromBefore で書式を引き継ぐ
+		it('insertRows は最終行の手前に count 行を挿入する', async () => {
+			const fake = fakeSheets({ get: structure });
+			await client(fake).insertRows(3);
+			expect(fake.batchUpdate.mock.calls[0]?.[0]).toMatchObject({
+				spreadsheetId: 'sheet-id',
+				requestBody: {
+					requests: [
+						{
+							insertDimension: {
+								range: { sheetId: 7, dimension: 'ROWS', startIndex: 31, endIndex: 34 },
+								inheritFromBefore: true,
+							},
+						},
+					],
+				},
+			});
+		});
+
+		it('書き込みの 403 は SHEET_UNREACHABLE', async () => {
+			const fake = fakeSheets({ get: structure });
+			fake.valuesUpdate.mockRejectedValue({ code: 403 });
+			await expect(client(fake).writeBody([], '')).rejects.toMatchObject({
+				code: 'SHEET_UNREACHABLE',
+			});
+		});
 	});
 });
