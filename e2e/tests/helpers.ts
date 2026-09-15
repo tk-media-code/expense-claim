@@ -44,10 +44,17 @@ export type Fixture = {
 	cleanup(): Promise<void>;
 };
 
-/** 「ルートが1本の会場」に「今日の案件」を1件。2手の経路の前提（02-screens.md 2.2） */
-export async function seedRecordable(request: APIRequestContext): Promise<Fixture> {
+/**
+ * 「ルートが1本の会場」に「今日の案件」を1件。2手の経路の前提（02-screens.md 2.2）。
+ * テストは並列に走るので、会場コードはテストごとに分ける（同じ会場を2つのテストが触ると、
+ * 片方の片付けがもう片方のルートを消す）
+ */
+export async function seedRecordable(
+	request: APIRequestContext,
+	venueCode = 'E2E',
+): Promise<Fixture> {
 	const stamp = Date.now();
-	const venueId = await ensureVenue(request, 'E2E', 'E2E会場');
+	const venueId = await ensureVenue(request, venueCode, `${venueCode}会場`);
 	const from = await created(request.post('/api/stations', { data: { name: `E駅${stamp}` } }));
 	const to = await created(request.post('/api/stations', { data: { name: `F駅${stamp}` } }));
 	const segmentId = await created(
@@ -63,7 +70,7 @@ export async function seedRecordable(request: APIRequestContext): Promise<Fixtur
 	const coupleName = `甲様乙様${stamp}`;
 	const projectId = await created(
 		request.post('/api/projects', {
-			data: { projectNo: String(stamp), serviceDate: todayInJst(), venueCode: 'E2E', coupleName },
+			data: { projectNo: String(stamp), serviceDate: todayInJst(), venueCode, coupleName },
 		}),
 	);
 	return {

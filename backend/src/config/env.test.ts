@@ -39,6 +39,12 @@ describe('loadEnv', () => {
 		expect(env.MY_SHEET_NAME).toBe('');
 	});
 
+	it('GOOGLE_STUB は 1 か true のときだけ真', () => {
+		expect(loadEnv(required).GOOGLE_STUB).toBe(false);
+		expect(loadEnv({ ...required, GOOGLE_STUB: '1' }).GOOGLE_STUB).toBe(true);
+		expect(loadEnv({ ...required, GOOGLE_STUB: '0' }).GOOGLE_STUB).toBe(false);
+	});
+
 	it('PORT が数値でなければ落ちる', () => {
 		expect(() => loadEnv({ ...required, PORT: 'ポート' })).toThrow(/PORT/);
 	});

@@ -115,3 +115,7 @@ ALERT_TO=                           # 提出アラートの宛先（本人）
 ```
 
 `SPREADSHEET_ID` 以降が空でも起動し、その連携（取り込み・提出・領収書・アラート）だけが使えない。
+
+開発の compose は `GOOGLE_STUB=1` で起動し、Google を叩かない開発用の実装（`backend/src/integrations/stub`）に
+差し替わる。対象月度は今月、提出は書いたことにして何も書かない。E2E の提出導線はこれで通る。
+実物の Google に繋ぐときは `.env` に `GOOGLE_STUB=0` と上の値を書く。本番の `compose.yaml` はこの変数を渡さない。

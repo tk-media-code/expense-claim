@@ -16,6 +16,7 @@ import type { LoginProvider } from './integrations/google/oauth.js';
 import { createGoogleLoginProvider } from './integrations/google/oauth-googleapis.js';
 import type { SheetsClient } from './integrations/sheets/client.js';
 import { createSheetsClient } from './integrations/sheets/googleapis.js';
+import { createStubGoogle } from './integrations/stub/index.js';
 import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
@@ -72,6 +73,8 @@ export type AppConfig = {
 		redirectUriLogin: string;
 		redirectUriAuthorization: string;
 	};
+	/** Google を叩かない開発用の実装に差し替える（integrations/stub）。本番では常に false */
+	googleStub: boolean;
 	/** 提出シートなどの環境依存値（05-integration.md 9章）。空なら未設定 */
 	spreadsheetId: string;
 	sheetName: string;
@@ -168,9 +171,12 @@ export function createApp({
 	const authService = createAuthService(provider, createAuthStateRepository(db), {
 		allowedEmail: config.allowedEmail,
 	});
+	// GOOGLE_STUB=1 なら Google を叩かない開発用の実装（E2E と、OAuth クライアントを持たない開発環境）
+	const stub = config.googleStub ? createStubGoogle() : null;
 	// Google API の認可（05-integration.md 2.3）。トークンはこの中に閉じ、services は有無しか知らない
 	const google =
 		googleAuth ??
+		stub?.auth ??
 		createGoogleAuth(
 			{
 				clientId: config.google.clientId,
@@ -184,6 +190,7 @@ export function createApp({
 	// 提出シート（05-integration.md 7章 / 8章）。書き込み先は環境変数で、実行時に決めない
 	const sheets =
 		sheetsClient ??
+		stub?.sheets ??
 		createSheetsClient(google, {
 			spreadsheetId: config.spreadsheetId,
 			sheetName: config.sheetName,
@@ -194,9 +201,11 @@ export function createApp({
 	});
 	const gmail =
 		gmailClient ??
+		stub?.gmail ??
 		createGmailClient(google, { sender: config.gmailSender, alertTo: config.alertTo });
 	// 領収書はドライブへ保存し、通って初めて DB に書く（F-26）
-	const drive = driveClient ?? createDriveClient(google, { folderId: config.driveFolderId });
+	const drive =
+		driveClient ?? stub?.drive ?? createDriveClient(google, { folderId: config.driveFolderId });
 	const taxiRidesService = createTaxiRidesService(
 		taxiRidesRepository,
 		projectsRepository,

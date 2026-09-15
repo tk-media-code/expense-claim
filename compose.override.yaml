@@ -28,6 +28,9 @@ services:
       SESSION_SECRET: ${SESSION_SECRET:-dev-only-session-secret-change-me}
       ALLOWED_EMAIL: ${ALLOWED_EMAIL:-dev@example.com}
       TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-dev-only-token-encryption-key}
+      # Google を叩かない開発用の実装（backend/src/integrations/stub）。E2E の提出導線がこれで通る。
+      # 実物の Google に繋いで開発するときは GOOGLE_STUB=0 と OAuth クライアントを .env に書く
+      GOOGLE_STUB: ${GOOGLE_STUB:-1}
     # MySQL コンテナはこのファイルにしか居ないので、待ち合わせもここで宣言する。
     # 本番のデータベースは RDS なので、compose.yaml 側に書くと使わない MySQL が
     # healthy になるまで backend が起動しなくなる。

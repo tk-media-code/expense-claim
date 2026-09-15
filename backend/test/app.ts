@@ -24,6 +24,7 @@ export const TEST_CONFIG: AppConfig = {
 	allowedEmail: 'me@example.com',
 	tokenEncryptionKey: 'test-token-encryption-key-0123',
 	google: { clientId: '', clientSecret: '', redirectUriLogin: '', redirectUriAuthorization: '' },
+	googleStub: false,
 	spreadsheetId: 'test-spreadsheet-id',
 	sheetName: '9999 テスト太郎',
 	gmailSender: 'requests@example.test',

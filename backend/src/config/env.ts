@@ -16,6 +16,12 @@ const envSchema = z.object({
 	GOOGLE_REDIRECT_URI_AUTHORIZATION: z.string().default(''),
 	// リフレッシュトークンの暗号鍵（01-architecture.md 7.2）。漏れるとトークンと同じ危険度
 	TOKEN_ENCRYPTION_KEY: z.string().min(16, 'TOKEN_ENCRYPTION_KEY は16文字以上にしてください'),
+	// Google を叩かない開発用の実装に差し替える（integrations/stub）。E2E と OAuth クライアントを持たない
+	// 開発環境のためのもので、本番の compose.yaml は渡さない
+	GOOGLE_STUB: z
+		.string()
+		.default('')
+		.transform((value) => value === '1' || value === 'true'),
 	// 提出シート・領収書・メール（05-integration.md 9章）。空なら、その連携だけが使えない
 	SPREADSHEET_ID: z.string().default(''),
 	MY_SHEET_NAME: z.string().default(''),
