@@ -289,9 +289,16 @@ describe('POST /api/submissions（04-api.md 6章）', () => {
 		expect(sheets.written[0]?.rows).toHaveLength(7);
 		expect(sheets.written[0]?.receiptCell).toContain('(9/5)');
 		await expect(db.select().from(submissions)).resolves.toHaveLength(1);
-		// 提出済みが preview に出る（F-30）
+		// 提出済みが preview とホームに出る（F-30 / 02-screens.md 4.2）
 		await expect((await post(request, '/api/submissions/preview')).json()).resolves.toMatchObject({
 			lastSubmittedAt: expect.any(String) as unknown,
+		});
+		const home = (await (await request('/api/home')).json()) as {
+			months: { month: string; state: string; submittedAt: string | null }[];
+		};
+		expect(home.months.find((m) => m.month === '2026-09')).toMatchObject({
+			state: 'submitted',
+			submittedAt: expect.any(String) as unknown,
 		});
 	});
 

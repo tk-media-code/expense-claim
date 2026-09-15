@@ -9,6 +9,7 @@ import type {
 	ExpenseRecordsRepository,
 } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
+import type { SubmissionsRepository } from '../repositories/submissions.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 import { createHomeService } from './home.js';
@@ -48,6 +49,8 @@ function createFakes(
 		attentionCount?: number;
 		/** 案件 id → タクシーの回数 */
 		taxiCounts?: Record<number, number>;
+		/** 提出済みの月度 → 実行日時 */
+		submitted?: Record<string, Date>;
 	} = {},
 ) {
 	const listFrom = vi.fn<ProjectsRepository['listFrom']>(() =>
@@ -73,6 +76,11 @@ function createFakes(
 			),
 		),
 	} as unknown as TaxiRidesRepository;
+	const submissionsRepository = {
+		submittedMonths: vi.fn<SubmissionsRepository['submittedMonths']>(() =>
+			Promise.resolve(new Map(Object.entries(options.submitted ?? {}))),
+		),
+	} as unknown as SubmissionsRepository;
 	return {
 		service: createHomeService(
 			projectsRepository,
@@ -80,6 +88,7 @@ function createFakes(
 			expenseRecordsRepository,
 			attentionsRepository,
 			taxiRidesRepository,
+			submissionsRepository,
 		),
 		listFrom,
 		summarize,
@@ -163,6 +172,20 @@ describe('home service', () => {
 	it('案件が無ければ months は空', async () => {
 		const { service } = createFakes({ syncState: synced });
 		await expect(service.get()).resolves.toMatchObject({ months: [], attentionCount: 0 });
+	});
+
+	// F-30 / 02-screens.md 4.2。提出済みの月度は日時つきで submitted
+	it('提出済みの月度は submitted で、実行日時を持つ', async () => {
+		const { service } = createFakes({
+			projects: [aug22, sep5a],
+			syncState: synced,
+			submitted: { '2026-08': new Date('2026-09-02T01:00:00Z') },
+		});
+		const home = await service.get();
+		expect(home.months.map((m) => [m.month, m.state, m.submittedAt])).toEqual([
+			['2026-09', 'upcoming', null],
+			['2026-08', 'submitted', new Date('2026-09-02T01:00:00Z')],
+		]);
 	});
 
 	// 02-screens.md 3.2 / 4.4。未確認の要確認事項の件数

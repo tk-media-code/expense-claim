@@ -7,6 +7,7 @@ import type {
 	ExpenseRecordsRepository,
 } from '../repositories/expense-records.js';
 import type { ProjectsRepository } from '../repositories/projects.js';
+import type { SubmissionsRepository } from '../repositories/submissions.js';
 import type { SyncStateRepository } from '../repositories/sync-state.js';
 import type { TaxiRidesRepository } from '../repositories/taxi-rides.js';
 
@@ -18,6 +19,7 @@ export function createHomeService(
 	expenseRecordsRepository: ExpenseRecordsRepository,
 	attentionsRepository: AttentionsRepository,
 	taxiRidesRepository: TaxiRidesRepository,
+	submissionsRepository: SubmissionsRepository,
 ) {
 	// 記録の済み／未（F-21 / 02-screens.md 4.1）。Phase 11-7 で提出状態、7-3 で要確認件数、10 でタクシーが乗る
 	function toHomeProject(
@@ -55,19 +57,29 @@ export function createHomeService(
 				taxiRidesRepository.countByProjectIds(ids),
 			]);
 
+			// 提出済みの月度（F-30）。「提出済みか」は行の有無、「いつ」は最新の実行日時
+			const submitted = await submissionsRepository.submittedMonths([
+				...new Set(projects.map((p) => p.month)),
+			]);
+
 			// 月度ごとに束ねる。案件は施行日の昇順で来るので、月度も昇順に並ぶ。最後に降順へ返す
 			const byMonth = new Map<ProjectMonth, HomeMonth>();
 			for (const project of projects) {
 				let month = byMonth.get(project.month);
 				if (!month) {
+					const submittedAt = submitted.get(project.month) ?? null;
 					month = {
 						month: project.month,
-						// 対象月度なら提出待ち、それより後ならこれから稼働（02-screens.md 4.2）。
+						// 提出済みなら日時つきで提出済み。対象月度なら提出待ち、それより後ならこれから稼働（02-screens.md 4.2）。
 						// 対象月度より前の案件は listFrom が返さない（提出せずに残ったものは要確認事項で気づく）。
 						// 対象月度が分からないうちは、どれも提出待ちとして扱わない
 						state:
-							targetMonth !== null && isSameMonth(project.month, targetMonth) ? 'due' : 'upcoming',
-						submittedAt: null,
+							submittedAt !== null
+								? 'submitted'
+								: targetMonth !== null && isSameMonth(project.month, targetMonth)
+									? 'due'
+									: 'upcoming',
+						submittedAt,
 						projects: [],
 					};
 					byMonth.set(project.month, month);

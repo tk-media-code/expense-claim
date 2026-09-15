@@ -139,12 +139,14 @@ export function createApp({
 	const syncStateRepository = createSyncStateRepository(db);
 	const attentionsRepository = createAttentionsRepository(db);
 	const attentionsService = createAttentionsService(attentionsRepository);
+	const submissionsRepository = createSubmissionsRepository(db);
 	const homeService = createHomeService(
 		projectsRepository,
 		syncStateRepository,
 		expenseRecordsRepository,
 		attentionsRepository,
 		taxiRidesRepository,
+		submissionsRepository,
 	);
 	// 記録は案件 → 会場 → ルートと辿って既定値を組む（04-api.md 5.2）
 	const expenseRecordsService = createExpenseRecordsService(
@@ -208,7 +210,7 @@ export function createApp({
 		projectsRepository,
 		expenseRecordsRepository,
 		taxiRidesRepository,
-		createSubmissionsRepository(db),
+		submissionsRepository,
 		attentionsRepository,
 		attentionsService,
 	);
