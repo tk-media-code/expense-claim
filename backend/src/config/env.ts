@@ -28,6 +28,8 @@ const envSchema = z.object({
 	DRIVE_FOLDER_ID: z.string().default(''),
 	GMAIL_SENDER: z.string().default(''),
 	ALERT_TO: z.string().default(''),
+	// 提出アラートに載せるアプリの URL（要件定義 4.10）。空なら載せない
+	APP_URL: z.string().default(''),
 });
 
 export type Env = z.infer<typeof envSchema>;

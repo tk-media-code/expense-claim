@@ -38,6 +38,21 @@ services:
       mysql:
         condition: service_healthy
 
+  # 開発では tsx で走らせ、backend と同じ既定値を使う
+  scheduler:
+    command: npm run dev:scheduler
+    volumes:
+      - ./backend:/app
+      - backend_node_modules:/app/node_modules
+    environment:
+      SESSION_SECRET: ${SESSION_SECRET:-dev-only-session-secret-change-me}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL:-dev@example.com}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-dev-only-token-encryption-key}
+      GOOGLE_STUB: ${GOOGLE_STUB:-1}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   # データベースはコンテナにしない。本番は RDS を使う（01-architecture.md 4.2）。
   # ローカルだけ立てて、RDS へ繋がずに開発できる状態を保つ。
   mysql:

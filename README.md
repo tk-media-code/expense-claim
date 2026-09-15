@@ -112,6 +112,7 @@ MY_SHEET_NAME=                      # 自分のシート名
 DRIVE_FOLDER_ID=                    # 領収書の保管先フォルダ
 GMAIL_SENDER=                       # 依頼メールの差出人アドレス
 ALERT_TO=                           # 提出アラートの宛先（本人）
+APP_URL=                            # 提出アラートに載せるアプリの URL
 ```
 
 `SPREADSHEET_ID` 以降が空でも起動し、その連携（取り込み・提出・領収書・アラート）だけが使えない。
