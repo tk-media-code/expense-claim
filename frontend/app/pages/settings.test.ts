@@ -1,13 +1,16 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime';
 import type { VueWrapper } from '@vue/test-utils';
+import { readBody } from 'h3';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ConfigBackup } from '~/types/config-backup';
 import type { GoogleAuthorization, Settings } from '~/types/settings';
 import SettingsPage from './settings.vue';
 
 let settings: Settings;
 let authorization: GoogleAuthorization;
 const loggedOut = vi.fn<(path: string) => void>();
+const imported = vi.fn<(body: unknown) => void>();
 
 registerEndpoint('/api/settings', () => settings);
 registerEndpoint('/api/google/authorization', () => authorization);
@@ -23,6 +26,13 @@ registerEndpoint('/api/auth/logout-all', {
 	handler: () => {
 		loggedOut('/auth/logout-all');
 		return null;
+	},
+});
+registerEndpoint('/api/settings/config-backup', {
+	method: 'POST',
+	handler: async (event) => {
+		imported(await readBody(event));
+		return { stations: 3, venues: 2, segments: 2, routes: 1 };
 	},
 });
 
@@ -102,5 +112,42 @@ describe('/settings（02-screens.md 3.11）', () => {
 		await vi.waitFor(() => expect(wrapper!.text()).toContain('認可済み'));
 		await wrapper.find('[data-testid="logout-all"]').trigger('click');
 		await vi.waitFor(() => expect(loggedOut).toHaveBeenCalledWith('/auth/logout-all'));
+	});
+
+	it('書き出しは /api/settings/config-backup へ落とす', async () => {
+		wrapper = await mountSuspended(SettingsPage, { route: '/settings' });
+		await vi.waitFor(() => expect(wrapper!.text()).toContain('設定データの控え'));
+		const exportLink = wrapper.find('[data-testid="export-config"]');
+		expect(exportLink.attributes('href')).toBe('/api/settings/config-backup');
+	});
+
+	// 3.11 / 04-api.md 4.10。読み込みは置き換えなので、確認を挟んでから POST する
+	it('控えを選んで確認すると、同じ JSON を POST する', async () => {
+		const backup: ConfigBackup = {
+			version: 1,
+			exportedAt: '2026-09-15T00:00:00.000Z',
+			stations: [{ name: 'X鉄甲駅' }],
+			venues: [],
+			segments: [],
+			routes: [],
+		};
+		wrapper = await mountSuspended(SettingsPage, { route: '/settings' });
+		await vi.waitFor(() => expect(wrapper!.text()).toContain('設定データの控え'));
+
+		const input = wrapper.get('[data-testid="import-config-file"]').element as HTMLInputElement;
+		const file = new File([JSON.stringify(backup)], 'backup.json', { type: 'application/json' });
+		Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+		await wrapper.get('[data-testid="import-config-file"]').trigger('change');
+
+		await vi.waitFor(() => {
+			const found = [...document.body.querySelectorAll('button')].find((button) =>
+				button.textContent?.includes('置き換える'),
+			);
+			expect(found).toBeTruthy();
+		});
+		[...document.body.querySelectorAll('button')]
+			.find((button) => button.textContent?.includes('置き換える'))
+			?.click();
+		await vi.waitFor(() => expect(imported).toHaveBeenCalledWith(backup));
 	});
 });

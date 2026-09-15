@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { ConfigBackup, ConfigBackupCounts } from '~/types/config-backup';
 import type { GoogleAuthorization, ScopeName, Settings } from '~/types/settings';
 
 definePageMeta({
@@ -7,6 +8,7 @@ definePageMeta({
 });
 
 const api = useApi();
+const toast = useToast();
 const route = useRoute();
 
 // 開いたときに叩く（04-api.md 8章）。認可の状態は保持スコープまで出す（3.11）ので、両方を読む
@@ -49,6 +51,64 @@ async function logout(all: boolean) {
 		// 失敗の文面は plugins/api.ts が既にトーストへ出している
 	} finally {
 		loggingOut.value = false;
+	}
+}
+
+// 設定データの控え（NF-11 / 02-screens.md 3.11）。書き出しはリンクで落とし、読み込みは置き換えなので確認を挟む
+const fileInput = ref<HTMLInputElement | null>(null);
+const pending = ref<ConfigBackup | null>(null);
+const confirmOpen = ref(false);
+const importing = ref(false);
+
+function pickFile() {
+	fileInput.value?.click();
+}
+
+async function onFile(event: Event) {
+	const input = event.target as HTMLInputElement;
+	const file = input.files?.[0];
+	input.value = '';
+	if (!file) return;
+	try {
+		const parsed: unknown = JSON.parse(await file.text());
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			!('version' in parsed) ||
+			parsed.version !== 1
+		) {
+			toast.add({
+				title: '控えの version が違います。このアプリが書き出したものを選んでください',
+				color: 'error',
+			});
+			return;
+		}
+		pending.value = parsed as ConfigBackup;
+		confirmOpen.value = true;
+	} catch {
+		toast.add({ title: 'JSON として読めませんでした', color: 'error' });
+	}
+}
+
+async function importBackup() {
+	if (!pending.value) return;
+	importing.value = true;
+	try {
+		const result = await api<ConfigBackupCounts>('/settings/config-backup', {
+			method: 'POST',
+			body: pending.value,
+		});
+		toast.add({
+			title: '設定データを読み込みました',
+			description: `駅 ${result.stations}・会場 ${result.venues}・区間 ${result.segments}・ルート ${result.routes}`,
+			color: 'success',
+		});
+		confirmOpen.value = false;
+		pending.value = null;
+	} catch {
+		// 失敗の文面は plugins/api.ts が既にトーストへ出している
+	} finally {
+		importing.value = false;
 	}
 }
 </script>
@@ -147,7 +207,48 @@ async function logout(all: boolean) {
 			</p>
 		</section>
 
-		<!-- 設定データの控え（NF-11）は 12-5 で足す -->
+		<!-- 設定データの控え（NF-11）。駅・会場・区間・ルートだけ。実績は含めない（N-05） -->
+		<section class="space-y-2" data-testid="config-backup">
+			<h2 class="font-semibold">設定データの控え</h2>
+			<p class="text-muted text-sm">
+				駅・会場・区間・ルートを JSON で書き出す。読み込みは追加ではなく置き換え。案件と交通費の記録は残る。
+			</p>
+			<UButton
+				to="/api/settings/config-backup"
+				external
+				icon="i-lucide-download"
+				variant="outline"
+				block
+				data-testid="export-config"
+			>
+				設定データを書き出す
+			</UButton>
+			<input
+				ref="fileInput"
+				type="file"
+				accept="application/json"
+				class="hidden"
+				data-testid="import-config-file"
+				@change="onFile"
+			/>
+			<UButton
+				icon="i-lucide-upload"
+				variant="outline"
+				block
+				data-testid="import-config"
+				@click="pickFile"
+			>
+				設定データを読み込む
+			</UButton>
+			<ConfirmDialog
+				v-model:open="confirmOpen"
+				title="設定データを置き換える"
+				description="今ある駅・会場・区間・ルートが、控えの内容に置き換わる。案件と交通費の記録は残る。部分的に混ぜることはできない。"
+				confirm-label="置き換える"
+				:loading="importing"
+				@confirm="importBackup"
+			/>
+		</section>
 
 		<section class="space-y-2">
 			<h2 class="font-semibold">ログアウト</h2>

@@ -19,6 +19,7 @@ import { createSheetsClient } from './integrations/sheets/googleapis.js';
 import { createStubGoogle } from './integrations/stub/index.js';
 import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
+import { createConfigBackupRepository } from './repositories/config-backup.js';
 import { createGoogleCredentialsRepository } from './repositories/google-credentials.js';
 import { createImportedMailsRepository } from './repositories/imported-mails.js';
 import { createExpenseRecordsRepository } from './repositories/expense-records.js';
@@ -32,6 +33,7 @@ import { createTaxiRidesRepository } from './repositories/taxi-rides.js';
 import { createVenuesRepository } from './repositories/venues.js';
 import { createAttentionsRoute } from './routes/attentions.js';
 import { createAuthRoute } from './routes/auth.js';
+import { createConfigBackupRoute } from './routes/config-backup.js';
 import { handleError, handleNotFound } from './routes/error-handler.js';
 import { createExpenseRecordsRoute } from './routes/expense-records.js';
 import { createGoogleAuthorizationRoute } from './routes/google-authorization.js';
@@ -49,6 +51,7 @@ import { createStationsRoute } from './routes/stations.js';
 import { createVenuesRoute } from './routes/venues.js';
 import { createAttentionsService } from './services/attentions.js';
 import { createAuthService } from './services/auth.js';
+import { createConfigBackupService } from './services/config-backup.js';
 import { createExpenseRecordsService } from './services/expense-records.js';
 import { createGoogleAuthorizationService } from './services/google-authorization.js';
 import { createHomeService } from './services/home.js';
@@ -255,6 +258,11 @@ export function createApp({
 		}),
 	);
 	app.route('/api/settings', createSettingsRoute(settingsService));
+	// 設定データの控え（NF-11）。/api/settings の下に載せる
+	app.route(
+		'/api/settings/config-backup',
+		createConfigBackupRoute(createConfigBackupService(createConfigBackupRepository(db))),
+	);
 	app.route('/api/attentions', createAttentionsRoute(attentionsService));
 	// 失敗は必ず 04-api.md 2.5 の形で返す。ここを通らない経路を作らない。
 	app.onError(handleError);
