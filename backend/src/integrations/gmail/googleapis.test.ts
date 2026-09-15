@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { CalendarDate } from '../../domain/month.js';
 import type { GoogleClientProvider } from '../google/auth.js';
-import { createGmailClient } from './googleapis.js';
+import { buildMessage, createGmailClient } from './googleapis.js';
 
 // Gmail API を偽物にし、q の組み立て・ページの追い方・本文の読み方を確かめる。値は架空
 const provider: GoogleClientProvider = { client: () => Promise.resolve({} as OAuth2Client) };
@@ -23,8 +23,11 @@ function fakeGmail(
 	const get = vi.fn<(params: GetParams) => Promise<{ data: gmail_v1.Schema$Message }>>(() =>
 		Promise.resolve({ data: message ?? {} }),
 	);
-	const gmail = { users: { messages: { list, get } } } as unknown as gmail_v1.Gmail;
-	return { list, get, gmail };
+	const send = vi.fn<
+		(params: { userId: string; requestBody: { raw: string } }) => Promise<{ data: object }>
+	>(() => Promise.resolve({ data: {} }));
+	const gmail = { users: { messages: { list, get, send } } } as unknown as gmail_v1.Gmail;
+	return { list, get, send, gmail };
 }
 
 describe('gmail client（読む）', () => {
@@ -100,6 +103,37 @@ describe('gmail client（読む）', () => {
 			createGmailClient(provider, config, () => fake.gmail).listRequestMailIds(null),
 		).rejects.toMatchObject({
 			kind: 'unauthorized',
+		});
+	});
+
+	describe('gmail client（送る）', () => {
+		// 5章。raw に base64url の RFC 2822。宛先は環境変数
+		it('sendAlert は宛先を環境変数から取り、raw で送る', async () => {
+			const fake = fakeGmail([]);
+			await createGmailClient(provider, config, () => fake.gmail).sendAlert('件名', '本文');
+			const params = fake.send.mock.calls[0]?.[0];
+			expect(params?.userId).toBe('me');
+			const raw = Buffer.from(params?.requestBody.raw ?? '', 'base64url').toString('utf8');
+			expect(raw).toContain('To: me@example.test');
+			expect(raw).toContain(`Subject: =?UTF-8?B?${Buffer.from('件名').toString('base64')}?=`);
+			expect(raw.split('\r\n\r\n')[1]).toBe(Buffer.from('本文').toString('base64'));
+		});
+
+		it('buildMessage は UTF-8 の件名と本文を base64 にする', () => {
+			const message = buildMessage('me@example.test', '提出', 'まだ出していません');
+			expect(message).toContain('Content-Type: text/plain; charset="UTF-8"');
+			expect(message).toContain('Content-Transfer-Encoding: base64');
+		});
+
+		it('宛先が設定されていなければ送らない', async () => {
+			const fake = fakeGmail([]);
+			await expect(
+				createGmailClient(provider, { ...config, alertTo: '' }, () => fake.gmail).sendAlert(
+					'a',
+					'b',
+				),
+			).rejects.toThrow('宛先が設定されていません');
+			expect(fake.send).not.toHaveBeenCalled();
 		});
 	});
 });

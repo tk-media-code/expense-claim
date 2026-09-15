@@ -87,10 +87,35 @@ export function createGmailClient(
 			};
 		},
 
+		// 5章。RFC 2822 のメッセージを base64url にして raw へ入れる。宛先は環境変数で、引数に無い（NF-13）。
+		// 差出人は me（認可したアカウント）。件名は UTF-8 なので encoded-word にする
 		async sendAlert(subject: string, body: string): Promise<void> {
-			void subject;
-			void body;
-			throw new GoogleApiFailure('other', null, { message: '提出アラートの送信は 12-1 で入れる' });
+			if (config.alertTo === '') {
+				throw new GoogleApiFailure('other', null, {
+					message: '提出アラートの宛先が設定されていません',
+				});
+			}
+			const gmail = await api();
+			const raw = Buffer.from(buildMessage(config.alertTo, subject, body)).toString('base64url');
+			try {
+				await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+			} catch (cause) {
+				throw classifyGoogleError(cause);
+			}
 		},
 	};
+}
+
+/** RFC 2822。本文は UTF-8 の base64。宛先は本人固定で、実行時に組み立てない（NF-13 / N-23） */
+export function buildMessage(to: string, subject: string, body: string): string {
+	const encodedSubject = `=?UTF-8?B?${Buffer.from(subject, 'utf8').toString('base64')}?=`;
+	return [
+		`To: ${to}`,
+		`Subject: ${encodedSubject}`,
+		'MIME-Version: 1.0',
+		'Content-Type: text/plain; charset="UTF-8"',
+		'Content-Transfer-Encoding: base64',
+		'',
+		Buffer.from(body, 'utf8').toString('base64'),
+	].join('\r\n');
 }
