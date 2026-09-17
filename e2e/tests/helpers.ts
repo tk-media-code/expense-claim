@@ -54,9 +54,11 @@ export async function seedRecordable(
 	venueCode = 'E2E',
 ): Promise<Fixture> {
 	const stamp = Date.now();
+	// 並列に走るテストが同じミリ秒で始まっても名前が衝突しないよう、会場コードも混ぜる
+	const tag = `${venueCode}${stamp}`;
 	const venueId = await ensureVenue(request, venueCode, `${venueCode}会場`);
-	const from = await created(request.post('/api/stations', { data: { name: `E駅${stamp}` } }));
-	const to = await created(request.post('/api/stations', { data: { name: `F駅${stamp}` } }));
+	const from = await created(request.post('/api/stations', { data: { name: `E駅${tag}` } }));
+	const to = await created(request.post('/api/stations', { data: { name: `F駅${tag}` } }));
 	const segmentId = await created(
 		request.post('/api/segments', {
 			data: { fromStationId: from, toStationId: to, oneWayFare: 320 },
@@ -64,13 +66,13 @@ export async function seedRecordable(
 	);
 	const routeId = await created(
 		request.post('/api/routes', {
-			data: { venueId, name: `直通${stamp}`, segmentIds: [segmentId] },
+			data: { venueId, name: `直通${tag}`, segmentIds: [segmentId] },
 		}),
 	);
-	const coupleName = `甲様乙様${stamp}`;
+	const coupleName = `甲様乙様${tag}`;
 	const projectId = await created(
 		request.post('/api/projects', {
-			data: { projectNo: String(stamp), serviceDate: todayInJst(), venueCode, coupleName },
+			data: { projectNo: tag, serviceDate: todayInJst(), venueCode, coupleName },
 		}),
 	);
 	return {
