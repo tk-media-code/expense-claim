@@ -1,11 +1,14 @@
 import { createAlertRunner } from './alert-runner.js';
 import { loadEnv } from './config/env.js';
 import { createDatabase, createPool } from './db/client.js';
+import { parseSchedulerArgs } from './scheduler-args.js';
 
 // 提出アラートの定期実行（01-architecture.md 3.8 / 要件定義 7.5）。cron は1本だけで、これがそれ。
 //
-// `node dist/scheduler.js`        起動時に1回走り、以後は毎日 07:00（JST）に走る。コンテナはこれで常駐する
-// `node dist/scheduler.js --once` 1回走って終わる（手で確かめるとき）
+// `node dist/scheduler.js`                起動時に1回走り、以後は毎日 07:00（JST）に走る。コンテナはこれで常駐する
+// `node dist/scheduler.js --once`         1回走って終わる（手で確かめるとき）
+// `node dist/scheduler.js --at=2026-10-01` その日の 07:00（JST）として1回走って終わる。1日と3日の朝にしか
+//                                         送らないので、送る側を手で確かめるにはこれで日付を与える（scheduler-args.ts）
 //
 // crond を使わないのは、コンテナが node ユーザーで動き（07-development.md 2.5）、busybox の crond が
 // root を要るため。1日1回の判定と送信だけなので、時刻まで眠って起きる1プロセスで足りる。
@@ -22,6 +25,7 @@ function nextRun(now: Date): Date {
 	return next;
 }
 
+const args = parseSchedulerArgs(process.argv.slice(2));
 const env = loadEnv();
 const pool = createPool(env.DATABASE_URL);
 const alert = createAlertRunner(createDatabase(pool), {
@@ -43,8 +47,7 @@ const alert = createAlertRunner(createDatabase(pool), {
 	appUrl: env.APP_URL,
 });
 
-async function runOnce(): Promise<void> {
-	const now = new Date();
+async function runOnce(now: Date): Promise<void> {
 	try {
 		const outcome = await alert.run(now);
 		console.log(`[scheduler] ${now.toISOString()} ${JSON.stringify(outcome)}`);
@@ -55,8 +58,8 @@ async function runOnce(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-	await runOnce();
-	if (process.argv.includes('--once')) {
+	await runOnce(args.now ?? new Date());
+	if (args.once) {
 		await pool.end();
 		return;
 	}
@@ -64,7 +67,7 @@ async function main(): Promise<void> {
 		const at = nextRun(new Date());
 		console.log(`[scheduler] next run at ${at.toISOString()}`);
 		await new Promise((resolve) => setTimeout(resolve, at.getTime() - Date.now()));
-		await runOnce();
+		await runOnce(new Date());
 	}
 }
 
