@@ -94,13 +94,13 @@ export function createSubmissionsService(
 
 		// 手順1〜7 をやり直し、送られた targetMonth と照合してから手順8 を実行する（6.2）
 		async execute(expected: TargetMonth, now: Date): Promise<SubmissionResult> {
-			const { targetMonth, structure: readStructure } = await readSheet(now);
+			const { targetMonth, structure } = await readSheet(now);
 			if (targetMonth !== expected) throw new AppError('TARGET_MONTH_CHANGED');
 			const built = await build(targetMonth);
 
-			// 手順5。足りなければ書き込める範囲の内側に挿入し、構造を読み直す（05-integration.md 8.3）。
+			// 手順5。足りなければ書き込める範囲の内側に挿入する（05-integration.md 8.3）。挿入後の構造の
+			// 読み直しは writeBody が自分で行う（integrations/sheets/googleapis.ts）ので、ここでは読まない。
 			// 挿入した時点で要確認事項に積む。委託元の資産に手を入れたことは、書き込みの成否と関係なく残す
-			let structure = readStructure;
 			const inserting = rowsToInsert(built.rows.length, structure.writableRows);
 			if (inserting > 0) {
 				await sheets.insertRows(inserting);
@@ -109,7 +109,6 @@ export function createSubmissionsService(
 					`${formatMonthJa(targetMonth)}の提出で本文行が足りず、${structure.lastBodyRow}行目の内側に${inserting}行を挿入しました。提出シートの構造が変わっています`,
 					now,
 				);
-				structure = await sheets.readStructure();
 			}
 
 			// 手順8。本文行の矩形を1回で書く（8.2）。書けたら submissions を1行足す。

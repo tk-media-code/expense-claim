@@ -12,7 +12,12 @@ const config = { folderId: 'folder-id' };
 type CreateParams = drive_v3.Params$Resource$Files$Create;
 type PermissionParams = drive_v3.Params$Resource$Permissions$Create;
 
-function fakeDrive(options: { createFails?: unknown; shareFails?: unknown } = {}) {
+// googleapis の失敗は Error のサブクラス（GaxiosError）で、HTTP の状態は code に載る。それを模す
+function apiError(code: number): Error {
+	return Object.assign(new Error(`Request failed with status code ${code}`), { code });
+}
+
+function fakeDrive(options: { createFails?: Error; shareFails?: Error } = {}) {
 	const create = vi.fn<(params: CreateParams) => Promise<{ data: drive_v3.Schema$File }>>(() =>
 		options.createFails
 			? Promise.reject(options.createFails)
@@ -64,7 +69,7 @@ describe('drive client', () => {
 
 	// 06-error-handling.md 4.2。保存で落ちたか共有で落ちたかを文面に入れるため、段を持つ
 	it('保存で落ちれば DRIVE_UPLOAD_FAILED で、段は create', async () => {
-		const fake = fakeDrive({ createFails: { code: 404 } });
+		const fake = fakeDrive({ createFails: apiError(404) });
 		const error = await createDriveClient(provider, config, () => fake.drive)
 			.store(file())
 			.catch((e: unknown) => e);
@@ -75,7 +80,7 @@ describe('drive client', () => {
 	});
 
 	it('共有で落ちれば DRIVE_UPLOAD_FAILED で、段は share', async () => {
-		const fake = fakeDrive({ shareFails: { code: 403 } });
+		const fake = fakeDrive({ shareFails: apiError(403) });
 		const error = await createDriveClient(provider, config, () => fake.drive)
 			.store(file())
 			.catch((e: unknown) => e);
@@ -84,7 +89,7 @@ describe('drive client', () => {
 
 	// 05-integration.md 2.4。認可切れは 503
 	it('認可切れなら GOOGLE_UNAUTHORIZED', async () => {
-		const fake = fakeDrive({ createFails: { code: 401 } });
+		const fake = fakeDrive({ createFails: apiError(401) });
 		await expect(
 			createDriveClient(provider, config, () => fake.drive).store(file()),
 		).rejects.toMatchObject({

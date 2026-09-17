@@ -223,7 +223,8 @@ describe('ログイン（05-integration.md 3.2 ①）', () => {
 			sub: 'dev-stub',
 		});
 		expect(
-			(await app.request('/api/home', { headers: { cookie: session?.split(';')[0] ?? '' } })).status,
+			(await app.request('/api/home', { headers: { cookie: session?.split(';')[0] ?? '' } }))
+				.status,
 		).toBe(200);
 	});
 });

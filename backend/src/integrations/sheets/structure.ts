@@ -44,8 +44,15 @@ export const EXPECTED_HEADER = [
 	'高速代/駐車場',
 ] as const;
 
+/** セルの値を文字列に。Sheets API の値は string / number / boolean で、無い・それ以外は空にする */
+function cellText(value: unknown): string {
+	return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+		? String(value).trim()
+		: '';
+}
+
 export function assertHeaderMatches(cells: unknown[]): void {
-	const actual = EXPECTED_HEADER.map((_, i) => String(cells[i] ?? '').trim());
+	const actual = EXPECTED_HEADER.map((_, i) => cellText(cells[i]));
 	const matches = EXPECTED_HEADER.every((expected, i) => actual[i] === expected);
 	if (!matches) throw new AppError('SHEET_FORMAT_CHANGED');
 }
@@ -81,9 +88,9 @@ export function writableRangeOf(
 export function venueMasterOf(values: unknown[][]): VenueMasterRow[] {
 	const rows: VenueMasterRow[] = [];
 	for (const row of values) {
-		const code = String(row[0] ?? '').trim();
+		const code = cellText(row[0]);
 		if (code === '') continue;
-		const name = String(row[1] ?? '').trim();
+		const name = cellText(row[1]);
 		rows.push({ code, name: name === '' ? code : name });
 	}
 	return rows;

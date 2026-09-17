@@ -211,7 +211,8 @@ async function importBackup() {
 		<section class="space-y-2" data-testid="config-backup">
 			<h2 class="font-semibold">設定データの控え</h2>
 			<p class="text-muted text-sm">
-				駅・会場・区間・ルートを JSON で書き出す。読み込みは追加ではなく置き換え。案件と交通費の記録は残る。
+				駅・会場・区間・ルートを JSON
+				で書き出す。読み込みは追加ではなく置き換え。案件と交通費の記録は残る。
 			</p>
 			<UButton
 				to="/api/settings/config-backup"

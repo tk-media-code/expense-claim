@@ -104,10 +104,14 @@ export type AppDependencies = {
 // OAuth クライアントが設定されていない環境（ローカルの E2E など）では、ログインの入口だけが使えない。
 // セッション Cookie を直接載せれば他は動く
 function unconfiguredLoginProvider(): LoginProvider {
-	const fail = () => {
-		throw new AppError('INTERNAL_ERROR', { message: 'Google のログインが設定されていません' });
+	const unconfigured = () =>
+		new AppError('INTERNAL_ERROR', { message: 'Google のログインが設定されていません' });
+	return {
+		authorizationUrl: () => {
+			throw unconfigured();
+		},
+		exchange: () => Promise.reject(unconfigured()),
 	};
-	return { authorizationUrl: fail, exchange: () => Promise.reject(fail()) };
 }
 
 // ログは標準出力へ1行テキストで出し、Docker に拾わせる（07-development.md 6章）。

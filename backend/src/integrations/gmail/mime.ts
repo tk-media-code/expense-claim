@@ -86,7 +86,7 @@ export function htmlToText(html: string): string {
 			.replace(/<[^>]+>/g, ''),
 	)
 		.replace(/\r\n?/g, '\n')
-		.replace(/[ 　]+/g, ' ')
+		.replace(/[ \u3000]+/g, ' ')
 		.replace(/[ \t]*\n[ \t]*/g, '\n')
 		.replace(/\n{3,}/g, '\n\n')
 		.trim();

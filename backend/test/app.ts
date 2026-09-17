@@ -14,7 +14,7 @@ import type { FetchedMail, GmailClient } from '../src/integrations/gmail/client.
 import { GoogleApiFailure } from '../src/integrations/google/errors.js';
 import type { SheetsClient, SheetStructure } from '../src/integrations/sheets/client.js';
 import { AppError, type ErrorCode } from '../src/domain/app-error.js';
-import { parseTargetMonth, type TargetMonth } from '../src/domain/month.js';
+import { parseTargetMonth } from '../src/domain/month.js';
 import { signSession } from '../src/routes/session-cookie.js';
 
 // 統合テストのための createApp。/api/* に認証が被さる（5-5）ので、ログイン済みの Cookie を
@@ -102,7 +102,7 @@ export function createFakeSheets(
 			fail();
 			const month = parseTargetMonth(options.targetMonth ?? '2026-08');
 			if (!month) throw new AppError('TARGET_MONTH_UNREADABLE');
-			return Promise.resolve(month as TargetMonth);
+			return Promise.resolve(month);
 		},
 		readStructure: () => {
 			fail();
@@ -194,8 +194,10 @@ export async function sessionCookie(iat = Math.floor(Date.now() / 1000)): Promis
 
 export type TestApp = {
 	app: Hono;
-	/** ログイン済みの Cookie を載せて叩く。既存のテストの app.request をそのまま置き換えられる */
-	request(path: string, init?: RequestInit): Promise<Response>;
+	/** ログイン済みの Cookie を載せて叩く。既存のテストの app.request をそのまま置き換えられる。
+	 *  メソッドではなく関数プロパティにしてあるのは、テストが `const { request } = createAuthedApp()` と
+	 *  分割代入で受けるため（this を使わない） */
+	request: (path: string, init?: RequestInit) => Promise<Response>;
 };
 
 export function createAuthedApp(
@@ -217,7 +219,7 @@ export function createAuthedApp(
 	});
 	return {
 		app,
-		async request(path, init = {}) {
+		request: async (path, init = {}) => {
 			const headers = new Headers(init.headers);
 			if (!headers.has('cookie')) headers.set('cookie', await sessionCookie());
 			return app.request(path, { ...init, headers });

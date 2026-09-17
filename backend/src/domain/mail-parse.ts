@@ -8,7 +8,7 @@ import { calendarDateOf, type CalendarDate } from './month.js';
 // 委託元のメール書式の話であって Gmail の都合ではない（相手が Gmail をやめても規則は変わらない）。
 
 const DATE = String.raw`\d{4}\/\d{1,2}\/\d{1,2}`;
-const FAMILY_PAIR = /^(\S+様)[ 　\t]+(\S+様)$/;
+const FAMILY_PAIR = /^(\S+様)[ \u3000\t]+(\S+様)$/;
 const VENUE_CODE = /^[0-9A-Za-z]{1,5}$/;
 
 export type MailKind = 'project' | 'no_request' | 'unknown';
@@ -65,11 +65,11 @@ export function parseRequestMail(subject: string, plainBody: string): ParsedMail
 		.filter((line) => line !== '')
 		.slice(0, 4);
 
-	const serviceDateText = pick(text, new RegExp(`^施行日[ 　\\t]*(${DATE})`, 'm'));
+	const serviceDateText = pick(text, new RegExp(`^施行日[ \u3000\\t]*(${DATE})`, 'm'));
 	const serviceDate = serviceDateText ? calendarDateOfSlashed(serviceDateText) : null;
 	const pair = head[3] ? FAMILY_PAIR.exec(head[3]) : null;
 	const headTrusted = serviceDateText !== null && head[0] === serviceDateText && pair !== null;
-	const projectNo = pick(text, /^案件番号[ 　\t]*[:：][ 　\t]*(\d+)/m);
+	const projectNo = pick(text, /^案件番号[ \u3000\t]*[:：][ \u3000\t]*(\d+)/m);
 	const venueName = headTrusted ? (head[1] ?? null) : null;
 	const venueCode = headTrusted && head[2] && VENUE_CODE.test(head[2]) ? head[2] : null;
 	const coupleName = pair ? `${pair[1]}${pair[2]}` : null;
