@@ -9,7 +9,7 @@ const envSchema = z.object({
 	SESSION_SECRET: z.string().min(16, 'SESSION_SECRET は16文字以上にしてください'),
 	// 許可するメールアドレス（05-integration.md 3.5 / N-18）
 	ALLOWED_EMAIL: z.string().min(1, 'ALLOWED_EMAIL が空です'),
-	// OAuth クライアント（05-integration.md 3章）。空なら Google のログインと認可は使えない（開発では E2E が Cookie を直接載せる）
+	// OAuth クライアント（05-integration.md 3章）。空かつ GOOGLE_STUB=0 ならログイン入口は使えない
 	GOOGLE_CLIENT_ID: z.string().default(''),
 	GOOGLE_CLIENT_SECRET: z.string().default(''),
 	GOOGLE_REDIRECT_URI_LOGIN: z.string().default(''),

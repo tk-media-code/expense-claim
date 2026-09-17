@@ -8,6 +8,7 @@ import {
 	TEST_CONFIG,
 } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
+import { createApp } from '../app.js';
 import { errorCatalog } from '../domain/app-error.js';
 import { SESSION_TTL_SECONDS } from '../domain/session.js';
 import { verifySessionToken } from './session-cookie.js';
@@ -202,6 +203,28 @@ describe('ログイン（05-integration.md 3.2 ①）', () => {
 		const { app, state } = await startLogin();
 		const res = await app.request(`/api/auth/callback?code=abc&state=${state}`);
 		expect(res.headers.get('location')).toContain('/login?error=');
+	});
+
+	// GOOGLE_STUB=1。Google へ行かず、同じ入口からセッションを発行する（開発で画面を見るため）
+	it('GOOGLE_STUB=1 ならログインは Google へ行かず、セッションを発行して / へ戻す', async () => {
+		const app = createApp({ db, config: { ...TEST_CONFIG, googleStub: true } });
+		const start = await app.request('/api/auth/login');
+		expect(start.status).toBe(302);
+		const location = start.headers.get('location') ?? '';
+		expect(location.startsWith('/api/auth/callback?')).toBe(true);
+		const login = cookieOf(start, 'login')?.split(';')[0] ?? '';
+		const callback = await app.request(location, { headers: { cookie: login } });
+		expect(callback.status).toBe(302);
+		expect(callback.headers.get('location')).toBe('/');
+		const session = cookieOf(callback, 'session');
+		expect(session).toContain('HttpOnly');
+		const token = session?.split(';')[0]?.slice('session='.length) ?? '';
+		await expect(verifySessionToken(TEST_CONFIG.sessionSecret, token)).resolves.toMatchObject({
+			sub: 'dev-stub',
+		});
+		expect(
+			(await app.request('/api/home', { headers: { cookie: session?.split(';')[0] ?? '' } })).status,
+		).toBe(200);
 	});
 });
 

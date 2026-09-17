@@ -17,6 +17,7 @@ import { createGoogleLoginProvider } from './integrations/google/oauth-googleapi
 import type { SheetsClient } from './integrations/sheets/client.js';
 import { createSheetsClient } from './integrations/sheets/googleapis.js';
 import { createStubGoogle } from './integrations/stub/index.js';
+import { createStubLoginProvider } from './integrations/stub/login.js';
 import { createAttentionsRepository } from './repositories/attentions.js';
 import { createAuthStateRepository } from './repositories/auth-state.js';
 import { createConfigBackupRepository } from './repositories/config-backup.js';
@@ -164,13 +165,15 @@ export function createApp({
 	);
 	const provider =
 		loginProvider ??
-		(config.google.clientId
-			? createGoogleLoginProvider({
-					clientId: config.google.clientId,
-					clientSecret: config.google.clientSecret,
-					redirectUri: config.google.redirectUriLogin,
-				})
-			: unconfiguredLoginProvider());
+		(config.googleStub
+			? createStubLoginProvider(config.allowedEmail)
+			: config.google.clientId
+				? createGoogleLoginProvider({
+						clientId: config.google.clientId,
+						clientSecret: config.google.clientSecret,
+						redirectUri: config.google.redirectUriLogin,
+					})
+				: unconfiguredLoginProvider());
 	const authService = createAuthService(provider, createAuthStateRepository(db), {
 		allowedEmail: config.allowedEmail,
 	});

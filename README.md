@@ -85,38 +85,13 @@ bash scripts/quality-check.sh
 
 ### 環境変数
 
-`.env` は無くてよい。compose の既定値（データベース名 `expense_claim`、ユーザー / パスワード `expense`）で起動する。変えるときはリポジトリ直下に `.env` を置き、次を書く。
+`.env` は無くてよい。compose の既定値（データベース名 `expense_claim`、ユーザー / パスワード `expense`）で起動する。変えるときは [`.env.example`](.env.example) を `.env` にコピーして実値を入れる。本番の値は入れない。
 
-```
-MYSQL_DATABASE=expense_claim
-MYSQL_USER=expense
-MYSQL_PASSWORD=expense
-MYSQL_ROOT_PASSWORD=expense
-```
-
-`.env.example` はフックで触れなかったので、雛形はここにある。本番の値は入れない。
-
-アプリの認証（[`docs/design/05-integration.md`](docs/design/05-integration.md) 9章）。開発では `compose.override.yaml` の既定値で動き、
-Google のログインだけが使えない（E2E はセッション Cookie を自分で載せる）。本番では全部を渡す。
-
-```
-SESSION_SECRET=                     # セッション Cookie の署名鍵。16文字以上
-ALLOWED_EMAIL=                      # 許可するメールアドレス（本人）
-TOKEN_ENCRYPTION_KEY=               # リフレッシュトークンの暗号鍵。16文字以上
-GOOGLE_CLIENT_ID=                   # 「ウェブ アプリケーション」型の OAuth クライアント
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI_LOGIN=          # https://<ホスト>/api/auth/callback
-GOOGLE_REDIRECT_URI_AUTHORIZATION=  # https://<ホスト>/api/google/authorization/callback
-SPREADSHEET_ID=                     # 提出先スプレッドシートのID
-MY_SHEET_NAME=                      # 自分のシート名
-DRIVE_FOLDER_ID=                    # 領収書の保管先フォルダ
-GMAIL_SENDER=                       # 依頼メールの差出人アドレス
-ALERT_TO=                           # 提出アラートの宛先（本人）
-APP_URL=                            # 提出アラートに載せるアプリの URL
-```
+アプリが読む変数は [`docs/design/05-integration.md`](docs/design/05-integration.md) 9章と `backend/src/config/env.ts`。開発では `compose.override.yaml` の既定値で動き、`GOOGLE_STUB=1` ならログインは Google へ行かずそのまま入れる。本番では `SESSION_SECRET` / `ALLOWED_EMAIL` / `TOKEN_ENCRYPTION_KEY` が必須。
 
 `SPREADSHEET_ID` 以降が空でも起動し、その連携（取り込み・提出・領収書・アラート）だけが使えない。
 
 開発の compose は `GOOGLE_STUB=1` で起動し、Google を叩かない開発用の実装（`backend/src/integrations/stub`）に
-差し替わる。対象月度は今月、提出は書いたことにして何も書かない。E2E の提出導線はこれで通る。
-実物の Google に繋ぐときは `.env` に `GOOGLE_STUB=0` と上の値を書く。本番の `compose.yaml` はこの変数を渡さない。
+差し替わる。ログインは許可アドレスで通したことにしてホームへ戻る。対象月度は今月、提出は書いたことにして何も書かない。
+E2E の提出導線はこれで通る。実物の Google に繋ぐときは `.env` に `GOOGLE_STUB=0` と OAuth・シート等の値を書く。
+本番の `compose.yaml` はこの変数を渡さない。

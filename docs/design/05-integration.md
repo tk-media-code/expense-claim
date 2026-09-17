@@ -688,11 +688,13 @@ README が「**これは N-14 でアプリがやるべき手順と同じ**」と
 | **`ALERT_TO`** | **提出アラートの宛先（本人固定）** | 5章 |
 | `DRIVE_FOLDER_ID` | 領収書の保管先フォルダ | 6章 |
 | `SPREADSHEET_ID` / `MY_SHEET_NAME` | 提出シート | 7章・8章 |
+| `APP_URL` | 提出アラート本文に載せるアプリの URL。空なら載せない | 5章 / 要件定義 4.10 |
 
 **`GMAIL_LABEL_NAME` は要らない。**
 `tools/gmail-probe/` は使っているが、**アプリはラベルを条件にしない**（F-04 / 4.1）。
 
-**`.env.example` への追加は実装時に行う**（`01-architecture.md` 7.3）。**この章はその一覧である。**
+雛形は [`.env.example`](../../.env.example)。**この章はその一覧である。**
+`GOOGLE_STUB` とローカル MySQL 用の変数は開発専用で、この表には入れない。
 
 **画面にも API の応答にも出さない**（N-08 / `02-screens.md` 3.11 / `04-api.md` 7章）。
 
