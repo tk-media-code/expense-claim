@@ -25,3 +25,12 @@ dist
 
 # Vitest / rtk のレポート出力
 **/.vitest/
+
+# Terraform（infra/）。state と tfvars は秘密（DB のパスワードが平文で入る）なのでコミットしない。
+# .terraform.lock.hcl はプロバイダの版を固定するものなのでコミットする。
+# EC2 に配る環境変数の実値 infra/.env.ec2 は、上の .env.* で既に除外されている。
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json

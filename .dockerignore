@@ -10,3 +10,5 @@ plans
 credentials
 .env
 *.md
+# Terraform の state（パスワード平文）と EC2 用 .env をビルドコンテキストに入れない
+infra
