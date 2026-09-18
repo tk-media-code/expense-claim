@@ -75,6 +75,9 @@ export function createSyncService(
 					}
 				} else if (parsed.kind === 'no_request') {
 					await importedMailsRepository.record(meta, 'no_request', now);
+				} else if (parsed.kind === 'unrelated') {
+					// 依頼以外のメール（決定23）。記録して次回は飛ばす。要確認事項にはしない
+					await importedMailsRepository.record(meta, 'unrelated', now);
 				} else {
 					// F-07。裏取りが通らなかった。件名・受信日時・取り出せなかった項目名を残し、本文は残さない（4.2）
 					await importedMailsRepository.record(meta, 'parse_failed', now);

@@ -156,6 +156,28 @@ describe('POST /api/sync（取り込み）', () => {
 		).toBe(1);
 	});
 
+	// 決定23。同じ差出人から依頼以外のメール（給与明細など）も届く。記録して次回は飛ばすが、要確認事項にはしない
+	it('件名が依頼の書式でないメールは記録だけして、要確認事項に残さない', async () => {
+		const unrelated = requestMail('m1', '2026-09-05', '100000001');
+		unrelated.subject = '8月度 給与・支払明細書のご送付';
+		const gmail = createFakeGmail({ mails: [unrelated] });
+		const { request } = createAuthedApp(db, undefined, undefined, undefined, gmail);
+		await expect((await request('/api/sync', { method: 'POST' })).json()).resolves.toMatchObject({
+			importedCount: 0,
+			warnings: [],
+		});
+		expect(
+			((await json(request, '/api/attentions?checked=false')).attentions as unknown[]).length,
+		).toBe(0);
+		const rows = await db.select().from(importedMails);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.result).toBe('unrelated');
+
+		// 2回目は読み直さない（fetch されない）
+		await request('/api/sync', { method: 'POST' });
+		await expect(db.select().from(importedMails)).resolves.toHaveLength(1);
+	});
+
 	// 04-api.md 4.3 / 06-error-handling.md 6.4。Gmail が読めなくても 200 で、last_imported_at は動かない
 	it('Gmail が読めなければ 200 で warnings に載せ、last_imported_at を更新しない', async () => {
 		const { request } = createAuthedApp(

@@ -176,14 +176,15 @@ export const routeSegments = mysqlTable(
 // 取り込み済みメール。システムデータ（03-database.md 5.3）。主キーは Gmail の message id。
 //
 // 案件を手で削除しても行は残す（要件定義 6.3）。残さないと次に開いたときに同じ案件がまた入ってくる。
-// result に「依頼無しで除外」と「解析に失敗」を持つのは、次回に飛ばすため。解析に失敗したメールを
-// 毎回読み直しても、同じ失敗を繰り返して要確認事項が増えるだけになる
+// result に「依頼無しで除外」「依頼以外のメール」「解析に失敗」を持つのは、次回に飛ばすため。解析に失敗した
+// メールを毎回読み直しても、同じ失敗を繰り返して要確認事項が増えるだけになる。同じ差出人から給与明細のような
+// 依頼以外のメールも届き（2026-09-18 実測）、それは unrelated として記録だけする（決定23）
 export const importedMails = mysqlTable(
 	'imported_mails',
 	{
 		id: varchar('id', { length: 64 }).primaryKey(),
 		threadId: varchar('thread_id', { length: 64 }),
-		result: mysqlEnum('result', ['project', 'no_request', 'parse_failed']).notNull(),
+		result: mysqlEnum('result', ['project', 'no_request', 'unrelated', 'parse_failed']).notNull(),
 		// Gmail の internalDate。UTC
 		internalDate: datetime('internal_date'),
 		processedAt: datetime('processed_at').notNull(),

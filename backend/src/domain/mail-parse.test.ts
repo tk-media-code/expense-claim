@@ -63,8 +63,12 @@ describe('parseRequestMail', () => {
 		});
 	});
 
-	it('件名がどちらでもなければ parse_failed', () => {
-		expect(parseRequestMail('別件', body)).toEqual({ kind: 'parse_failed', missing: ['件名'] });
+	// 同じ差出人から依頼以外のメール（給与明細など）も届く。依頼ではないので失敗扱いにしない（決定23）
+	it('件名がどちらでもなければ unrelated（本文は見ない）', () => {
+		expect(parseRequestMail('別件', body)).toEqual({ kind: 'unrelated' });
+		expect(parseRequestMail('8月度 給与・支払明細書のご送付', '明細は添付のとおりです')).toEqual({
+			kind: 'unrelated',
+		});
 	});
 
 	// F-07 / N-16。1行目の日付が施行日と一致しなければ、2〜3行目を採らない

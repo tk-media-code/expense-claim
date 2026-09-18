@@ -6,7 +6,7 @@ import type { ParsedProject } from '../domain/mail-parse.js';
 
 /** 1通のメールの識別子（03-database.md 5.3）。本文は持たない */
 export type ImportedMailMeta = { id: string; threadId: string | null; internalDate: Date | null };
-export type ImportResult = 'project' | 'no_request' | 'parse_failed';
+export type ImportResult = 'project' | 'no_request' | 'unrelated' | 'parse_failed';
 
 // Drizzle の型を repositories の外へ出さない（01-architecture.md 5.2）。
 export function createImportedMailsRepository(db: Database) {

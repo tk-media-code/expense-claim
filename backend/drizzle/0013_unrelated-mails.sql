@@ -1,0 +1,1 @@
+ALTER TABLE `imported_mails` MODIFY COLUMN `result` enum('project','no_request','unrelated','parse_failed') NOT NULL;

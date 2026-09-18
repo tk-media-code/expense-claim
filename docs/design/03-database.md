@@ -88,7 +88,7 @@ erDiagram
     }
     imported_mails {
         varchar id PK "Gmail の message id"
-        enum result "project / no_request / parse_failed"
+        enum result "project / no_request / unrelated / parse_failed"
         datetime processed_at
     }
     projects {
@@ -549,7 +549,7 @@ route_segments                ← 区間 1 が3本のルートから参照され
 | --- | --- | --- | --- | --- |
 | `id` | `VARCHAR(64)` | NO | — | **主キー。** Gmail の message id |
 | `thread_id` | `VARCHAR(64)` | YES | NULL | |
-| `result` | `ENUM('project','no_request','parse_failed')` | NO | — | 案件にした／依頼無しで除外／解析に失敗 |
+| `result` | `ENUM('project','no_request','unrelated','parse_failed')` | NO | — | 案件にした／依頼無しで除外／依頼以外のメール（決定23）／解析に失敗 |
 | `internal_date` | `DATETIME` | YES | NULL | Gmail の `internalDate` |
 | `processed_at` | `DATETIME` | NO | — | 処理した日時 |
 
@@ -558,8 +558,9 @@ route_segments                ← 区間 1 が3本のルートから参照され
 **案件を手で削除しても（F-12）、この行は残す**（要件定義 6.3）。
 **残さないと、次に開いたときに同じ案件がまた入ってくる。**
 
-**`result` に「依頼無しで除外」と「解析に失敗」を持つのは、次を飛ばすためである**（要件定義 7.2 手順3・4）。
+**`result` に「依頼無しで除外」「依頼以外のメール」「解析に失敗」を持つのは、次を飛ばすためである**（要件定義 7.2 手順3・4）。
 解析に失敗したメールを毎回読み直しても、**同じ失敗を繰り返して要確認事項が増えるだけになる。**
+依頼以外のメール（`unrelated`）は同じ差出人から毎月届くので（決定23）、読み直せば毎回 Gmail を1本余計に叩く。
 
 #### `sync_state` — 同期状態（単一行）
 

@@ -32,6 +32,9 @@ export type ParsedProject = {
 export type ParsedMail =
 	| { kind: 'project'; project: ParsedProject }
 	| { kind: 'no_request' }
+	// 件名がどちらの書式でもない。同じ差出人から依頼以外のメール（給与明細など）も届く（2026-09-18 実測）。
+	// 依頼メールではないので取り込まず、要確認事項にもしない（決定23）
+	| { kind: 'unrelated' }
 	/** 裏取りが通らなかった（F-07）。取り出せなかった項目名を持つ（06-error-handling.md 4.2） */
 	| { kind: 'parse_failed'; missing: string[] };
 
@@ -56,7 +59,7 @@ export function calendarDateOfSlashed(value: string): CalendarDate | null {
 export function parseRequestMail(subject: string, plainBody: string): ParsedMail {
 	const kind = classifySubject(subject);
 	if (kind === 'no_request') return { kind: 'no_request' };
-	if (kind === 'unknown') return { kind: 'parse_failed', missing: ['件名'] };
+	if (kind === 'unknown') return { kind: 'unrelated' };
 
 	const text = plainBody.replace(/\r\n?/g, '\n');
 	const head = text
