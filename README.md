@@ -117,3 +117,18 @@ docker compose up -d                    # 既定（スタブ）に戻す。E2E �
 ```bash
 GOOGLE_STUB=0 docker compose run --rm scheduler npm run dev:scheduler -- --at=2026-10-01
 ```
+
+## AWS への配置
+
+設計（[`01-architecture.md`](docs/design/01-architecture.md) 3.8）のとおり、EC2 1台 + RDS 1台を Terraform で立てる。
+構築・配置・確認・片付けの手順は [`infra/README.md`](infra/README.md)。
+
+```bash
+terraform -chdir=infra plan && terraform -chdir=infra apply   # plan を読んでから apply する
+bash scripts/deploy.sh --all                                   # ローカルでビルドして EC2 へ配置する
+terraform -chdir=infra destroy                                 # 確認が済んだら消す
+```
+
+動作確認できたら destroy する使い捨ての環境で、HTTPS もドメインも持たない。
+Google のウェブアプリ型 OAuth は https とドメイン名のリダイレクト URI を要求するので、
+AWS 上では `GOOGLE_STUB=1` で動かす（[決定26](docs/decisions.md#決定26--aws-の確認環境)）。
