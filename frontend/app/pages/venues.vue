@@ -132,8 +132,12 @@ function sourceLabel(venue: Venue) {
 					<template #header>
 						<div class="flex items-start justify-between gap-2">
 							<div class="min-w-0">
+								<!-- 会場マスタは会場名が空の行が多く、そのときはコードが名前になる（取り込みの仕様）。
+								     名前がコードのままなら、コードを添えると同じ文字が2つ並ぶだけなので添えない -->
 								<p class="font-semibold">
-									<span class="text-muted font-mono text-sm">{{ venue.code }}</span>
+									<span v-if="venue.name !== venue.code" class="text-muted font-mono text-sm">{{
+										venue.code
+									}}</span>
 									{{ venue.name }}
 								</p>
 								<p class="text-muted text-xs">{{ sourceLabel(venue) }}</p>

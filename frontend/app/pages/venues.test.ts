@@ -26,6 +26,8 @@ const bbb: Venue = {
 	],
 };
 const eee: Venue = { id: 5, code: 'EEE', name: '戊スタジオ', source: 'manual', routes: [] };
+// 会場マスタの会場名が空だと、コードが名前になる（取り込みの仕様）
+const fff: Venue = { id: 6, code: 'FFF', name: 'FFF', source: 'master', routes: [] };
 
 let venues: Venue[] = [];
 let listFails = false;
@@ -121,6 +123,16 @@ describe('/venues（02-screens.md 3.6）', () => {
 		expect(list[0]?.text()).toContain('2区間');
 		expect(list[0]?.text()).toContain('530円');
 		expect(list[2]?.text()).toContain('自分で追加');
+	});
+
+	// 会場名がコードのままの会場に、コードを添えて同じ文字を2つ並べない
+	it('会場名がコードと同じなら、コードを二重に出さない', async () => {
+		venues = [aaa, fff];
+		const page = await openPage();
+		const list = cards(page);
+		expect(list[0]?.text()).toMatch(/AAA\s*甲ホール/);
+		expect(list[1]?.text()).not.toMatch(/FFF\s*FFF/);
+		expect(list[1]?.text()).toContain('FFF');
 	});
 
 	// 4.3。0本の会場は記録できないので目立たせる
