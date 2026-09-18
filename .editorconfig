@@ -10,3 +10,8 @@ insert_final_newline = true
 [*.{yml,yaml}]
 indent_style = space
 indent_size = 2
+
+# Terraform は terraform fmt がスペース2字下げに揃える
+[*.{tf,tfvars,tfvars.example,hcl}]
+indent_style = space
+indent_size = 2

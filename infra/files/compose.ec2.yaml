@@ -1,0 +1,47 @@
+# EC2 で動かすための compose ファイル。scripts/deploy.sh が ~/expense-claim/compose.yaml として配る。
+#
+# リポジトリ直下の compose.yaml（本番相当の構成。ビルド定義を持つ）と役割を分けている。
+# EC2 ではビルドしない。t3.micro（メモリ 1GB）では nuxt generate が載らないため、
+# イメージはローカルでビルドして docker save | ssh docker load で転送する。
+# したがってここには build を書かず、転送済みのイメージ名だけを書く。
+#
+# ${TAG} は同じディレクトリの .env から補間される（deploy.sh が git の short SHA を書く）。
+# .env が無いと ":?" により即エラーになる。latest 固定にしないのは、
+# 「転送したつもりが古いイメージのまま」という状態に気づけるようにするため。
+#
+# pull_policy: never は、イメージが未転送のときに Docker Hub へ pull しに行って
+# 「アクセス拒否」という紛らわしい失敗をさせないための指定。
+
+services:
+  nginx:
+    image: expense-claim-nginx:${TAG:?deploy.sh --env で .env を配置してください}
+    pull_policy: never
+    ports:
+      - '80:80'
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+
+  backend:
+    image: expense-claim-backend:${TAG:?deploy.sh --env で .env を配置してください}
+    pull_policy: never
+    # DATABASE_URL・SESSION_SECRET などは .env から入る（env.ec2.example）。
+    # TAG や APP_URL のような補間用の値もコンテナに入るが、アプリは未知の変数を無視する。
+    env_file: .env
+    environment:
+      TZ: Asia/Tokyo
+      PORT: '3000'
+    # ホストにポートを公開しない。nginx からは compose のネットワーク内で backend:3000 に届く。
+    restart: unless-stopped
+
+  # 提出アラートの定期実行（docs/design/01-architecture.md 3.8）。
+  # backend と同じイメージを別コマンドで起動する。HTTP を持たない。
+  scheduler:
+    image: expense-claim-backend:${TAG:?deploy.sh --env で .env を配置してください}
+    pull_policy: never
+    command: ['node', 'dist/scheduler.js']
+    env_file: .env
+    environment:
+      TZ: Asia/Tokyo
+    restart: unless-stopped
