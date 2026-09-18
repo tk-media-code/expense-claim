@@ -132,6 +132,11 @@ const headers: Record<(typeof columns)[number], string> = {
 					}}
 				</UBadge>
 			</div>
+			<!-- 書き込み先を実行前に目で確かめる。環境変数の指し先が本番かサンドボックスかは、名前でしか分からない -->
+			<p class="text-muted text-sm" data-testid="destination">
+				書き込み先: {{ preview.destination.spreadsheetTitle }} /
+				{{ preview.destination.sheetTitle }}
+			</p>
 
 			<!-- 警告。知らせて続ける（04-api.md 2.6） -->
 			<ul v-if="preview.warnings.length > 0" class="space-y-2" data-testid="warnings">

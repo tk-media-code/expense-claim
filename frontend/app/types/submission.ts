@@ -22,6 +22,8 @@ export type SubmissionWarning = {
 /** POST /api/submissions/preview（04-api.md 5.4） */
 export type SubmissionPreview = {
 	targetMonth: string;
+	/** 書き込み先（名前だけ。ID は来ない） */
+	destination: { spreadsheetTitle: string; sheetTitle: string };
 	lastSubmittedAt: string | null;
 	attentionCount: number;
 	rows: SubmissionRow[];

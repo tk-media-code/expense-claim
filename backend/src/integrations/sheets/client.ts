@@ -7,6 +7,8 @@ import type { CalendarDate, TargetMonth } from '../../domain/month.js';
 /** 書ける行の範囲（7.2）。25行を決め打ちにしない（NF-09） */
 export type SheetStructure = {
 	spreadsheetTitle: string;
+	/** 自分のシートの名前（環境変数の MY_SHEET_NAME と一致したもの）。提出の確認画面に書き込み先として出す */
+	sheetTitle: string;
 	/** 本文の先頭行。1 始まり（実測では 8） */
 	firstBodyRow: number;
 	/** 書ける最終行。1 始まり（実測では 32）。挿入すると伸びる */

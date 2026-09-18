@@ -88,6 +88,7 @@ describe('sheets client（読む）', () => {
 		});
 		await expect(client(fake).readStructure()).resolves.toEqual({
 			spreadsheetTitle: '交通費精算',
+			sheetTitle: '1062 甲乙',
 			firstBodyRow: 8,
 			lastBodyRow: 32,
 			writableRows: 25,

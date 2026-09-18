@@ -82,6 +82,10 @@ export function createSubmissionsService(
 			]);
 			return {
 				targetMonth,
+				destination: {
+					spreadsheetTitle: structure.spreadsheetTitle,
+					sheetTitle: structure.sheetTitle,
+				},
 				lastSubmittedAt: latest?.executedAt ?? null,
 				attentionCount,
 				rows: built.rows,

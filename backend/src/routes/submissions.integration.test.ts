@@ -1,7 +1,7 @@
 import type { Pool } from 'mysql2/promise';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { createAuthedApp, createFakeDrive, createFakeSheets } from '../../test/app.js';
+import { createAuthedApp, createFakeDrive, createFakeSheets, TEST_CONFIG } from '../../test/app.js';
 import { createTestDatabase, createTestPool, truncateAll } from '../../test/database.js';
 import { submissions } from '../db/schema.js';
 
@@ -123,6 +123,8 @@ describe('POST /api/submissions/preview（04-api.md 5.4）', () => {
 		const preview = (await res.json()) as Record<string, unknown>;
 		expect(preview).toMatchObject({
 			targetMonth: '2026-09',
+			// 書き込み先は名前だけ。ID は返さない（N-08）
+			destination: { spreadsheetTitle: '交通費精算', sheetTitle: TEST_CONFIG.sheetName },
 			lastSubmittedAt: null,
 			attentionCount: 0,
 			writableRows: 25,

@@ -110,7 +110,11 @@ export function createSheetsClient(
 			const { spreadsheetTitle, sheet } = await findMySheet(sheets);
 			const rowCount = sheet.properties?.gridProperties?.rowCount ?? 0;
 			const range = writableRangeOf(sheet.protectedRanges ?? [], rowCount);
-			return { spreadsheetTitle, ...range };
+			return {
+				spreadsheetTitle,
+				sheetTitle: sheet.properties?.title ?? config.sheetName,
+				...range,
+			};
 		},
 
 		// 7.3。7行目のヘッダーを想定の並びと照合し、違えば中止する（NF-10）

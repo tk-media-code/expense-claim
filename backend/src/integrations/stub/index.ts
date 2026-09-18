@@ -28,6 +28,7 @@ export function createStubGoogle(): {
 	const written: { rows: SubmissionRow[]; receiptCell: string; at: Date }[] = [];
 	let structure: SheetStructure = {
 		spreadsheetTitle: '（開発用の提出シート）',
+		sheetTitle: '（開発用の自分のシート）',
 		firstBodyRow: 8,
 		lastBodyRow: 32,
 		writableRows: 25,

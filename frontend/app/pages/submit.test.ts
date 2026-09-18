@@ -92,6 +92,7 @@ async function openPage() {
 beforeEach(() => {
 	preview = {
 		targetMonth: '2026-09',
+		destination: { spreadsheetTitle: '交通費精算', sheetTitle: '9999 テスト太郎' },
 		lastSubmittedAt: null,
 		attentionCount: 0,
 		rows,
@@ -117,6 +118,10 @@ describe('/submit（02-screens.md 3.9）', () => {
 		const page = await openPage();
 		await vi.waitFor(() => expect(page.find('[data-testid="rows"]').exists()).toBe(true));
 		expect(page.text()).toContain('2026年9月度の提出');
+		// 書き込み先を名前で出す。環境変数の指し先が本番かサンドボックスかを実行前に確かめる
+		expect(page.find('[data-testid="destination"]').text()).toContain(
+			'交通費精算 / 9999 テスト太郎',
+		);
 		expect(page.find('[data-testid="last-submitted"]').text()).toContain('まだ提出していない');
 		const trs = page.findAll('[data-testid="rows"] tbody tr');
 		expect(trs).toHaveLength(3);

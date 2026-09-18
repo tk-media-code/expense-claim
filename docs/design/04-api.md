@@ -736,6 +736,7 @@ compose の `backend` の healthcheck と、**nginx から backend への振り�
 ```json
 {
   "targetMonth": "2026-08",
+  "destination": { "spreadsheetTitle": "交通費精算", "sheetTitle": "9999 テスト太郎" },
   "lastSubmittedAt": null,
   "attentionCount": 1,
   "rows": [
@@ -763,6 +764,7 @@ compose の `backend` の healthcheck と、**nginx から backend への振り�
 | **J / K / L を含めない** | 常に空（要件定義 5.3）。**書かない欄を応答に出すと、書くように見える** |
 | **M（領収書）は行ではなく `receiptCell`** | `M8:M32` は丸ごと1つの結合セルで、**月に1枠しかない**（要件定義 5.4） |
 | **`rowsToInsert` を返す** | 挿入はシートの構造を変える操作である（要件定義 5.2 手順5）。**実行する前に知らせる** |
+| **`destination` を返す** | **環境変数の指し先を、本人が実行前に名前で確かめる。** 2026-09-18 にサンドボックスのつもりで本番のシートへ書いた。名前だけで ID は返さない（N-08 / 7章） |
 | **`片道` が現れる案件が分かる** | `cells.G` に出る。**まだ一度も起きていない書き方**なので、初めてのときは目視で確かめられる（要件定義 5.3 / `02-screens.md` 3.9） |
 
 **中止するときは 200 を返さない**（2.6 / 要件定義 5.5）。
