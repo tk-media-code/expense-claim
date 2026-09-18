@@ -67,12 +67,6 @@ async function remove() {
 						<dt class="text-muted">使用中</dt>
 						<dd>{{ station.segmentCount }}区間</dd>
 					</dl>
-					<p class="text-muted text-sm">
-						<b>名前は、使われていても直せる。</b>直すと区間とルートの表示が変わるが、
-						<b>済んだ記録の駅名は動かない</b>（要件定義
-						6.2）。記録した時点の駅名を実績側に持つため。
-						<b>鉄道会社の略称込みで入れる</b>（F-15）。
-					</p>
 					<UButton type="submit" :loading="saving" block>この名前で直す</UButton>
 				</form>
 

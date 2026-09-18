@@ -202,9 +202,6 @@ async function importBackup() {
 					</dd>
 				</div>
 			</dl>
-			<p class="text-muted text-xs">
-				対象月度は提出シートの A1 が決める（決定13）。手で変える操作は無い。
-			</p>
 		</section>
 
 		<!-- 設定データの控え（NF-11）。駅・会場・区間・ルートだけ。実績は含めない（N-05） -->
@@ -273,10 +270,6 @@ async function importBackup() {
 			>
 				すべての端末からログアウト
 			</UButton>
-			<p class="text-muted text-xs">
-				端末をなくしたときは「すべての端末」を使う。他の端末で使っていたログインもその場で切れる（04-api.md
-				4.1）。
-			</p>
 		</section>
 	</div>
 </template>

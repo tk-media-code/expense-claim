@@ -194,9 +194,6 @@ async function save() {
 							<span class="shrink-0 tabular-nums">{{ leg.amount.toLocaleString() }}円</span>
 						</li>
 					</ol>
-					<p class="text-muted text-xs">
-						金額は登録運賃から決まり、ここでは直せない。直す場所は「区間と運賃」（F-20）。
-					</p>
 				</div>
 
 				<!-- タクシーと領収書。乗車は交通費記録と独立していて、選んだ時点で送る（04-api.md 4.6） -->

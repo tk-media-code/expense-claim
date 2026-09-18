@@ -129,10 +129,6 @@ async function save() {
 				<h2 class="font-semibold">区間の並び</h2>
 				<span class="text-muted text-sm">片道 {{ oneWayTotal.toLocaleString() }}円</span>
 			</div>
-			<p class="text-muted text-sm">
-				<b>「自宅→会場」の向きで並べる</b>（決定9）。復路は反転して使う。
-				前の区間の到着駅と次の区間の出発駅は一致しなくてよい。
-			</p>
 
 			<p v-if="legs.length === 0" class="text-muted text-sm">まだ区間を並べていない。</p>
 			<ol v-else class="divide-default divide-y" data-testid="legs">

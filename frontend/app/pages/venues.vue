@@ -192,12 +192,6 @@ function sourceLabel(venue: Venue) {
 			</li>
 		</ul>
 
-		<p class="text-muted text-sm">
-			<b>ルートは「自宅→会場」の向きで持つ</b>（決定9）。復路は反転して使う。
-			<b>1つの会場に複数のルートを紐付けられる</b>（F-17）。記録画面では、ルートが1本の会場だけ
-			選択済みの状態で開く。
-		</p>
-
 		<VenueAddSheet v-model:open="addOpen" @changed="refresh()" />
 		<ConfirmDialog
 			v-model:open="confirmOpen"

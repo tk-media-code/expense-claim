@@ -12,7 +12,6 @@ describe('/login（02-screens.md 3.1）', () => {
 		const wrapper = await mountSuspended(LoginPage, { route: '/login' });
 		expect(wrapper.find('[data-testid="login"]').text()).toContain('Google でログイン');
 		expect(wrapper.find('[data-testid="login-error"]').exists()).toBe(false);
-		expect(wrapper.text()).toContain('本人1人だけ');
 	});
 
 	// N-03 / 決定5。許可されたアカウント以外はログインできない。バックエンドが理由を ?error= で戻す

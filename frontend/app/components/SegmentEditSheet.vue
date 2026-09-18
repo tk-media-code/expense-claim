@@ -121,10 +121,6 @@ async function remove() {
 							class="w-full"
 						/>
 					</UFormField>
-					<p class="text-muted text-sm">
-						<b>片道運賃は、使われていても直せる。</b>直すと、この区間を使っている全ルートの
-						<b>以後の記録</b>に効く（決定18）。<b>済んだ記録は動かない</b>（要件定義 6.2）。
-					</p>
 					<UButton type="submit" :loading="saving" block>この内容で直す</UButton>
 				</form>
 

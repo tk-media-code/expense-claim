@@ -41,11 +41,6 @@ async function submit() {
 				<UFormField label="駅名">
 					<UInput v-model="name" class="w-full" placeholder="X鉄辛駅" autofocus />
 				</UFormField>
-				<p class="text-muted text-sm">
-					<b>鉄道会社の略称込みで入れる</b>（F-15）。乗換駅は会社ごとに別の駅として書かれるので、
-					<code>X鉄乙駅</code> と
-					<code>Y鉄乙駅</code> は<b>別の駅として登録する。</b>名寄せはしない。
-				</p>
 				<UButton type="submit" :loading="saving" block>登録する</UButton>
 			</form>
 		</template>

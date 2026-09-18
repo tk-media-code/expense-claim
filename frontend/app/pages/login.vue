@@ -28,9 +28,6 @@ function login() {
 			:description="error"
 			data-testid="login-error"
 		/>
-		<p class="text-muted text-sm">
-			このアプリは本人1人だけが使う（N-03）。許可された Google アカウント以外ではログインできない。
-		</p>
 		<UButton icon="i-lucide-log-in" size="lg" block data-testid="login" @click="login">
 			Google でログイン
 		</UButton>
