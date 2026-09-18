@@ -1899,7 +1899,7 @@ function overlayHtml(){
 
   if (o === "addStation") return wrap("駅を登録", `
     <div class="field"><span class="label">駅名</span>
-      <input class="input" data-model="stName" placeholder="X鉄辛駅" value="${esc(f.stName || "")}"></div>
+      <input class="input" data-model="stName" placeholder="XX鉄〇〇駅" value="${esc(f.stName || "")}"></div>
     <p class="hint"><b>鉄道会社の略称込みで入れます</b>（F-15）。
       乗換駅は会社ごとに別の駅として書かれるので、<code>X鉄乙駅</code> と <code>Y鉄乙駅</code> は
       <b>別の駅として登録します</b>（要求分析 5.2）。名寄せはしません。</p>
