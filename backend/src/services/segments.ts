@@ -9,6 +9,25 @@ export function createSegmentsService(
 	repository: SegmentsRepository,
 	stationsRepository: StationsRepository,
 ) {
+	// 同じ駅ペアは向きを問わず1つ（決定24）。復路は同じ区間を逆向きに使うので、逆向きの登録は
+	// 同じ区間に運賃を2つ持たせることになる。DB の UNIQUE は方向付きのままで、無向の一意性はここが守る。
+	// 逆向きのときは文面で言う。「既に登録されています」だけでは、一覧に見当たらずに戸惑う
+	async function assertNotDuplicated(
+		fromStationId: number,
+		toStationId: number,
+		self: number | null,
+	): Promise<void> {
+		const same = await repository.findIdByStationPair(fromStationId, toStationId);
+		if (same !== null && same !== self) throw new AppError('SEGMENT_DUPLICATED');
+		const reversed = await repository.findIdByStationPair(toStationId, fromStationId);
+		if (reversed !== null && reversed !== self) {
+			throw new AppError('SEGMENT_DUPLICATED', {
+				message:
+					'その区間は逆向きで既に登録されています。復路は同じ区間を逆向きに使うので、登録は要りません',
+			});
+		}
+	}
+
 	return {
 		list(): Promise<Segment[]> {
 			return repository.list();
@@ -26,13 +45,8 @@ export function createSegmentsService(
 				throw new AppError('INVALID_VALUE', { message: '到着駅が見つかりません' });
 			}
 
-			// 同じ駅ペアに運賃を2つ持たせない（決定18 / 04-api.md 4.7）。逆向きは別の区間として通す
-			const duplicated = await repository.findIdByStationPair(
-				input.fromStationId,
-				input.toStationId,
-			);
-			if (duplicated !== null) throw new AppError('SEGMENT_DUPLICATED');
-
+			// 同じ駅ペアに運賃を2つ持たせない（決定18 / 04-api.md 4.7）。逆向きも同じ区間（決定24）
+			await assertNotDuplicated(input.fromStationId, input.toStationId, null);
 			return repository.create(input);
 		},
 
@@ -76,9 +90,8 @@ export function createSegmentsService(
 			}
 
 			// 重複の判定からは自分自身を除く（04-api.md 4.7）
-			const duplicated = await repository.findIdByStationPair(next.fromStationId, next.toStationId);
-			if (duplicated !== null && duplicated !== id) throw new AppError('SEGMENT_DUPLICATED');
-
+			// 逆向きも同じ区間（決定24）
+			await assertNotDuplicated(next.fromStationId, next.toStationId, id);
 			return repository.update(id, next);
 		},
 

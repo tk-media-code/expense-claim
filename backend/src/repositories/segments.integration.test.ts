@@ -104,7 +104,7 @@ describe('segments repository', () => {
 	});
 
 	// 1-6 の登録が重複を先読みし、1-7 の PUT が「判定から自分自身を除く」ために id を返す。
-	// UNIQUE (from, to) は順序付きなので、逆向きは別の区間
+	// この検索は方向付き。逆向きの重複は services が両方向を引いて見る（決定24）
 	it('findIdByStationPair は同じ駅ペアの id を返し、無ければ・逆向きなら null を返す', async () => {
 		const x = await stations.create('X鉄甲駅');
 		const y = await stations.create('X鉄乙駅');

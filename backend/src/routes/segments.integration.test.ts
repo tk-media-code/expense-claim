@@ -153,18 +153,6 @@ describe('POST /api/segments', () => {
 		await expect(list()).resolves.toEqual([created]);
 	});
 
-	// 03-database.md 5.1。UNIQUE (from, to) は順序付き。逆向きを DB で禁じない（#100）
-	it('逆向きの駅ペアは別の区間として登録できる', async () => {
-		const from = await createStation('X鉄甲駅');
-		const to = await createStation('X鉄乙駅');
-		await createSegment(from, to);
-		const res = await post(
-			JSON.stringify({ fromStationId: to, toStationId: from, oneWayFare: 320 }),
-		);
-		expect(res.status).toBe(201);
-		await expect(list()).resolves.toHaveLength(2);
-	});
-
 	it.each([
 		['0円', 0],
 		['INT UNSIGNED の上限', ONE_WAY_FARE_MAX],
@@ -190,6 +178,22 @@ describe('POST /api/segments', () => {
 			error: { code: 'SEGMENT_DUPLICATED', message: errorCatalog.SEGMENT_DUPLICATED.message },
 		});
 		await expect(list()).resolves.toEqual([expect.objectContaining({ oneWayFare: 320 })]);
+	});
+
+	// 決定24。区間は向きを持たない。逆向きも同じ区間で、文面で逆向きと言う
+	it('逆向きの駅ペアを登録すると 409 を返し、逆向きだと分かる文面になる', async () => {
+		const from = await createStation('X鉄甲駅');
+		const to = await createStation('X鉄乙駅');
+		await createSegment(from, to, 320);
+
+		const res = await post(
+			JSON.stringify({ fromStationId: to, toStationId: from, oneWayFare: 320 }),
+		);
+		expect(res.status).toBe(409);
+		const body = (await res.json()) as { error: { code: string; message: string } };
+		expect(body.error.code).toBe('SEGMENT_DUPLICATED');
+		expect(body.error.message).toContain('逆向き');
+		await expect(list()).resolves.toHaveLength(1);
 	});
 
 	// 04-api.md 2.5。INVALID_VALUE は項目ごとの文面で、本人が何を直せばよいか分かるようにする。

@@ -141,6 +141,22 @@ describe('segments service', () => {
 			expect(findIdByStationPair).toHaveBeenCalledWith(1, 2);
 			expect(create).not.toHaveBeenCalled();
 		});
+
+		// 決定24。区間は向きを持たない。復路は同じ区間を逆向きに使う
+		it('逆向きの駅ペアがあっても SEGMENT_DUPLICATED を投げ、文面で逆向きと言う', async () => {
+			const { repository, stationsRepository, create, findIdByStationPair } =
+				createFakeRepositories();
+			findIdByStationPair.mockImplementation((from, to) =>
+				Promise.resolve(from === 2 && to === 1 ? 7 : null),
+			);
+			const error = await failure(
+				createSegmentsService(repository, stationsRepository).create(input),
+			);
+			expect(error?.code).toBe('SEGMENT_DUPLICATED');
+			expect(error?.message).toContain('逆向き');
+			expect(findIdByStationPair).toHaveBeenCalledWith(2, 1);
+			expect(create).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('update', () => {

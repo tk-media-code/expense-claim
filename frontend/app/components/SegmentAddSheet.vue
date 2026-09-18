@@ -79,7 +79,9 @@ async function submit() {
 				</UFormField>
 				<p class="text-muted text-sm">
 					<b>「自宅→会場」の向きで登録する</b>（決定9）。復路は同じ区間を逆向きに使うので、
-					逆向きの区間は登録しない。<b>前の区間の到着駅と次の区間の出発駅は一致しなくてよい。</b>
+					逆向きは同じ区間として登録できない（決定24）。<b
+						>前の区間の到着駅と次の区間の出発駅は一致しなくてよい。</b
+					>
 				</p>
 				<UButton type="submit" :loading="saving" block>登録する</UButton>
 			</form>
