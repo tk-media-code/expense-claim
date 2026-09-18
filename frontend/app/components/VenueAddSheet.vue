@@ -48,10 +48,6 @@ async function submit() {
 				<UFormField label="会場名">
 					<UInput v-model="name" class="w-full" placeholder="丁会館" />
 				</UFormField>
-				<p class="text-muted text-sm">
-					<b>会場コードは依頼メールに載っている形のまま入れる。</b>提出シートの B列にはこの値が
-					そのまま書かれる（N-14）。マスタに無いコードでも、本人は手でそのまま書いて提出している。
-				</p>
 				<UButton type="submit" :loading="saving" block>追加する</UButton>
 			</form>
 		</template>

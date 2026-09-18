@@ -141,10 +141,6 @@ async function remove(ride: TaxiRide) {
 					この金額と領収書で追加する
 				</UButton>
 				<p v-if="uploading" class="text-muted text-sm">領収書をドライブへ保存しています…</p>
-				<p class="text-muted text-xs">
-					領収書を選ぶとその場でドライブへ保存し、共有を付ける（F-24 /
-					F-25）。保存できなければ乗車は記録されない（F-26）。 消してもドライブのファイルは残る。
-				</p>
 			</div>
 		</div>
 	</div>

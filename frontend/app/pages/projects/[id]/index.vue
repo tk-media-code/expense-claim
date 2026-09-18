@@ -144,9 +144,6 @@ function sourceLabel(p: Project) {
 			<form class="space-y-4" @submit.prevent="save">
 				<h2 class="font-semibold">項目を直す</h2>
 				<ProjectFields v-model="form" :venues="venues" />
-				<p class="text-muted text-sm">
-					<b>施行日を直すと、所属する月度が変わる</b>（決定12）。会場を選び直すと会場名も変わる。
-				</p>
 				<UButton type="submit" :loading="saving" variant="outline" block>この内容で直す</UButton>
 			</form>
 

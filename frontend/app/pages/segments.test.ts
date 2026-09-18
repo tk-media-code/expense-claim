@@ -431,12 +431,6 @@ describe('駅タブ', () => {
 		expect(page.text()).toContain('読み込めませんでした');
 		expect(page.text()).not.toContain('まだ駅がありません');
 	});
-
-	// 3.8。乗換駅は鉄道会社ごとに別の駅として書かれるので、画面にこの説明を出す。
-	it('鉄道会社の略称込みで持つことを画面に出す', async () => {
-		const page = await openPage('station');
-		expect(page.text()).toContain('鉄道会社の略称込み');
-	});
 });
 
 describe('駅のシート', () => {

@@ -31,10 +31,6 @@ async function check(attention: Attention) {
 
 <template>
 	<div class="space-y-4">
-		<p class="text-muted text-sm">
-			アプリが判断できなかったこと・失敗したことの記録（F-33）。読んで対応したら「確認済みにする」。
-		</p>
-
 		<div v-if="status === 'pending'" class="space-y-2">
 			<USkeleton v-for="n in 3" :key="n" class="h-20 w-full" />
 		</div>

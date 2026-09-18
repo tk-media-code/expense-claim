@@ -90,7 +90,7 @@ const headers: Record<(typeof columns)[number], string> = {
 				確認と実行のあいだに提出シートの月度が変わりました。もう一度確認からやり直してください。
 			</p>
 			<p v-else-if="abort.code === 'SHEET_FORMAT_CHANGED'" class="text-muted text-sm">
-				提出シートの様式が想定と違います。アプリ側では直せません。実装を直すまでは手で入力してください（NF-10）。
+				提出シートの様式が想定と違います。アプリ側では直せません。実装を直すまでは手で入力してください。
 			</p>
 			<UButton variant="outline" @click="loadPreview">もう一度確認する</UButton>
 		</div>
@@ -109,9 +109,6 @@ const headers: Record<(typeof columns)[number], string> = {
 					{{ warning.message }}
 				</li>
 			</ul>
-			<p class="text-muted text-sm">
-				何度でも実行できる（F-29）。直したいところがあれば、アプリ側を直してもう一度提出する。
-			</p>
 			<UButton to="/" variant="outline">ホームへ戻る</UButton>
 		</div>
 
@@ -229,9 +226,6 @@ const headers: Record<(typeof columns)[number], string> = {
 					>提出する</UButton
 				>
 				<p v-if="!submittable" class="text-muted text-sm">書き込む行が無いので、提出できません。</p>
-				<p class="text-muted text-xs">
-					本文行を全部消してから書き直す（決定2）。提出シートを手で直しても、次の提出で消える。
-				</p>
 			</div>
 		</template>
 	</div>
