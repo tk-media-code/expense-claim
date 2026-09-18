@@ -39,11 +39,11 @@ async function save() {
 	try {
 		// 使用中なら駅を送らない。送れば 409（04-api.md 4.7）。欄も出していないので値は変わっていない
 		const body = inUse.value
-			? { oneWayFare: Number(oneWayFare.value) }
+			? { oneWayFare: Number(toHalfWidthDigits(oneWayFare.value)) }
 			: {
 					fromStationId: fromStationId.value,
 					toStationId: toStationId.value,
-					oneWayFare: Number(oneWayFare.value),
+					oneWayFare: Number(toHalfWidthDigits(oneWayFare.value)),
 				};
 		await api<Segment>(`/segments/${props.segment.id}`, { method: 'PUT', body });
 		open.value = false;
@@ -112,7 +112,14 @@ async function remove() {
 						/>
 					</template>
 					<UFormField label="片道運賃（円）">
-						<UInput v-model="oneWayFare" type="number" inputmode="numeric" min="0" class="w-full" />
+						<!-- type="number" にしない。フォーカスのある欄の上でホイールを回すと値が変わる（utils/digits.ts） -->
+						<UInput
+							v-model="oneWayFare"
+							type="text"
+							inputmode="numeric"
+							pattern="[0-9]*"
+							class="w-full"
+						/>
 					</UFormField>
 					<p class="text-muted text-sm">
 						<b>片道運賃は、使われていても直せる。</b>直すと、この区間を使っている全ルートの

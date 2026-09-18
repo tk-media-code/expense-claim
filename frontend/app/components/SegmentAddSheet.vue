@@ -35,7 +35,8 @@ async function submit() {
 			body: {
 				fromStationId: fromStationId.value,
 				toStationId: toStationId.value,
-				oneWayFare: oneWayFare.value === '' ? undefined : Number(oneWayFare.value),
+				oneWayFare:
+					oneWayFare.value === '' ? undefined : Number(toHalfWidthDigits(oneWayFare.value)),
 			},
 		});
 		open.value = false;
@@ -66,11 +67,12 @@ async function submit() {
 					@stations-changed="emit('stationsChanged')"
 				/>
 				<UFormField label="片道運賃（円）">
+					<!-- type="number" にしない。フォーカスのある欄の上でホイールを回すと値が変わる（utils/digits.ts） -->
 					<UInput
 						v-model="oneWayFare"
-						type="number"
+						type="text"
 						inputmode="numeric"
-						min="0"
+						pattern="[0-9]*"
 						class="w-full"
 						placeholder="320"
 					/>

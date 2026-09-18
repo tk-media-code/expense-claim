@@ -138,7 +138,7 @@ describe('/routes/:id（02-screens.md 3.7）', () => {
 		expect(legTexts(wrapper)[0]).toContain('320円');
 		expect(legTexts(wrapper)[1]).toContain('Y鉄乙駅 → Y鉄丙駅');
 		expect(wrapper.text()).toContain('片道 530円');
-		expect(wrapper.findAll('input[type="number"]')).toHaveLength(0);
+		expect(wrapper.findAll('input[inputmode="numeric"]')).toHaveLength(0);
 	});
 
 	// 決定20。並べ替えは上下ボタンで、押せば1つ動く
@@ -210,7 +210,7 @@ describe('/routes/new', () => {
 			.find((c) => c.props('label') === '到着駅');
 		from?.vm.$emit('update:modelValue', 5);
 		to?.vm.$emit('update:modelValue', 6);
-		const fare = document.body.querySelector<HTMLInputElement>('input[type="number"]');
+		const fare = document.body.querySelector<HTMLInputElement>('input[inputmode="numeric"]');
 		if (!fare) throw new Error('運賃の入力欄が見つからない');
 		fare.value = '520';
 		fare.dispatchEvent(new Event('input'));

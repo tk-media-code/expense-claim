@@ -272,7 +272,7 @@ describe('区間タブ', () => {
 		expect(sheetText()).toContain('先にそのルートからこの区間を外す');
 		expect(page.findAllComponents({ name: 'StationPicker' })).toHaveLength(0);
 		expect(() => buttonWith('この区間を削除する')).toThrow();
-		expect(sheetInput('input[type="number"]').value).toBe('320');
+		expect(sheetInput('input[inputmode="numeric"]').value).toBe('320');
 	});
 
 	it('未使用の区間のシートは駅の選択欄と削除ボタンを出す', async () => {
@@ -291,7 +291,7 @@ describe('区間タブ', () => {
 
 		await page.findAll('ul li button')[0]?.trigger('click');
 		await nextTick();
-		await type('330', 'input[type="number"]');
+		await type('330', 'input[inputmode="numeric"]');
 		buttonWith('この内容で直す').click();
 		await vi.waitFor(() => expect(segmentPut).toHaveBeenCalledWith(10, { oneWayFare: 330 }));
 
@@ -333,7 +333,7 @@ describe('区間タブ', () => {
 		expect(sheetText()).toContain('区間を追加');
 		await pickStation(page, '出発駅', 2);
 		await pickStation(page, '到着駅', 3);
-		await type('500', 'input[type="number"]');
+		await type('500', 'input[inputmode="numeric"]');
 		buttonWith('登録する').click();
 		await vi.waitFor(() =>
 			expect(segmentPosted).toHaveBeenCalledWith({
@@ -355,13 +355,13 @@ describe('区間タブ', () => {
 		await nextTick();
 		await pickStation(page, '出発駅', 1);
 		await pickStation(page, '到着駅', 3);
-		await type('320', 'input[type="number"]');
+		await type('320', 'input[inputmode="numeric"]');
 		buttonWith('登録する').click();
 		await vi.waitFor(() => expect(segmentPosted).toHaveBeenCalled());
 		await nextTick();
 
 		expect(sheetText()).toContain('区間を追加');
-		expect(sheetInput('input[type="number"]').value).toBe('320');
+		expect(sheetInput('input[inputmode="numeric"]').value).toBe('320');
 	});
 
 	// 3.8。駅が無いというだけで区間の入力を捨てさせない。駅のシートを重ねて出し、登録した駅が選ばれる
@@ -370,7 +370,7 @@ describe('区間タブ', () => {
 
 		await pageButton(page, '区間を追加').trigger('click');
 		await nextTick();
-		await type('500', 'input[type="number"]');
+		await type('500', 'input[inputmode="numeric"]');
 
 		const addStation = [...document.body.querySelectorAll('button')].find(
 			(button) => button.getAttribute('aria-label') === '出発駅を登録',
@@ -399,7 +399,7 @@ describe('区間タブ', () => {
 			.findAllComponents({ name: 'StationPicker' })
 			.find((component) => component.props('label') === '出発駅');
 		await vi.waitFor(() => expect(from?.props('modelValue')).toBe(4));
-		expect(sheetInput('input[type="number"]').value).toBe('500');
+		expect(sheetInput('input[inputmode="numeric"]').value).toBe('500');
 	});
 });
 

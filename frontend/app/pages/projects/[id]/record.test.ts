@@ -183,8 +183,8 @@ describe('/projects/:id/record（02-screens.md 3.5）', () => {
 		expect(legTexts(wrapper)[0]).toContain('X鉄甲駅 → X鉄乙駅');
 		expect(legTexts(wrapper)[0]).toContain('640円');
 		expect(wrapper.find('[data-testid="total"]').text()).toBe('1,060円');
-		// 金額の入力欄は無い（F-20）
-		expect(wrapper.findAll('input[type="number"]')).toHaveLength(0);
+		// 区間の並びに運賃の入力欄は無い（F-20）
+		expect(wrapper.find('[data-testid="legs"]').findAll('input')).toHaveLength(0);
 		// 往復なので復路は出ない
 		expect(wrapper.find('[data-testid="return"]').exists()).toBe(false);
 

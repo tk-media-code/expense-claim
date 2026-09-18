@@ -21,7 +21,7 @@ async function upload(file: File) {
 	uploading.value = true;
 	try {
 		const body = new FormData();
-		body.append('amount', amount.value);
+		body.append('amount', toHalfWidthDigits(amount.value));
 		body.append('receipt', file);
 		await api<TaxiRide>(`/projects/${props.projectId}/taxi-rides`, { method: 'POST', body });
 		amount.value = '';
@@ -109,11 +109,12 @@ async function remove(ride: TaxiRide) {
 			<!-- 1回ずつ。金額は領収書に書いてある数字を写すだけ（2.2） -->
 			<div class="space-y-2">
 				<UFormField label="金額（円）">
+					<!-- type="number" にしない。フォーカスのある欄の上でホイールを回すと値が変わる（utils/digits.ts） -->
 					<UInput
 						v-model="amount"
-						type="number"
+						type="text"
 						inputmode="numeric"
-						min="0"
+						pattern="[0-9]*"
 						class="w-full"
 						placeholder="1800"
 						data-testid="taxi-amount"
