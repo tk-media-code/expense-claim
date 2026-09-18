@@ -17,7 +17,7 @@ const value = defineModel<ProjectFormValue>({ required: true });
 		<UFormField label="会場">
 			<USelectMenu
 				v-model="value.venueCode"
-				:items="venues.map((venue) => ({ id: venue.code, label: `${venue.code} ${venue.name}` }))"
+				:items="venues.map((venue) => ({ id: venue.code, label: venueLabel(venue) }))"
 				value-key="id"
 				label-key="label"
 				placeholder="会場を選ぶ"

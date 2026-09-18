@@ -28,7 +28,7 @@ const stations = computed(() => stationsFetch.data.value?.stations ?? []);
 const venueItems = computed(() =>
 	(venuesFetch.data.value?.venues ?? []).map((venue) => ({
 		id: venue.id,
-		label: `${venue.code} ${venue.name}`,
+		label: venueLabel(venue),
 	})),
 );
 

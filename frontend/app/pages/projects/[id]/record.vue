@@ -135,7 +135,7 @@ async function save() {
 				variant="subtle"
 				icon="i-lucide-map-pin-off"
 				title="ルートが登録されていません"
-				:description="`${view.project.venueName}（${view.project.venueCode}）にルートが無いので、交通費を記録できない。先に会場とルートで登録する。`"
+				:description="`${venueLabel({ code: view.project.venueCode, name: view.project.venueName })} にルートが無いので、交通費を記録できない。先に会場とルートで登録する。`"
 				:actions="[
 					{ label: '会場とルートを開く', to: '/venues', color: 'warning', variant: 'solid' },
 				]"
