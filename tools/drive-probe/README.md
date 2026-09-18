@@ -42,7 +42,7 @@
 ## 準備
 
 ```bash
-# .env に DRIVE_PROBE_FOLDER_ID を足す（手で作った検証用フォルダのID）
+# .env.example の DRIVE_PROBE_FOLDER_ID に、手で作った検証用フォルダのIDを入れる
 npm --prefix tools/drive-probe install
 ```
 

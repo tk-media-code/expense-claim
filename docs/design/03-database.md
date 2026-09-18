@@ -88,7 +88,7 @@ erDiagram
     }
     imported_mails {
         varchar id PK "Gmail の message id"
-        enum result "project / no_request / parse_failed"
+        enum result "project / no_request / unrelated / parse_failed"
         datetime processed_at
     }
     projects {
@@ -332,10 +332,13 @@ erDiagram
 **`UNIQUE` を張るのは、同じ駅ペアに運賃を2つ持たせないためである。**
 2つあると、**どちらが正か決まらない。** 実額とずれたら**この運賃そのものを直す**（F-37 / R-23）。
 
-**逆向きの区間は登録しない。** ルートは「自宅→会場」の1方向で持ち（決定9）、
+**逆向きの区間は登録できない**（決定24）。ルートは「自宅→会場」の1方向で持ち（決定9）、
 出発駅は常に自宅の最寄り駅である（要求分析 10章）。**逆向きが往路に現れることがない。**
 復路は同じ区間を逆順にし、出発駅と到着駅を入れ替えて使う。
 **運賃はその区間の `one_way_fare` をそのまま使う。**
+逆向きを登録できると同じ区間に運賃が2つある状態になるので、`UNIQUE` を張った理由がそのまま当てはまる。
+**`UNIQUE (from_station_id, to_station_id)` は方向付きのままで、向きを問わない一意性は `services` が守る**
+（登録・駅の差し替えで両方向を引く）。利用者は1人で、同時に2つの登録は起きない。
 
 **採らなかった案**
 
@@ -549,7 +552,7 @@ route_segments                ← 区間 1 が3本のルートから参照され
 | --- | --- | --- | --- | --- |
 | `id` | `VARCHAR(64)` | NO | — | **主キー。** Gmail の message id |
 | `thread_id` | `VARCHAR(64)` | YES | NULL | |
-| `result` | `ENUM('project','no_request','parse_failed')` | NO | — | 案件にした／依頼無しで除外／解析に失敗 |
+| `result` | `ENUM('project','no_request','unrelated','parse_failed')` | NO | — | 案件にした／依頼無しで除外／依頼以外のメール（決定23）／解析に失敗 |
 | `internal_date` | `DATETIME` | YES | NULL | Gmail の `internalDate` |
 | `processed_at` | `DATETIME` | NO | — | 処理した日時 |
 
@@ -558,8 +561,9 @@ route_segments                ← 区間 1 が3本のルートから参照され
 **案件を手で削除しても（F-12）、この行は残す**（要件定義 6.3）。
 **残さないと、次に開いたときに同じ案件がまた入ってくる。**
 
-**`result` に「依頼無しで除外」と「解析に失敗」を持つのは、次を飛ばすためである**（要件定義 7.2 手順3・4）。
+**`result` に「依頼無しで除外」「依頼以外のメール」「解析に失敗」を持つのは、次を飛ばすためである**（要件定義 7.2 手順3・4）。
 解析に失敗したメールを毎回読み直しても、**同じ失敗を繰り返して要確認事項が増えるだけになる。**
+依頼以外のメール（`unrelated`）は同じ差出人から毎月届くので（決定23）、読み直せば毎回 Gmail を1本余計に叩く。
 
 #### `sync_state` — 同期状態（単一行）
 

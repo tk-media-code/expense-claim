@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.js';
 
 // スモーク1本。nginx → frontend と nginx → backend の配線が生きていることだけを見る。
 //

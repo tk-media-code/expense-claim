@@ -6,7 +6,26 @@ import { createDatabase, createPool } from './db/client.js';
 
 // 起動処理はこのファイルにだけ置く。テストは app.ts を import する。
 const env = loadEnv();
-const app = createApp({ db: createDatabase(createPool(env.DATABASE_URL)) });
+const app = createApp({
+	db: createDatabase(createPool(env.DATABASE_URL)),
+	config: {
+		sessionSecret: env.SESSION_SECRET,
+		allowedEmail: env.ALLOWED_EMAIL,
+		tokenEncryptionKey: env.TOKEN_ENCRYPTION_KEY,
+		google: {
+			clientId: env.GOOGLE_CLIENT_ID,
+			clientSecret: env.GOOGLE_CLIENT_SECRET,
+			redirectUriLogin: env.GOOGLE_REDIRECT_URI_LOGIN,
+			redirectUriAuthorization: env.GOOGLE_REDIRECT_URI_AUTHORIZATION,
+		},
+		googleStub: env.GOOGLE_STUB,
+		spreadsheetId: env.SPREADSHEET_ID,
+		sheetName: env.MY_SHEET_NAME,
+		gmailSender: env.GMAIL_SENDER,
+		alertTo: env.ALERT_TO,
+		driveFolderId: env.DRIVE_FOLDER_ID,
+	},
+});
 
 serve({ fetch: app.fetch, port: env.PORT, hostname: '0.0.0.0' }, (info) => {
 	console.log(`listening on ${info.address}:${info.port}`);

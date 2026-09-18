@@ -20,3 +20,45 @@ services:
       # 既定値のホスト `mysql` は compose.override.yaml でしか立たない開発用コンテナを指す。
       # 上書きを忘れたまま本番相当で起動した場合は、名前解決に失敗して DB 利用箇所が明示的に落ちる。
       DATABASE_URL: ${DATABASE_URL:-mysql://expense:expense@mysql:3306/expense_claim}
+      # 認証（01-architecture.md 7.3 / 05-integration.md 9章）。本番は .env か環境から渡す。
+      # 空のまま起動すると backend が「環境変数が正しくありません」で落ちる（config/env.ts）。
+      # 開発用の既定値は compose.override.yaml にある
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI_LOGIN: ${GOOGLE_REDIRECT_URI_LOGIN:-}
+      GOOGLE_REDIRECT_URI_AUTHORIZATION: ${GOOGLE_REDIRECT_URI_AUTHORIZATION:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      # 提出シート・領収書・メール（05-integration.md 9章）。空なら、その連携だけが使えない
+      SPREADSHEET_ID: ${SPREADSHEET_ID:-}
+      MY_SHEET_NAME: ${MY_SHEET_NAME:-}
+      DRIVE_FOLDER_ID: ${DRIVE_FOLDER_ID:-}
+      GMAIL_SENDER: ${GMAIL_SENDER:-}
+      ALERT_TO: ${ALERT_TO:-}
+      APP_URL: ${APP_URL:-}
+
+  # 提出アラートの定期実行（01-architecture.md 3.8 / 4.2）。backend と同じイメージを別コマンドで起動し、
+  # 業務ロジックを二重に持たない。毎朝 07:00（JST）に1回走る。HTTP を持たず、外から叩ける入口が無い。
+  # 落ちても起き上がるが、起き上がらなくなったことはホームの「提出アラートが最後に動いた日時」で気づく（06-error-handling.md 7章）
+  scheduler:
+    build:
+      context: ./backend
+    command: ['node', 'dist/scheduler.js']
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Tokyo
+      DATABASE_URL: ${DATABASE_URL:-mysql://expense:expense@mysql:3306/expense_claim}
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      ALLOWED_EMAIL: ${ALLOWED_EMAIL:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI_LOGIN: ${GOOGLE_REDIRECT_URI_LOGIN:-}
+      GOOGLE_REDIRECT_URI_AUTHORIZATION: ${GOOGLE_REDIRECT_URI_AUTHORIZATION:-}
+      TOKEN_ENCRYPTION_KEY: ${TOKEN_ENCRYPTION_KEY:-}
+      SPREADSHEET_ID: ${SPREADSHEET_ID:-}
+      MY_SHEET_NAME: ${MY_SHEET_NAME:-}
+      DRIVE_FOLDER_ID: ${DRIVE_FOLDER_ID:-}
+      GMAIL_SENDER: ${GMAIL_SENDER:-}
+      ALERT_TO: ${ALERT_TO:-}
+      APP_URL: ${APP_URL:-}

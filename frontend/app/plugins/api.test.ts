@@ -71,4 +71,34 @@ describe('$api', () => {
 
 		expect(handler).toHaveBeenCalledTimes(1);
 	});
+
+	// 04-api.md 2.5。401 はログイン画面へ導き、トーストは出さない
+	it('401 はトーストを出さず、ログイン済みの印を落とす', async () => {
+		registerEndpoint('/api/private', (event) => {
+			setResponseStatus(event, 401);
+			return { error: { code: 'UNAUTHENTICATED', message: 'ログインしてください' } };
+		});
+		useAuthenticated().value = true;
+
+		const failure = await useApi()('/private').catch((err: unknown) => err);
+
+		expect(failure).toMatchObject({ code: 'UNAUTHENTICATED', status: 401 });
+		expect(await toastTitles()).not.toContain('ログインしてください');
+		expect(useAuthenticated().value).toBe(false);
+	});
+
+	// F-02。503 は設定の「再認可する」へ導く導線をトーストに添える
+	it('503 GOOGLE_UNAUTHORIZED は設定へ導くトーストを出す', async () => {
+		registerEndpoint('/api/needs-google', (event) => {
+			setResponseStatus(event, 503);
+			return { error: { code: 'GOOGLE_UNAUTHORIZED', message: 'Google との連携が切れています' } };
+		});
+
+		await useApi()('/needs-google').catch(() => undefined);
+
+		const toast = (await grabToast()).toasts.value.find(
+			(t) => t.title === 'Google との連携が切れています',
+		);
+		expect(toast?.actions?.[0]).toMatchObject({ label: '設定を開く', to: '/settings' });
+	});
 });

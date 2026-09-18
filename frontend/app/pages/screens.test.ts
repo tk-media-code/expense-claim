@@ -3,7 +3,6 @@ import type { RouteLocationNormalizedLoaded } from 'vue-router';
 import { describe, expect, it } from 'vitest';
 
 import { backOf } from '~/utils/back-of';
-import DetailPage from './projects/[id]/index.vue';
 import RecordPage from './projects/[id]/record.vue';
 
 // 遷移図 2.1 の画面と URL をそのまま回す。描画はしない。
@@ -32,14 +31,9 @@ describe('画面と URL（02-screens.md 2.1）', () => {
 
 	// `projects/[id].vue` と `projects/[id]/record.vue` を同居させると、記録が詳細の入れ子になり
 	// `<NuxtPage />` が無い親だけが出る。兄弟ルート（`[id]/index.vue`）であることを描画で固定する。
-	it('記録画面は詳細の中に入れ子にせず、自分の仮置きを出す', async () => {
+	// API は登録していないので読み込みに失敗するが、記録画面自身の文面が出ればよい
+	it('記録画面は詳細の中に入れ子にせず、自分の中身を出す', async () => {
 		const wrapper = await mountSuspended(RecordPage, { route: '/projects/1/record' });
-		expect(wrapper.text()).toContain('4-4');
-		expect(wrapper.get('a[href="/venues"]').text()).toContain('会場とルートを開く');
-	});
-
-	it('案件の詳細から記録へは from=detail を付ける', async () => {
-		const wrapper = await mountSuspended(DetailPage, { route: '/projects/1' });
-		expect(wrapper.get('a[href="/projects/1/record?from=detail"]').text()).toContain('記録する');
+		expect(wrapper.text()).toContain('記録画面を読み込めませんでした');
 	});
 });

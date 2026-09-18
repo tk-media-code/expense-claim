@@ -8,6 +8,7 @@
 	},
 	"scripts": {
 		"dev": "tsx watch src/index.ts",
+		"dev:scheduler": "tsx src/scheduler.ts",
 		"build": "tsc -p tsconfig.build.json",
 		"start": "node dist/index.js",
 		"lint": "eslint .",
@@ -24,6 +25,7 @@
 	"dependencies": {
 		"@hono/node-server": "^1.19.0",
 		"drizzle-orm": "^0.45.2",
+		"googleapis": "^180.0.0",
 		"hono": "^4.13.7",
 		"mysql2": "^3.24.4",
 		"zod": "^4.5.4"

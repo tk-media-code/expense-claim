@@ -8,9 +8,26 @@ export default defineNuxtPlugin(() => {
 	const toast = useToast();
 	const { ui } = useAppConfig();
 
+	const authenticated = useAuthenticated();
+	const router = useRouter();
+
 	function notify(err: ApiError) {
-		// 401 はログイン画面へ、503 は設定の「再認可する」へ導く（04-api.md 2.5）。
-		// 行き先の画面ができる Phase 5-6 / 6-5 で、ここに分岐を足す。
+		// 401 はログイン画面へ（04-api.md 2.5）。トーストは出さない。行き先の画面が理由を語る
+		if (err.code === 'UNAUTHENTICATED') {
+			authenticated.value = false;
+			if (router.currentRoute.value.path !== '/login') void navigateTo('/login');
+			return;
+		}
+		// 503 は設定の「再認可する」へ導く（F-02）。トーストにその導線を添える
+		if (err.code === 'GOOGLE_UNAUTHORIZED') {
+			toast.add({
+				title: err.message,
+				color: 'error',
+				icon: ui.icons.error,
+				actions: [{ label: '設定を開く', to: '/settings', color: 'error', variant: 'solid' }],
+			});
+			return;
+		}
 		toast.add({ title: err.message, color: 'error', icon: ui.icons.error });
 	}
 
