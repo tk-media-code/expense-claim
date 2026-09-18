@@ -93,5 +93,27 @@ bash scripts/quality-check.sh
 
 開発の compose は `GOOGLE_STUB=1` で起動し、Google を叩かない開発用の実装（`backend/src/integrations/stub`）に
 差し替わる。ログインは許可アドレスで通したことにしてホームへ戻る。対象月度は今月、提出は書いたことにして何も書かない。
-E2E の提出導線はこれで通る。実物の Google に繋ぐときは `.env` に `GOOGLE_STUB=0` と OAuth・シート等の値を書く。
-本番の `compose.yaml` はこの変数を渡さない。
+E2E の提出導線はこれで通る。本番の `compose.yaml` はこの変数を渡さない。
+
+### 実物の Google に繋いで確かめる
+
+`.env` に OAuth クライアントとシート等の値を書き（[`.env.example`](.env.example)。クライアントの作り方は
+[`docs/google-cloud-basics.md`](docs/google-cloud-basics.md) 13章 ⑦）、`GOOGLE_STUB` は **`.env` に書かずシェルから渡す**。
+
+```bash
+GOOGLE_STUB=0 docker compose up -d      # 実物に繋ぐ
+docker compose up -d                    # 既定（スタブ）に戻す。E2E と品質チェックはこちら
+```
+
+`.env` に `GOOGLE_STUB=0` を書くと、Playwright が立てる compose も実物に繋がり、E2E が本物のシートへ書きに行く。
+
+- **`SPREADSHEET_ID` にはサンドボックス（自分のドライブへの複製）を入れる。** 本番のシートを入れれば本番に書ける。
+  提出の確認画面に出る「書き込み先」の名前で、実行前に確かめる
+- スタブで発行したセッション Cookie は、同じ `SESSION_SECRET` なら実物に切り替えても有効のまま。ログインの入口を
+  確かめるときは Cookie を消すか、設定の「すべての端末からログアウト」を押す
+- 提出アラートは 1 日と 3 日の朝にしか送らないので、送る側を確かめるときは日付を与えて1回だけ走らせる。
+  走ったあと `sync_state` の `last_alert_sent_on` と `last_cron_run_at` はその日付になるので、戻すか scheduler を再起動する
+
+```bash
+GOOGLE_STUB=0 docker compose run --rm scheduler npm run dev:scheduler -- --at=2026-10-01
+```
