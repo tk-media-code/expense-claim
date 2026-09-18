@@ -39,7 +39,7 @@ async function submit() {
 		<template #body>
 			<form class="space-y-4" @submit.prevent="submit">
 				<UFormField label="駅名">
-					<UInput v-model="name" class="w-full" placeholder="X鉄辛駅" autofocus />
+					<UInput v-model="name" class="w-full" placeholder="XX鉄〇〇駅" autofocus />
 				</UFormField>
 				<UButton type="submit" :loading="saving" block>登録する</UButton>
 			</form>

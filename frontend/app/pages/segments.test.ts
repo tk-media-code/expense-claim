@@ -381,7 +381,7 @@ describe('区間タブ', () => {
 		expect(sheetText()).toContain('駅を登録');
 
 		const nameInput = [...document.body.querySelectorAll('input')].find(
-			(input) => input.placeholder === 'X鉄辛駅',
+			(input) => input.placeholder === 'XX鉄〇〇駅',
 		);
 		if (!nameInput) throw new Error('駅名の入力欄が見つからない');
 		nameInput.value = 'X鉄辛駅';
