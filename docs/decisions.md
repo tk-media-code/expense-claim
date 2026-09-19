@@ -360,7 +360,7 @@ Google のウェブアプリ型 OAuth クライアントは、リダイレクト
 
 スタブは開発用の実装で、Google へ行かずに許可アドレス本人として通す。ログイン〜各画面〜RDS の読み書き〜
 提出アラートの起動まではスタブのまま確かめられる。実物の Google との連携はローカルで
-`GOOGLE_STUB=0` にして確かめている（README「実物の Google に繋いで確かめる」）。
+`GOOGLE_STUB=0` にして確かめている（[`07-development.md`](design/07-development.md) 2.9）。
 
 スタブは誰でもログインできるので、80 番の許可元を自分の IP に絞る（`infra/variables.tf` の `http_allowed_cidrs`。
 `0.0.0.0/0` は指定できない）。
