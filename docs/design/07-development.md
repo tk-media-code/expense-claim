@@ -5,7 +5,8 @@
 この文書は、交通費精算アプリを **どう起動し、どう品質を保つか** を決めたものである。
 設計フェーズの7本目で、実装に入る前の **環境構築の結論** を置く。
 
-- **扱うこと** — 開発サーバの起動、Lint / Format / 型チェック、テストの方針、CI の分担、ログの出し方
+- **扱うこと** — 開発サーバの起動、環境変数、マイグレーション、Google 連携の切り替え、
+  Lint / Format / 型チェック、テストの方針、CI の分担、ログの出し方
 - **扱わないこと** — 画面の項目定義（[`02-screens.md`](02-screens.md)）、API の詳細（[`04-api.md`](04-api.md)）
 - **前提** — [`01-architecture.md`](01-architecture.md) の技術選定
 
@@ -24,10 +25,15 @@ docker compose up
 | nginx | `nginx/dev.conf` を bind mount。`/` は frontend:3000 へ proxy（HMR 対応）、`/api/` は backend:3000 へ | 載る |
 | frontend | Nuxt dev サーバ。ソースを bind mount | **載らない。** 実行時はただのファイルで、nginx が配る |
 | backend | `tsx watch` でホットリロード。ソースを bind mount | 載る |
+| scheduler | `npm run dev:scheduler`。起動時に1回走り、以後は毎朝 07:00（JST）まで眠る | 載る |
 | mysql | ホストから `127.0.0.1:3306` で接続可能（テスト用） | **載らない。** 本番は RDS |
 | cloudbeaver | `http://127.0.0.1:8978/` から DB の中身を見る | **載らない。** ローカル専用 |
 
 **URL は本番と同じ `http://localhost:8080`** である。パスで `/api/` と `/` を nginx が振り分ける。
+
+**CloudBeaver は初回だけ画面で設定する。** `http://127.0.0.1:8978/` を開いて管理者ユーザーを作り、
+MySQL 接続を追加する。**ホストは `mysql`、ポートは `3306`** である（ホスト側のポートではなく、
+compose ネットワークのサービス名で繋ぐ）。
 
 **実行時に本番へ載らないものは `compose.override.yaml` に置く**（[`01-architecture.md`](01-architecture.md) 4.2）。
 frontend / mysql / cloudbeaver の3つが該当する。
@@ -52,7 +58,7 @@ docker compose -f compose.yaml up --build
 `-f compose.yaml` を明示し、`compose.override.yaml` を読まない。
 nginx イメージが frontend を `nuxt generate` して静的配信する。
 
-**立つのは `nginx` と `backend` の2つだけである。** mysql も cloudbeaver も開発専用なので上がらない。
+**立つのは `nginx` / `backend` / `scheduler` の3つである。** mysql も cloudbeaver も開発専用なので上がらない。
 **これが EC2 で動くものと同じ構成である**（[`01-architecture.md`](01-architecture.md) 6.1 の縛り1）。
 
 `DATABASE_URL` を渡さなければ backend は DB へ到達できない。**起動そのものは通る**
@@ -89,6 +95,74 @@ Nuxt は起動のたびに `.nuxt/` を書き直すので、次にホストで `
 docker compose down
 docker volume rm expense-claim_frontend_node_modules expense-claim_backend_node_modules
 docker compose up -d --build
+```
+
+### 2.6 データベースのマイグレーション
+
+```bash
+cd backend && npm run db:generate    # スキーマから SQL を生成する
+cd backend && npm run db:migrate     # expense_claim へ適用する
+```
+
+`db:generate` は `src/db/schema.ts` との差分から SQL を作り、`db:migrate` がそれを適用する。
+**生成された SQL は `backend/drizzle/` にコミットする**（[`03-database.md`](03-database.md) 10.2）。
+**手で書き換えない。**
+
+どちらも **コンテナの中ではなくホストの Node.js で走る**（2.1）。既定の接続先は `127.0.0.1:3306` である。
+EC2 では `scripts/deploy.sh --migrate` が backend コンテナの中で同じものを走らせる
+（[`infra/README.md`](../../infra/README.md)）。
+
+### 2.7 環境変数
+
+**`.env` は無くてよい。** compose の既定値（データベース名 `expense_claim`、
+ユーザー / パスワード `expense`）で起動する。変えるときは [`.env.example`](../../.env.example) を
+`.env` にコピーして実値を入れる。**本番の値は入れない。**
+
+アプリが読む変数は [`05-integration.md`](05-integration.md) 9章と `backend/src/config/env.ts` が正本。
+開発では `compose.override.yaml` の既定値で動く。
+**本番では `DATABASE_URL` / `SESSION_SECRET` / `ALLOWED_EMAIL` / `TOKEN_ENCRYPTION_KEY` が必須である。**
+
+`SPREADSHEET_ID` 以降が空でも起動し、**その連携（取り込み・提出・領収書・アラート）だけが使えない。**
+
+### 2.8 GOOGLE_STUB — Google を叩かずに開発する
+
+開発の compose は `GOOGLE_STUB=1` で起動し、Google を叩かない開発用の実装
+（`backend/src/integrations/stub`）に差し替わる。外部連携をインターフェースで包んである
+（[`01-architecture.md`](01-architecture.md) 5.3）ので、**差し替えは `app.ts` の `createApp` と
+`alert-runner.ts` の2か所で済み、業務ロジックには触らない。**
+
+- ログインは許可アドレスで通したことにしてホームへ戻る
+- 対象月度は今月。提出は書いたことにして何も書かない
+- 依頼メールの取り込みは常に0件。領収書は読み捨てて URL だけ返す
+
+**E2E の提出導線はこれで通る。本番の `compose.yaml` はこの変数を渡さない。**
+AWS の確認環境は HTTPS もドメインも持たないため、そちらは意図的に `GOOGLE_STUB=1` で動かす
+（[決定26](../decisions.md#決定26--aws-の確認環境) / [`infra/README.md`](../../infra/README.md)）。
+
+### 2.9 実物の Google に繋いで確かめる
+
+[`.env.example`](../../.env.example) を `.env` にコピーして OAuth クライアントとシート等の値を書く
+（クライアントの作り方は [`google-cloud-basics.md`](../google-cloud-basics.md) 13章 ⑦）。
+`GOOGLE_STUB` は **`.env` に書かず、シェルから渡す。**
+
+```bash
+GOOGLE_STUB=0 docker compose up -d      # 実物に繋ぐ
+docker compose up -d                    # 既定（スタブ）に戻す。E2E と品質チェックはこちら
+```
+
+**`.env` に `GOOGLE_STUB=0` を書いてはいけない。** Playwright が立てる compose も実物に繋がり、
+**E2E が本物のシートへ書きに行く。**
+
+- **`SPREADSHEET_ID` にはサンドボックス（自分のドライブへの複製）を入れる。**
+  本番のシートを入れれば本番に書ける。提出の確認画面に出る「書き込み先」の名前で、実行前に確かめる
+- スタブで発行したセッション Cookie は、同じ `SESSION_SECRET` なら実物に切り替えても有効のまま。
+  ログインの入口を確かめるときは Cookie を消すか、設定の「すべての端末からログアウト」を押す
+- 提出アラートは1日と3日の朝にしか送らない。送る側を確かめるときは**日付を与えて1回だけ走らせる。**
+  走ったあと `sync_state` の `last_alert_sent_on` と `last_cron_run_at` はその日付になるので、
+  戻すか scheduler を再起動する
+
+```bash
+GOOGLE_STUB=0 docker compose run --rm scheduler npm run dev:scheduler -- --at=2026-10-01
 ```
 
 ## 3. ツールチェーン
@@ -132,6 +206,19 @@ docker compose up -d --build
 | API 統合 | backend の routes / repositories | compose の MySQL **`expense_claim_test`** スキーマ |
 | コンポーネント | frontend（`@nuxt/test-utils`） | — |
 | E2E | リポジトリ直下の `e2e/`（Playwright） | compose 全体を nginx 越しに叩く |
+
+**走らせ方。**
+
+```bash
+cd backend  && npm test        # unit と integration。integration は MySQL が要る
+cd frontend && npm test        # コンポーネント（@nuxt/test-utils）
+cd e2e      && npm test        # Playwright。nginx 越しにスタック全体を叩く
+```
+
+`backend` の integration は、走るたびに `expense_claim_test` スキーマを冪等に作り直す（4.1）。
+事前準備は要らないが、**MySQL は起きている必要がある**（`docker compose up -d mysql --wait`）。
+
+Playwright のブラウザが無いと言われたら `cd e2e && npx playwright install chromium`。`sudo` は要らない。
 
 **DB テストは compose の MySQL に test スキーマを使う。** Testcontainers は起動が遅い。
 SQLite は `utf8mb4_ja_0900_as_cs` を検証できない。モックは SQL の誤りを捕まえられない。
