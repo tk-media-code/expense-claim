@@ -1,0 +1,2 @@
+DELETE FROM `attentions` WHERE `kind` = 'month_rolled_over_unsubmitted';--> statement-breakpoint
+ALTER TABLE `attentions` MODIFY COLUMN `kind` enum('mail_parse_failed','venue_code_unknown','sheet_unreachable','drive_upload_failed','rows_inserted','alert_send_failed') NOT NULL;

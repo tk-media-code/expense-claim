@@ -5,7 +5,6 @@ export type AttentionKind =
 	| 'sheet_unreachable'
 	| 'drive_upload_failed'
 	| 'rows_inserted'
-	| 'month_rolled_over_unsubmitted'
 	| 'alert_send_failed';
 
 export type Attention = {
@@ -18,13 +17,12 @@ export type Attention = {
 	checkedAt: string | null;
 };
 
-/** 02-screens.md 3.10 の7種。種別を足すときはバックエンドの kind と一緒に足す（06-error-handling.md 1章） */
+/** 02-screens.md 3.10 の6種。種別を足すときはバックエンドの kind と一緒に足す（06-error-handling.md 1章） */
 export const ATTENTION_KIND_LABELS: Record<AttentionKind, string> = {
 	mail_parse_failed: 'メールの解析に失敗',
 	venue_code_unknown: '会場コードがマスタに無い',
 	sheet_unreachable: '提出シートへアクセスできない',
 	drive_upload_failed: 'ドライブへの保存に失敗',
 	rows_inserted: '行を挿入した',
-	month_rolled_over_unsubmitted: '提出せずに月度が切り替わった',
 	alert_send_failed: '提出アラートを送れなかった',
 };

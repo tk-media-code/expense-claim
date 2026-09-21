@@ -8,7 +8,7 @@ export type SyncWarning = { code: string; message: string };
 export type SyncResult = {
 	/** 今回読めた対象月度。読めなければ null（前回の値は sync_state に残る） */
 	targetMonth: TargetMonth | null;
-	/** 月度が切り替わったか（F-32）。11-8 で削除と要確認事項が乗る */
+	/** 月度が切り替わったか（F-32）。切り替わっていれば、切替先より前の実績は消えている */
 	rolledOver: boolean;
 	/** 取り込んだ案件の数。9-4 で実値になる */
 	importedCount: number;
