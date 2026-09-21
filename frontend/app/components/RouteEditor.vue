@@ -126,7 +126,7 @@ async function save() {
 
 		<div class="space-y-3">
 			<div class="flex items-center justify-between gap-2">
-				<h2 class="font-semibold">区間の並び</h2>
+				<h2 class="font-semibold">区間の並び（自宅→会場）</h2>
 				<span class="text-muted text-sm">片道 {{ oneWayTotal.toLocaleString() }}円</span>
 			</div>
 

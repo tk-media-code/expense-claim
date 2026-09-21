@@ -303,7 +303,7 @@ describe('区間タブ', () => {
 
 		await page.findAll('ul li button')[1]?.trigger('click');
 		await nextTick();
-		await pickStation(page, '到着駅', 3);
+		await pickStation(page, '到着駅（会場側）', 3);
 		buttonWith('この内容で直す').click();
 		await vi.waitFor(() =>
 			expect(segmentPut).toHaveBeenCalledWith(11, {
@@ -331,8 +331,8 @@ describe('区間タブ', () => {
 		await pageButton(page, '区間を追加').trigger('click');
 		await nextTick();
 		expect(sheetText()).toContain('区間を追加');
-		await pickStation(page, '出発駅', 2);
-		await pickStation(page, '到着駅', 3);
+		await pickStation(page, '出発駅（自宅側）', 2);
+		await pickStation(page, '到着駅（会場側）', 3);
 		await type('500', 'input[inputmode="numeric"]');
 		buttonWith('登録する').click();
 		await vi.waitFor(() =>
@@ -353,8 +353,8 @@ describe('区間タブ', () => {
 
 		await pageButton(page, '区間を追加').trigger('click');
 		await nextTick();
-		await pickStation(page, '出発駅', 1);
-		await pickStation(page, '到着駅', 3);
+		await pickStation(page, '出発駅（自宅側）', 1);
+		await pickStation(page, '到着駅（会場側）', 3);
 		await type('320', 'input[inputmode="numeric"]');
 		buttonWith('登録する').click();
 		await vi.waitFor(() => expect(segmentPosted).toHaveBeenCalled());
@@ -373,7 +373,7 @@ describe('区間タブ', () => {
 		await type('500', 'input[inputmode="numeric"]');
 
 		const addStation = [...document.body.querySelectorAll('button')].find(
-			(button) => button.getAttribute('aria-label') === '出発駅を登録',
+			(button) => button.getAttribute('aria-label') === '出発駅（自宅側）を登録',
 		);
 		if (!addStation) throw new Error('出発駅を登録するボタンが見つからない');
 		addStation.click();
@@ -397,7 +397,7 @@ describe('区間タブ', () => {
 		// 登録した駅（id 4）が出発駅に選ばれ、打ちかけの運賃は残っている
 		const from = page
 			.findAllComponents({ name: 'StationPicker' })
-			.find((component) => component.props('label') === '出発駅');
+			.find((component) => component.props('label') === '出発駅（自宅側）');
 		await vi.waitFor(() => expect(from?.props('modelValue')).toBe(4));
 		expect(sheetInput('input[inputmode="numeric"]').value).toBe('500');
 	});

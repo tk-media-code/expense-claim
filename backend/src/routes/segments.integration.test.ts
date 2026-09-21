@@ -180,8 +180,8 @@ describe('POST /api/segments', () => {
 		await expect(list()).resolves.toEqual([expect.objectContaining({ oneWayFare: 320 })]);
 	});
 
-	// 決定24。区間は向きを持たない。逆向きも同じ区間で、文面で逆向きと言う
-	it('逆向きの駅ペアを登録すると 409 を返し、逆向きだと分かる文面になる', async () => {
+	// 決定28。区間は「自宅→会場」の向きで1つだけ持ち、逆向きは同じ区間。文面でその規則を言う
+	it('逆向きの駅ペアを登録すると 409 を返し、向きの規則が分かる文面になる', async () => {
 		const from = await createStation('X鉄甲駅');
 		const to = await createStation('X鉄乙駅');
 		await createSegment(from, to, 320);
@@ -193,6 +193,7 @@ describe('POST /api/segments', () => {
 		const body = (await res.json()) as { error: { code: string; message: string } };
 		expect(body.error.code).toBe('SEGMENT_DUPLICATED');
 		expect(body.error.message).toContain('逆向き');
+		expect(body.error.message).toContain('自宅→会場');
 		await expect(list()).resolves.toHaveLength(1);
 	});
 

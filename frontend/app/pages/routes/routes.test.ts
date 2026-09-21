@@ -204,10 +204,10 @@ describe('/routes/new', () => {
 
 		const from = wrapper
 			.findAllComponents({ name: 'StationPicker' })
-			.find((c) => c.props('label') === '出発駅');
+			.find((c) => c.props('label') === '出発駅（自宅側）');
 		const to = wrapper
 			.findAllComponents({ name: 'StationPicker' })
-			.find((c) => c.props('label') === '到着駅');
+			.find((c) => c.props('label') === '到着駅（会場側）');
 		from?.vm.$emit('update:modelValue', 5);
 		to?.vm.$emit('update:modelValue', 6);
 		const fare = document.body.querySelector<HTMLInputElement>('input[inputmode="numeric"]');
