@@ -1,5 +1,6 @@
 // 区間。domain はどの層にも依存しない（01-architecture.md 5.2）。
 //
+// 「自宅→会場」の向きで持つ片道のデータで、from が自宅側・to が会場側（決定9 / 決定28）。
 // created_at / updated_at は持たない。障害を追うための列で、業務ロジックは見ない（03-database.md 4.3）。
 // 駅名を持つのは、画面が「出発駅名 → 到着駅名」を出すのに駅一覧と突き合わせずに済ませるため
 // （02-screens.md 3.8）。書き方は 04-api.md 5.2 の legs（fromStationName / toStationName）と同じ。

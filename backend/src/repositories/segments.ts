@@ -74,7 +74,8 @@ export function createSegmentsRepository(db: Database) {
 
 		// 重複の先読み用（03-database.md 10.2。UNIQUE をアプリ側検証の代わりにしない）。
 		// id を返すのは、1-7 の PUT が「判定から自分自身を除く」ため（04-api.md 4.7）。
-		// UNIQUE (from, to) は順序付きなので、逆向きの駅ペアは別の区間である
+		// UNIQUE (from, to) は順序付きで、逆向きの駅ペアはここでは別の行として引ける。逆向きも同じ区間として
+		// 弾く（決定28）のは services で、両方向を引いて守る
 		async findIdByStationPair(fromStationId: number, toStationId: number): Promise<number | null> {
 			const rows = await db
 				.select({ id: segments.id })

@@ -56,13 +56,13 @@ async function submit() {
 			<form class="space-y-4" @submit.prevent="submit">
 				<StationPicker
 					v-model="fromStationId"
-					label="出発駅"
+					label="出発駅（自宅側）"
 					:stations="stations"
 					@stations-changed="emit('stationsChanged')"
 				/>
 				<StationPicker
 					v-model="toStationId"
-					label="到着駅"
+					label="到着駅（会場側）"
 					:stations="stations"
 					@stations-changed="emit('stationsChanged')"
 				/>
