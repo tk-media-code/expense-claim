@@ -191,7 +191,7 @@ describe('POST /api/venues/import（F-13）', () => {
 		expect(res.status).toBe(503);
 	});
 
-	// F-32 / 03-database.md 6.3。切替先より前で、かつ提出が済んだ月度だけを消す。片方でも欠けたら消さない
+	// F-32 / 決定27 / 03-database.md 6.3。切替先より前の月度を、提出の有無を問わず消す。切替先以降は残す
 	describe('POST /api/sync（月度切替の削除）', () => {
 		async function addProject(
 			request: ReturnType<typeof createAuthedApp>['request'],
@@ -210,7 +210,7 @@ describe('POST /api/venues/import（F-13）', () => {
 			});
 		}
 
-		it('切り替わりを検知すると、提出済みの前月度の案件を消し、未提出の月度は残して要確認事項に出す', async () => {
+		it('切り替わりを検知すると、切替先より前の案件を提出の有無を問わず消し、要確認事項には積まない', async () => {
 			const august = createAuthedApp(
 				db,
 				undefined,
@@ -246,30 +246,28 @@ describe('POST /api/venues/import（F-13）', () => {
 				warnings: [
 					{
 						code: 'TARGET_MONTH_ROLLED_OVER',
-						message: expect.stringContaining('1件を消しました') as unknown,
+						message: expect.stringContaining('前の月度の案件2件を消しました') as unknown,
 					},
 				],
 			});
 
-			// 8月度は消え、7月度（未提出）と9月度（これから稼働）は残る
+			// 7月度（未提出）も8月度（提出済み）も消え、9月度（これから稼働）だけ残る
 			const home = (await (await september.request('/api/home')).json()) as {
-				months: { month: string }[];
+				months: { month: string; projects: { projectNo: string }[] }[];
 			};
 			expect(home.months.map((m) => m.month)).toEqual(['2026-09']);
-			const all = (await (await september.request('/api/projects/1')).json()) as {
-				projectNo?: string;
-			};
-			expect(all.projectNo).toBe('100000011');
+			expect(home.months[0]?.projects.map((p) => p.projectNo)).toEqual(['100000001']);
+			expect((await september.request('/api/projects/1')).status).toBe(404);
+			expect((await september.request('/api/projects/2')).status).toBe(404);
+			expect((await september.request('/api/projects/3')).status).toBe(200);
 
+			// 未提出のまま切り替わった分は要確認事項に積まない（決定27）。本人がすることは「手で入力する」で変わらない
 			const attentions = (await (
 				await september.request('/api/attentions?checked=false')
 			).json()) as {
 				attentions: { kind: string; detail: string }[];
 			};
-			expect(attentions.attentions.map((a) => a.kind)).toEqual(['month_rolled_over_unsubmitted']);
-			expect(attentions.attentions[0]?.detail).toContain('2026年7月度の案件1件');
-			// 9月度（切替先以降）は要確認事項に出ない。毎月の切替で誤検知が上がらない
-			expect(attentions.attentions[0]?.detail).not.toContain('9月度の案件');
+			expect(attentions.attentions).toEqual([]);
 		});
 
 		it('同じ月度を読み直しただけなら何も消さない', async () => {

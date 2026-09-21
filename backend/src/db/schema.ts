@@ -336,14 +336,13 @@ export const attentions = mysqlTable(
 	'attentions',
 	{
 		id: int('id', { unsigned: true }).autoincrement().primaryKey(),
-		// 7種（06-error-handling.md 3.1）。種別を足すときは画面の表も一緒に足す
+		// 6種（06-error-handling.md 3.1）。種別を足すときは画面の表も一緒に足す
 		kind: mysqlEnum('kind', [
 			'mail_parse_failed',
 			'venue_code_unknown',
 			'sheet_unreachable',
 			'drive_upload_failed',
 			'rows_inserted',
-			'month_rolled_over_unsubmitted',
 			'alert_send_failed',
 		]).notNull(),
 		detail: text('detail').notNull(),

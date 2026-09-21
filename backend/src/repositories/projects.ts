@@ -1,7 +1,7 @@
-import { and, asc, eq, exists, gte, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, lt } from 'drizzle-orm';
 
 import type { Database } from '../db/client.js';
-import { projects, submissions } from '../db/schema.js';
+import { projects } from '../db/schema.js';
 import { AppError } from '../domain/app-error.js';
 import {
 	firstDayOf,
@@ -77,33 +77,12 @@ export function createProjectsRepository(db: Database) {
 			return rows.map(toProject);
 		},
 
-		// 月度切替の削除（F-32 / 03-database.md 6.3）。切替先より前で、かつ提出が済んだ月度の案件だけを消す。
+		// 月度切替の削除（F-32 / 03-database.md 6.3）。切替先より前の月度の案件を、提出の有無を問わず消す（決定27）。
+		// 切替先以降（これから稼働する案件）は残る。
 		// 子（記録・区間の行・乗車・領収書）は CASCADE で落ちる。1文なのでトランザクションを開かない（06-error-handling.md 6.4）
-		async deleteSubmittedBefore(target: TargetMonth): Promise<number> {
-			const result = await db.delete(projects).where(
-				and(
-					lt(projects.serviceDate, firstDayOf(target)),
-					exists(
-						db
-							.select({ one: sql`1` })
-							.from(submissions)
-							.where(
-								sql`${submissions.targetMonth} = date_format(${projects.serviceDate}, '%Y-%m-01')`,
-							),
-					),
-				),
-			);
+		async deleteBefore(target: TargetMonth): Promise<number> {
+			const result = await db.delete(projects).where(lt(projects.serviceDate, firstDayOf(target)));
 			return result[0].affectedRows;
-		},
-
-		// 切替先より前に残った案件（提出していない月度）。要確認事項に出す（F-32 / 02-screens.md 4.4）
-		async listBefore(target: TargetMonth): Promise<Project[]> {
-			const rows = await db
-				.select(columns)
-				.from(projects)
-				.where(lt(projects.serviceDate, firstDayOf(target)))
-				.orderBy(asc(projects.serviceDate), asc(projects.projectNo), asc(projects.id));
-			return rows.map(toProject);
 		},
 
 		// 提出（F-28 / 03-database.md 9.1）。対象月度の案件だけを、施行日の昇順・案件番号の昇順で
