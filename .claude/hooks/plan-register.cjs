@@ -3,8 +3,16 @@
 // 変更したい場合はこのファイルを直接編集してよい（以後このファイルは上書きされません）
 'use strict';
 
-// Claude Code の PostToolUse フック（matcher: ExitPlanMode）。
-// 確定したプランを scripts/plan-store.cjs の台帳に載せる。
+// Claude Code の PostToolUse フック（matcher: ExitPlanMode）。2つの仕事をする。
+//
+//   1. 確定したプランを scripts/plan-store.cjs の台帳に載せる
+//   2. 「次は Issue を作る」をその場で文脈へ差し込む
+//
+// 2 は Issue 駆動の継ぎ目にあたる。プランが確定した直後は、そのまま実装へ入りたく
+// なる瞬間で、ルール文書を読んでいても飛ばされやすい。**プラン確定という出来事に
+// 紐付けて差し込む**ことで、忘れようのない位置に置いている。
+// ブランチ作成そのものは guard-core.cjs が Issue 番号で機械的に止めるので、
+// ここは「止める」のではなく「順番を思い出させる」役割。
 //
 // ExitPlanMode の tool_input には planFilePath が入る（normalizeToolInput が注入する）。
 // これが取れれば「このセッションのプランはどれか」を推測なしに確定できる。
@@ -19,6 +27,15 @@ const path = require('node:path');
 
 // このファイルは <repo>/.claude/hooks/ に置かれる。
 const STORE = path.resolve(__dirname, '..', '..', 'scripts', 'plan-store.cjs');
+
+const NEXT_STEP = [
+	'プランを記録しました。**実装に入る前に Issue を作ります。**',
+	'',
+	'`creating-issues` スキルを使って、このプランを Issue に起こし、ユーザーの承認を得てから',
+	'`gh issue create` してください。ブランチはそのあと、Issue 番号を含む名前で切ります。',
+	'',
+	'Issue 番号を含まないブランチは hook が作成を拒否します。',
+].join('\n');
 
 function latestPlan(cwd) {
 	const dir = path.join(cwd, 'plans');
@@ -43,18 +60,29 @@ process.stdin.on('data', (chunk) => {
 process.stdin.on('end', () => {
 	// 以降どこで失敗しても黙って諦める（fail-open）。
 	// プランの整理に失敗することより、hook が壊れて作業が止まることのほうが被害が大きい。
+	let cwd;
 	try {
 		const payload = JSON.parse(input);
 		if (payload.tool_name && payload.tool_name !== 'ExitPlanMode') return;
 
-		const cwd = payload.cwd || process.cwd();
+		cwd = payload.cwd || process.cwd();
 		const file = (payload.tool_input && payload.tool_input.planFilePath) || latestPlan(cwd);
-		if (!file) return;
+		if (file) execFileSync('node', [STORE, 'register', file], { cwd, stdio: 'ignore' });
+	} catch {
+		// 台帳への記録に失敗しても、次の手順の案内だけは出す。
+		// 記録漏れはあとから gc / link が拾えるが、順番を飛ばされるのは取り返しがつかない。
+	}
 
-		execFileSync('node', [STORE, 'register', file], { cwd, stdio: 'ignore' });
+	try {
+		process.stdout.write(
+			`${JSON.stringify({
+				hookSpecificOutput: {
+					hookEventName: 'PostToolUse',
+					additionalContext: NEXT_STEP,
+				},
+			})}\n`,
+		);
 	} catch {
 		// 何も出力しない。
-		// 通過時に沈黙するのは、グローバル設定の他フックと並行実行されるため
-		// （余計な出力で解釈が競合しないようにする）。
 	}
 });

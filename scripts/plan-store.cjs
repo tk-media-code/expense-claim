@@ -8,7 +8,6 @@
 //   register <plan-file> [branch]   プランを台帳に載せる
 //   link <branch>                   未紐付けのプランを <branch> に紐付ける
 //   gc                              紐付いたブランチが消えたプランを消す
-//   mirror <src-dir> <since-ms>     外部ディレクトリのプランを取り込む（Cursor 用）
 //   status                          台帳の中身を表示する
 //
 // 消すのは「紐付いたブランチがもう存在しない」プランだけ。
@@ -172,7 +171,7 @@ function cmdLink(root, branch) {
 	}
 
 	// 台帳に候補が無ければ、plans/ の中で最後に触られたファイルへフォールバックする。
-	// 登録 hook が効いていない環境（Cursor だけ・hook 未配布）でも紐付けを成立させるため。
+	// 登録 hook が効いていない環境（hook 未配布・人が端末で切った）でも紐付けを成立させるため。
 	if (!best) {
 		for (const key of planFiles(root)) {
 			if (index.plans[key]) continue;
@@ -235,64 +234,6 @@ function cmdGc(root) {
 	if (removed.length) process.stdout.write(`[plan-store] 削除: ${removed.join(', ')}\n`);
 }
 
-// 外部ディレクトリ（~/.cursor/plans）から、指定時刻より後に触られたプランを取り込む。
-// Cursor は保存先を変えられず、プロジェクト横断の共通置き場に書くため、
-// mtime による近似でしか「このプロジェクトのプラン」を判定できない。
-function cmdMirror(root, srcDir, sinceMs) {
-	const since = Number(sinceMs);
-	if (!srcDir || !Number.isFinite(since)) return;
-
-	let entries;
-	try {
-		entries = fs.readdirSync(srcDir, { withFileTypes: true });
-	} catch {
-		return;
-	}
-
-	const index = readIndex(root);
-	const branch = currentBranch();
-	const linked = branch && WORK_BRANCH.test(branch) ? branch : null;
-	const taken = [];
-	let changed = false;
-
-	for (const entry of entries) {
-		if (!entry.isFile() || !entry.name.endsWith('.md') || entry.name.startsWith('.')) continue;
-		const src = path.join(srcDir, entry.name);
-
-		let content;
-		try {
-			if (fs.statSync(src).mtimeMs <= since) continue;
-			content = fs.readFileSync(src);
-		} catch {
-			continue;
-		}
-
-		const dst = path.join(plansDir(root), entry.name);
-		try {
-			// 同じ内容なら書き戻さない。mtime を動かすと次回の判定が濁る。
-			if (fs.existsSync(dst) && fs.readFileSync(dst).equals(content)) continue;
-			fs.mkdirSync(plansDir(root), { recursive: true });
-			fs.writeFileSync(dst, content);
-		} catch {
-			continue;
-		}
-
-		if (!index.plans[entry.name]) {
-			index.plans[entry.name] = {
-				branch: linked,
-				tool: 'cursor',
-				registeredAt: new Date().toISOString(),
-				linkedAt: linked ? new Date().toISOString() : null,
-			};
-			taken.push(entry.name);
-			changed = true;
-		}
-	}
-
-	if (changed) writeIndex(root, index);
-	if (taken.length) process.stdout.write(`[plan-store] 取り込み: ${taken.join(', ')}\n`);
-}
-
 function cmdStatus(root) {
 	const index = readIndex(root);
 	const living = livingBranches();
@@ -333,14 +274,11 @@ function main() {
 		case 'gc':
 			cmdGc(root);
 			break;
-		case 'mirror':
-			cmdMirror(root, rest[0], rest[1]);
-			break;
 		case 'status':
 			cmdStatus(root);
 			break;
 		default:
-			process.stdout.write('usage: plan-store.cjs <register|link|gc|mirror|status> [args]\n');
+			process.stdout.write('usage: plan-store.cjs <register|link|gc|status> [args]\n');
 	}
 }
 

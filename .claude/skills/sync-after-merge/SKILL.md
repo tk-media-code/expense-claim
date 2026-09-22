@@ -69,7 +69,8 @@ gh issue list --state open
 
 ## 6. 次の作業へ
 
-次の依頼があれば `start-issue-work` スキルへ進む。
+次の依頼があれば `brainstorming` スキルへ進む。**いきなり実装に入らない。**
+設計が固まったら `writing-plans`、計画ができたら `creating-issues` の順。
 
 > 完了の目安: `main` が最新で、マージ済みのローカルブランチが残っておらず、
 > `git branch -r` に消えたブランチの追跡参照（`origin/feature/…` など）も残っておらず、
