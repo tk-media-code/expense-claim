@@ -2,13 +2,18 @@
 // 変更したい場合はこのファイルを直接編集してよい（以後このファイルは上書きされません）
 'use strict';
 
-// Issue駆動フローの機械強制。判定ロジックの本体で、Claude Code / Cursor の
-// どちらのアダプタからも同じ関数が呼ばれる。
+// Issue駆動フローの機械強制。判定ロジックの本体で、hook アダプタから呼ばれる。
 //
 // 止めるもの:
-//   1. main / master 上での git commit・git push
-//   2. refspec が main / master を指している git push
-//   3. 品質チェックを通っていない git push
+//   1. Issue 番号を含まない作業ブランチの作成
+//   2. main / master 上での git commit・git push
+//   3. refspec が main / master を指している git push
+//   4. 品質チェックを通っていない git push
+//
+// 1 が「Issue 駆動」の入口の担保で、4 が出口の担保になっている。
+// ブランチを切る時点で Issue 番号を要求するので、Issue を作らずに実装へ入る経路が
+// 塞がる。番号が実在するかどうかは push 時に scripts/harness-check.sh が確かめる
+// （ネットワークを見にいく判定を、対話の途中に挟まないため）。
 //
 // 「機械判定できるものはドキュメントに書かない」の方針で、ルール文書に書いた
 // フローのうち機械的に判定できる部分をここへ降ろしている。
@@ -19,6 +24,10 @@ const { execFileSync } = require('node:child_process');
 
 // 保護対象ブランチ。ここへの直接の commit / push を止める。
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
+
+// 作業ブランチの規約。scripts/harness-check.sh の branch-name チェックと同じ形。
+// 片方だけ直すと「作れるのに送れない」ブランチができるので、変えるときは両方を直す。
+const BRANCH_RE = /^(feature|fix)\/[0-9]+-[a-z0-9._-]+$/;
 
 // 品質チェックの2段構え。順序が意味を持つ（安いほうを先に置き、落ちたら次は走らせない）。
 const CHECKS = [
@@ -36,20 +45,27 @@ const EXIT_ENV_PROBLEM = 3;
 //   - 行頭 or シェル区切り文字（; & | ( `）の直後に限定する
 //   - 先頭に環境変数代入（例: FOO=bar git ...）が付いていても許容する
 //   - git の直後に -C <path> のようなグローバルオプションが挟まってもよい
+//   - git の前にラッパー（rtk など）が挟まってもよい
 //   - 最後は push / commit という単語で終わる（pushurl 等への前方一致誤爆を避ける）
 // 多少の過検知は許容する。過検知しても「チェックが通れば素通しする」だけで実害が無く、
 // 逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
-const GIT_PUSH_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(\s+-\S+(\s+[^-\s]\S*)?)*\s+push(\s|$)/;
-const GIT_COMMIT_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
+const GIT_PUSH_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+push(\s|$)/;
+const GIT_COMMIT_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
 
-// git -C <dir> の <dir> を取り出す。無ければ呼び出し元の cwd で判定する。
-const GIT_C_RE = /\bgit\s+(?:-\S+\s+)*?-C\s+(\S+)/;
+// ブランチを作るサブコマンド。`git branch <名前>` は含めない。
+// `git branch --merged main` のように「操作対象」と「作成名」を字面で区別できない形が
+// あり、誤爆すると後片付けの手順そのものが止まるため。作成経路としては下の3つで足りる
+// （取りこぼしても push 時の branch-name チェックで捕まる）。
+const BRANCH_CREATE_RE =
+	/(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+(switch|checkout|worktree)(\s|$)/;
+const NEW_BRANCH_FLAGS = new Set(['-c', '--create', '-b', '-B']);
 
-// 誤検知やチェック自体の不具合で永久に push できなくなる事態を避けるための安全弁。
+// 誤検知やチェック自体の不具合で永久に作業できなくなる事態を避けるための安全弁。
 // ユーザーが明示的に許可した場合にのみ使う。AI が自己判断で付けることは
 // ルール文書で禁止している（hook 側では「ユーザーの指示か AI の自己判断か」を
 // 技術的に区別できないため、そこは文書規約に委ねる）。
-const SKIP_RE = /(^|[;&|(`])\s*SKIP_QUALITY_CHECK=1\s/;
+const SKIP_QUALITY_RE = /(^|[;&|(`])\s*SKIP_QUALITY_CHECK=1\s/;
+const SKIP_BRANCH_RE = /(^|[;&|(`])\s*SKIP_BRANCH_CHECK=1\s/;
 
 function allow() {
 	return { decision: 'allow' };
@@ -81,6 +97,26 @@ function pushTargetsProtected(command) {
 		if (PROTECTED_BRANCHES.has(ref)) return true;
 	}
 	return false;
+}
+
+// これから作られるブランチ名を取り出す。作成でなければ null。
+//
+// -c / --create / -b / -B の「次の、フラグでない語」を名前とみなす。オプションの並び順に
+// 依存しないので、git switch -c <名前> でも git worktree add <パス> -b <名前> でも拾える。
+function newBranchName(command) {
+	const m = /\bgit\b([^;&|]*)/.exec(command);
+	if (!m) return null;
+	const tokens = m[1].trim().split(/\s+/).filter(Boolean);
+	for (let i = 0; i < tokens.length; i++) {
+		if (!NEW_BRANCH_FLAGS.has(tokens[i])) continue;
+		for (let j = i + 1; j < tokens.length; j++) {
+			if (tokens[j].startsWith('-')) continue;
+			// 引用符付きで書かれることがある（git switch -c "feature/1-x"）。
+			return tokens[j].replace(/^['"]|['"]$/g, '');
+		}
+		return null;
+	}
+	return null;
 }
 
 // 品質チェックを1本走らせる。合格なら null、失敗ならユーザーに返す文言を返す。
@@ -145,13 +181,41 @@ function evaluate(input) {
 
 	// 段階フィルタ。全てのシェル実行のたびに呼ばれるので、対象外だと分かった時点で
 	// 最小コストで抜ける。大多数のコマンドはここで終わる。
-	if (!command.includes('push') && !command.includes('commit')) return allow();
+	const mayCreate = command.includes('switch') || command.includes('checkout') || command.includes('worktree');
+	const mayShip = command.includes('push') || command.includes('commit');
+	if (!mayCreate && !mayShip) return allow();
+
+	// --- ① ブランチ作成 -----------------------------------------------------
+
+	if (mayCreate && BRANCH_CREATE_RE.test(command) && !SKIP_BRANCH_RE.test(command)) {
+		const branch = newBranchName(command);
+		if (branch !== null && !BRANCH_RE.test(branch)) {
+			return deny(
+				`ブランチ名が規約に合っていないため、作成をブロックしました: ${branch}\n\n` +
+					`  feature/<issue番号>-<内容を表す短い英語>\n` +
+					`  fix/<issue番号>-<内容を表す短い英語>\n\n` +
+					`このリポジトリは Issue 駆動です。**ブランチを切る前に Issue が要ります。**\n` +
+					`Issue 番号が分からないということは、まだ Issue を作っていないということです。\n\n` +
+					`正しい手順:\n` +
+					`1. brainstorming で設計を詰める\n` +
+					`2. writing-plans で実装計画を書く\n` +
+					`3. creating-issues で計画を Issue に起こし、ユーザーの承認を得て作成する\n` +
+					`4. その番号でブランチを切る（例: feature/42-add-csv-export）\n\n` +
+					`creating-issues スキルが 3 と 4 の手順を持っています。\n` +
+					`Issue を作らない一時的なブランチが本当に必要な場合は、ユーザーに確認し、\n` +
+					`許可を得たときだけ SKIP_BRANCH_CHECK=1 を先頭に付けてください。`,
+			);
+		}
+	}
+
+	if (!mayShip) return allow();
 
 	const isPush = GIT_PUSH_RE.test(command);
 	const isCommit = GIT_COMMIT_RE.test(command);
 	if (!isPush && !isCommit) return allow();
 
-	const m = GIT_C_RE.exec(command);
+	// git -C <dir> の <dir> を取り出す。無ければ呼び出し元の cwd で判定する。
+	const m = /\bgit\s+(?:-\S+\s+)*?-C\s+(\S+)/.exec(command);
 	const cwd = m ? m[1] : (input && input.cwd) || process.cwd();
 
 	let branch;
@@ -163,6 +227,8 @@ function evaluate(input) {
 		return allow(); // git リポジトリでない、または解決できない
 	}
 
+	// --- ② 保護ブランチ上での commit / push --------------------------------
+
 	if (PROTECTED_BRANCHES.has(branch)) {
 		const verb = isCommit && !isPush ? 'コミット' : '送信';
 		return deny(
@@ -170,13 +236,15 @@ function evaluate(input) {
 				`このリポジトリは Issue 駆動の開発フローを採っており、${branch} への直接の\n` +
 				`変更は禁止されています（GitHub 側でも拒否されます）。\n\n` +
 				`正しい手順:\n` +
-				`1. Issue を起案してユーザーの承認を得る → gh issue create\n` +
+				`1. Issue を起案してユーザーの承認を得る → creating-issues スキル\n` +
 				`2. git switch ${branch} && git pull\n` +
 				`3. git switch -c feature/<issue番号>-<内容>\n` +
 				`4. 作業してコミットし、送信して gh pr create\n\n` +
-				`start-issue-work スキルがこの手順を持っています。`,
+				`creating-issues スキルがこの手順を持っています。`,
 		);
 	}
+
+	// --- ③ 保護ブランチを指す refspec --------------------------------------
 
 	if (isPush && pushTargetsProtected(command)) {
 		return deny(
@@ -186,10 +254,12 @@ function evaluate(input) {
 		);
 	}
 
+	// --- ④ 品質チェック -----------------------------------------------------
 	// ここから先は送信のときだけ。コミットは品質チェックの対象外。
+
 	if (!isPush) return allow();
 
-	if (SKIP_RE.test(command)) {
+	if (SKIP_QUALITY_RE.test(command)) {
 		// スキップした事実は必ず見える形にする。黙って素通しするとガードの意味が薄れる。
 		return {
 			decision: 'allow',

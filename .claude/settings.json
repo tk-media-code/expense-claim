@@ -24,8 +24,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/plan-store.cjs\" gc >/dev/null 2>&1 || true",
-            "timeout": 15
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.cjs\"",
+            "statusMessage": "スキルを読み込み中...",
+            "timeout": 30
           }
         ]
       }

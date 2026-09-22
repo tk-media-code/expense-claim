@@ -13,6 +13,12 @@
 #   1  品質上の問題を検出（表示された指摘を修正すること）
 #   3  環境の問題で実行できない
 #
+# 検査するもの:
+#   conflict-markers  コンフリクトマーカーの残留
+#   secrets           秘匿情報の混入
+#   branch-name       ブランチ名の規約（Issue 番号を含むか）
+#   issue-exists      ブランチ名の Issue が実在するか
+#
 # 個別のチェックを外したいプロジェクトは、リポジトリ直下の .harness.json に書く:
 #   { "checks": { "secrets": false } }
 
@@ -194,6 +200,48 @@ if enabled "branch-name"; then
 		fi
 		;;
 	esac
+fi
+
+# --- ④ Issue が実在するか ---------------------------------------------------
+#
+# ブランチ名に番号が入っていても、その Issue が実在するとは限らない。番号を打ち間違えた
+# まま作業が進むと、PR の Closes # が無関係な Issue を閉じるか、どこにも紐付かない。
+#
+# ネットワークを見にいくので、ブランチを切る瞬間ではなく送信の直前に1回だけ確かめる。
+# gh が無い・認証されていない・GitHub のリポジトリでない場合は黙って飛ばす。
+# **確かめられないことを理由に送信を止めない。**
+
+if enabled "issue-exists"; then
+	branch="${branch:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '')}"
+
+	# feature/42-add-csv-export → 42。BRE の \| に頼らず、パラメータ展開だけで取り出す。
+	issue_number=""
+	case "$branch" in
+	feature/* | fix/*)
+		rest="${branch#*/}"
+		issue_number="${rest%%-*}"
+		;;
+	esac
+	case "$issue_number" in
+	'' | *[!0-9]*) issue_number="" ;;
+	esac
+
+	if [ -n "$issue_number" ] && command -v gh >/dev/null 2>&1; then
+		if ! gh issue view "$issue_number" --json number >/dev/null 2>&1; then
+			# 見えないのが「無い」からなのか「見にいけない」からなのかを切り分ける。
+			if gh auth status >/dev/null 2>&1 && gh repo view --json name >/dev/null 2>&1; then
+				fail "Issue #$issue_number が見つかりません" \
+					"" "  ブランチ: $branch" \
+					"" "ブランチ名の番号が間違っているか、Issue がまだ作られていません。" \
+					"このまま進めると PR の Closes # がどこにも紐付きません。" \
+					"" "対応:" \
+					"  - 番号の間違いなら git branch -m <正しい名前> で直してください" \
+					"  - Issue がまだ無いなら creating-issues スキルで作ってください"
+			else
+				note "Issue の実在確認は飛ばしました（gh が使えないか、GitHub のリポジトリではありません）。"
+			fi
+		fi
+	fi
 fi
 
 # --- 結果 -------------------------------------------------------------------
