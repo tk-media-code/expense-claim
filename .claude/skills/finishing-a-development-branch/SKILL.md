@@ -62,7 +62,8 @@ git switch -c feature/<issue番号>-<内容>
 
 **破棄はユーザーが明示的に求めたときだけ。** 「もういい」「消していい」では足りない。
 上流版と同じく、消す対象（ブランチ・コミット・worktree）を並べて見せ、
-`discard` と打ってもらってから消す。
+`discard` と打ってもらってから消す。worktree を消すときも、対象はリポジトリ直下の
+`.worktrees/` か `worktrees/` の下にあるものだけで、拒否されても `--force` は付けない。
 
 ## 4. `submit-pull-request` へ渡す
 
@@ -76,20 +77,8 @@ git switch -c feature/<issue番号>-<内容>
 
 **PR を出した時点では worktree を消さない。** レビューの指摘はその worktree で直す。
 
-片付けるのは、マージが済んで `sync-after-merge` を通すとき。そのとき消すのは
-**`.worktrees/` または `worktrees/` の下にあるものだけ。** それ以外はホスト環境の持ち物。
-
-```bash
-git worktree remove "$WORKTREE_PATH"
-git worktree prune
-```
-
-**`contains modified or untracked files` で拒否されたら `--force` を付けない。**
-そこにしか無いファイルがあるということなので、中身を見せて人に判断を仰ぐ。
-
-```bash
-git -C "$WORKTREE_PATH" status --porcelain -uall
-```
+片付けるのはマージが済んだあと、次の作業で `creating-issues` がブランチを切る直前（手順3）。
+worktree とブランチの後片付けはそこにまとめてあるので、ここでは何もしない。
 
 ## よくある言い訳
 
