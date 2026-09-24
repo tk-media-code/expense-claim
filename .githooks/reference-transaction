@@ -5,10 +5,11 @@
 # プランの寿命をブランチに追随させる git フック。
 #
 # git には「ブランチ削除フック」が無い。reference-transaction は全ての ref 更新で
-# 発火するので、作業ブランチの作成と削除をここで拾う。
+# 発火するので、作業ブランチの削除をここで拾い、紐付いたブランチが無いプランを消す。
 #
-#   作業ブランチが作られた → 未紐付けのプランをそのブランチに紐付ける
-#   作業ブランチが消えた   → 紐付いたブランチが無いプランを消す
+# 紐付けはここではしない。creating-issues の手順5が、今回のプランを指定して紐付ける。
+# ブランチ作成時に「どのプランか」を推測すると、古いプランや別の作業のプランを
+# 紐付けて、あとでブランチと一緒に消してしまう。
 #
 # AI がスキル経由で動いたときだけでなく、人が端末で git branch -d したときにも効く。
 # これがスキル層と分けてフックを置いている理由。
@@ -34,42 +35,31 @@ is_zero() {
 	esac
 }
 
-link_branch=''
 run_gc=0
 
 # stdin に「<古い値> <新しい値> <ref名>」が1行ずつ来る。
-while read -r old new ref; do
+while read -r _ new ref; do
 	# ローカルブランチ以外は無視する。fetch が動かす refs/remotes/… はここで落ちる。
 	case "$ref" in
 	refs/heads/*) ;;
 	*) continue ;;
 	esac
 
-	branch="${ref#refs/heads/}"
-
 	# 作業ブランチの命名規約に合うものだけを見る。main の更新はここで落ちる。
-	case "$branch" in
+	case "${ref#refs/heads/}" in
 	feature/[0-9]*-* | fix/[0-9]*-*) ;;
 	*) continue ;;
 	esac
 
-	# 判定は new から先に見る。削除のとき old と new が**両方ゼロ**で来るため
-	# （git は「現在値を問わない更新」を old=ゼロで表し、削除もこれに乗る）、
-	# old を先に見ると削除を作成と誤判定する。
-	#
-	#   作成: old=ゼロ  new=<sha>
-	#   削除: old=ゼロ  new=ゼロ
-	#   更新: old=<sha> new=<sha>
+	# 削除は new がゼロで来る（old もゼロで来ることがあるので、new だけで判定する）。
 	if is_zero "$new"; then
 		run_gc=1
-	elif is_zero "$old"; then
-		link_branch="$branch"
 	fi
 done
 
-# 何も該当しなければ、ここまでで終わる。
+# 削除が無ければ、ここまでで終わる。
 # 通常のコミットや fetch では bash の起動ぶんしか掛からない。
-[ -n "$link_branch" ] || [ "$run_gc" -eq 1 ] || exit 0
+[ "$run_gc" -eq 1 ] || exit 0
 
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 store="$root/scripts/plan-store.cjs"
@@ -77,11 +67,6 @@ store="$root/scripts/plan-store.cjs"
 
 # plan-store 側も fail-open だが、ここでも結果を握りつぶす。
 # プランの整理に失敗しても git の操作は成功させる。
-if [ -n "$link_branch" ]; then
-	node "$store" link "$link_branch" >/dev/null 2>&1 || true
-fi
-if [ "$run_gc" -eq 1 ]; then
-	node "$store" gc >/dev/null 2>&1 || true
-fi
+node "$store" gc >/dev/null 2>&1 || true
 
 exit 0
