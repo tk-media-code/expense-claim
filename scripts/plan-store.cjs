@@ -5,8 +5,8 @@
 
 // プランの寿命をブランチに結びつける。
 //
-//   register <plan-file> [branch]   プランを台帳に載せる
-//   link <branch>                   未紐付けのプランを <branch> に紐付ける
+//   register <plan-file> [branch]   プランを台帳に載せる（branch を渡したときだけ紐付ける）
+//   link <branch> <plan-file>       指定したプランを <branch> に紐付ける（推測はしない）
 //   gc                              紐付いたブランチが消えたプランを消す
 //   status                          台帳の中身を表示する
 //
@@ -98,23 +98,6 @@ function planFiles(root) {
 	}
 }
 
-function mtimeMs(root, key) {
-	try {
-		return fs.statSync(path.join(plansDir(root), key)).mtimeMs;
-	} catch {
-		return 0;
-	}
-}
-
-function currentBranch() {
-	try {
-		const b = git(['rev-parse', '--abbrev-ref', 'HEAD']);
-		return b === 'HEAD' ? null : b;
-	} catch {
-		return null;
-	}
-}
-
 // ---------------------------------------------------------------- commands
 
 // プランを台帳に載せる。既に載っていれば、未紐付けのときだけブランチを埋める。
@@ -148,48 +131,53 @@ function cmdRegister(root, file, branch) {
 	process.stdout.write(`[plan-store] 登録: ${key}${linked ? ` -> ${linked}` : ''}\n`);
 }
 
-// 未紐付けのプランを <branch> に紐付ける。
-// 既に紐付いているブランチなら何もしない（冪等。hook とスキルの両方から呼ばれる）。
-function cmdLink(root, branch) {
+// 指定したプランを <branch> に紐付ける。どのプランかは推測しない。
+//
+// 以前は「未紐付けのうち最後に登録されたもの」を選んでいた。これだと、プランモードで
+// 立てた古いプランが残っていると writing-plans が書いた今回のプラン（台帳に載らない）より
+// 古いほうが選ばれ、計画の無い作業のブランチ（取り込み用など）には直前の別の作業の
+// プランが紐付いた。どちらも、ブランチを消した時点でそのプランが消える。
+// 指定が無ければ何もしない。紐付かないプランは消えないので、残す側に倒れる。
+function cmdLink(root, branch, file) {
 	if (!branch || !WORK_BRANCH.test(branch)) return;
 
+	const key = planKey(file);
+	if (!key) {
+		process.stdout.write('[plan-store] 紐付けるプランを指定してください: link <branch> <plan-file>\n');
+		return;
+	}
+	// 探した場所は絶対パスで示す。worktree の中で実行すると、その worktree の plans/ を探してしまう。
+	const abs = path.join(plansDir(root), key);
+	if (!fs.existsSync(abs)) {
+		process.stdout.write(`[plan-store] プランが見つかりません: ${abs}\n`);
+		return;
+	}
+
+	// 存在しないブランチには紐付けない。ブランチ名を打ち間違えたまま紐付けると、
+	// 次の gc で「紐付いたブランチが無い」と判定されてプランが消える。
+	const living = livingBranches();
+	if (!living || !living.has(branch)) {
+		process.stdout.write(`[plan-store] ブランチが見つかりません: ${branch}（先にブランチを切ってから紐付ける）\n`);
+		return;
+	}
+
 	const index = readIndex(root);
-	for (const meta of Object.values(index.plans)) {
-		if (meta && meta.branch === branch) return;
+	const prev = index.plans[key];
+	if (prev && prev.branch === branch) return; // 冪等
+	if (prev && prev.branch) {
+		// 先に立った紐付けを正とする。付け替えると、元のブランチの作業中にプランが消えうる。
+		process.stdout.write(`[plan-store] ${key} は ${prev.branch} に紐付いています。変更しません\n`);
+		return;
 	}
 
-	// 台帳にある未紐付けのうち、最後に登録されたもの。
-	let best = null;
-	let bestAt = -1;
-	for (const [key, meta] of Object.entries(index.plans)) {
-		if (!meta || meta.branch) continue;
-		const at = Date.parse(meta.registeredAt || '') || mtimeMs(root, key);
-		if (at > bestAt) {
-			best = key;
-			bestAt = at;
-		}
-	}
-
-	// 台帳に候補が無ければ、plans/ の中で最後に触られたファイルへフォールバックする。
-	// 登録 hook が効いていない環境（hook 未配布・人が端末で切った）でも紐付けを成立させるため。
-	if (!best) {
-		for (const key of planFiles(root)) {
-			if (index.plans[key]) continue;
-			const at = mtimeMs(root, key);
-			if (at > bestAt) {
-				best = key;
-				bestAt = at;
-			}
-		}
-		if (best) index.plans[best] = { branch: null, tool: 'unknown', registeredAt: new Date().toISOString() };
-	}
-
-	if (!best) return;
-
-	index.plans[best].branch = branch;
-	index.plans[best].linkedAt = new Date().toISOString();
+	index.plans[key] = {
+		branch,
+		tool: (prev && prev.tool) || process.env.PLAN_STORE_TOOL || 'claude',
+		registeredAt: (prev && prev.registeredAt) || new Date().toISOString(),
+		linkedAt: new Date().toISOString(),
+	};
 	writeIndex(root, index);
-	process.stdout.write(`[plan-store] ${best} -> ${branch}\n`);
+	process.stdout.write(`[plan-store] ${key} -> ${branch}\n`);
 }
 
 // 紐付いたブランチがもう無いプランを消す。
@@ -266,10 +254,12 @@ function main() {
 
 	switch (cmd) {
 		case 'register':
-			cmdRegister(root, rest[0], rest[1] || currentBranch());
+			// 今のブランチを勝手に使わない。プランモードはマージ済みの前のブランチの上で走ることもあり、
+			// そのブランチに紐付けると、次の作業の手順3でそのブランチを消したときに新しいプランまで消える。
+			cmdRegister(root, rest[0], rest[1]);
 			break;
 		case 'link':
-			cmdLink(root, rest[0] || currentBranch());
+			cmdLink(root, rest[0], rest[1]);
 			break;
 		case 'gc':
 			cmdGc(root);

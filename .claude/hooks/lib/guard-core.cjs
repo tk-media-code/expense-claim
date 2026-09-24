@@ -42,23 +42,32 @@ const EXIT_ENV_PROBLEM = 3;
 // コマンドラインのどこかにある git push / git commit を拾う。
 // 素朴な部分一致だと echo で文字列を表示するだけの場合にも誤爆し、逆に
 // git -C /path push のようなグローバルオプション付きの形を取りこぼす。以下の正規表現は:
-//   - 行頭 or シェル区切り文字（; & | ( `）の直後に限定する
+//   - 行頭 or シェル区切り文字（; & | ( ` 改行）の直後に限定する。改行を区切りに含めないと、
+//     ヒアドキュメントでコミットした後の行の git push を見落とす
 //   - 先頭に環境変数代入（例: FOO=bar git ...）が付いていても許容する
 //   - git の直後に -C <path> のようなグローバルオプションが挟まってもよい
 //   - git の前にラッパー（rtk など）が挟まってもよい
 //   - 最後は push / commit という単語で終わる（pushurl 等への前方一致誤爆を避ける）
 // 多少の過検知は許容する。過検知しても「チェックが通れば素通しする」だけで実害が無く、
 // 逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
-const GIT_PUSH_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+push(\s|$)/;
-const GIT_COMMIT_RE = /(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
+const GIT_PUSH_RE = /(^|[;&|(`\n])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+push(\s|$)/;
+const GIT_COMMIT_RE = /(^|[;&|(`\n])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
 
-// ブランチを作るサブコマンド。`git branch <名前>` は含めない。
+// ブランチを作るサブコマンドと、新しいブランチ名を取るオプション。`git branch <名前>` は含めない。
 // `git branch --merged main` のように「操作対象」と「作成名」を字面で区別できない形が
 // あり、誤爆すると後片付けの手順そのものが止まるため。作成経路としては下の3つで足りる
 // （取りこぼしても push 時の branch-name チェックで捕まる）。
-const BRANCH_CREATE_RE =
-	/(^|[;&|(`])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+(switch|checkout|worktree)(\s|$)/;
-const NEW_BRANCH_FLAGS = new Set(['-c', '--create', '-b', '-B']);
+//
+// オプションはサブコマンドごとに見る。同じ -c でも、git の直後なら設定値（git -c key=value）、
+// switch の後ならブランチ作成で、意味がまったく違う。
+const CREATE_FLAGS = {
+	switch: new Set(['-c', '--create', '-C', '--force-create']),
+	checkout: new Set(['-b', '-B']),
+	worktree: new Set(['-b', '-B']),
+};
+
+// git の直後に置けるオプションのうち、値を次の語で取るもの。サブコマンドを探すときに読み飛ばす。
+const GLOBAL_OPTS_WITH_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env']);
 
 // 誤検知やチェック自体の不具合で永久に作業できなくなる事態を避けるための安全弁。
 // ユーザーが明示的に許可した場合にのみ使う。AI が自己判断で付けることは
@@ -83,10 +92,11 @@ function git(args, cwd) {
 	}).trim();
 }
 
-// push 以降、次のシェル区切りまでの引数を見て、保護ブランチを指す refspec があるか調べる。
+// push 以降、次のシェル区切り（改行を含む）までの引数を見て、保護ブランチを指す refspec があるか調べる。
 // feature/1-main-thing のような名前に誤爆しないよう、ref 全体との一致だけを見る。
+// 改行で止めないと、`git push` の次の行の `git switch main` まで引数と読んで誤爆する。
 function pushTargetsProtected(command) {
-	const m = /\bpush\b([^;&|]*)/.exec(command);
+	const m = /\bpush\b([^;&|\n]*)/.exec(command);
 	if (!m) return false;
 	const args = m[1].trim();
 	if (!args) return false;
@@ -99,24 +109,88 @@ function pushTargetsProtected(command) {
 	return false;
 }
 
-// これから作られるブランチ名を取り出す。作成でなければ null。
+// ヒアドキュメントの本文を取り除く。本文はコマンドに渡すデータで、実行されない。
+// コミットメッセージや PR 本文に書いた git のコマンド例（git switch -c 名前、git push origin main）
+// まで呼び出しとして読むと、ブランチ作成や main への送信と取り違えて止めてしまう。
 //
-// -c / --create / -b / -B の「次の、フラグでない語」を名前とみなす。オプションの並び順に
-// 依存しないので、git switch -c <名前> でも git worktree add <パス> -b <名前> でも拾える。
-function newBranchName(command) {
-	const m = /\bgit\b([^;&|]*)/.exec(command);
-	if (!m) return null;
-	const tokens = m[1].trim().split(/\s+/).filter(Boolean);
-	for (let i = 0; i < tokens.length; i++) {
-		if (!NEW_BRANCH_FLAGS.has(tokens[i])) continue;
-		for (let j = i + 1; j < tokens.length; j++) {
-			if (tokens[j].startsWith('-')) continue;
-			// 引用符付きで書かれることがある（git switch -c "feature/1-x"）。
-			return tokens[j].replace(/^['"]|['"]$/g, '');
+// 終わりの行が見つからなければ、ヒアドキュメントではなかった（引用符の中の <<、$((a<<b))、
+// cout << x など）とみなし、外した行を戻す。戻して判定しても、止まる側に倒れるだけで済む。
+function stripHeredocs(command) {
+	const out = [];
+	let end = null;
+	let dash = false;
+	let body = [];
+	for (const line of command.split('\n')) {
+		if (end !== null) {
+			body.push(line);
+			// <<- のときだけ、終わりの行の先頭のタブを許す（bash と同じ）。
+			if ((dash ? line.replace(/^\t+/, '') : line) === end) {
+				end = null;
+				body = [];
+			}
+			continue;
 		}
-		return null;
+		out.push(line);
+		// 終わりの語は 'END-MSG' "EOF" \EOF EOF のどの書き方でもよい。
+		// <<< （ヒアストリング）は対象外。直前が < の << は見ない。
+		const m = /(?<!<)<<(-?)\s*(?:'([^']+)'|"([^"]+)"|\\?([^\s'"<>|&;()]+))/.exec(line);
+		if (m) {
+			dash = m[1] === '-';
+			end = m[2] || m[3] || m[4];
+		}
 	}
-	return null;
+	if (end !== null) out.push(...body);
+	return out.join('\n');
+}
+
+// コマンド行を、シェルの区切り（; & | ( ) ` 改行）ごとに切り、git の呼び出しだけを取り出す。
+// 最初の git だけを見ると、`git status && git switch -c 名前` の2つ目を見落とし、
+// `git init -b main && …` の -b をブランチ作成と取り違える。
+// 引用符の中の区切りも切ってしまうが、過検知の側に倒れるだけなので許容する。
+function gitInvocations(command) {
+	const out = [];
+	for (const segment of command.split(/[;&|()`\n]/)) {
+		const m = /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:rtk\s+)?git(?:\s+(.*))?$/.exec(segment);
+		if (!m) continue;
+		const tokens = (m[1] || '').trim().split(/\s+/).filter(Boolean);
+		let dir = null;
+		let i = 0;
+		for (; i < tokens.length && tokens[i].startsWith('-'); i++) {
+			if (tokens[i] === '-C') dir = tokens[i + 1] ? unquote(tokens[i + 1]) : null;
+			if (GLOBAL_OPTS_WITH_VALUE.has(tokens[i])) i += 1;
+		}
+		out.push({ sub: tokens[i] || '', args: tokens.slice(i + 1), dir });
+	}
+	return out;
+}
+
+// 引用符付きで書かれることがある（git switch -c "feature/1-x"）。
+function unquote(s) {
+	return s.replace(/^['"]|['"]$/g, '');
+}
+
+// コマンドの中で作られるブランチの名前をすべて返す。
+//
+// 作成オプションの「次の、フラグでない語」を名前とみなす。オプションの並び順に
+// 依存しないので、git switch -c <名前> でも git worktree add <パス> -b <名前> でも拾える。
+function newBranchNames(command) {
+	const names = [];
+	for (const { sub, args } of gitInvocations(command)) {
+		const flags = CREATE_FLAGS[sub];
+		if (!flags) continue;
+		for (let i = 0; i < args.length; i++) {
+			const eq = /^(--create|--force-create)=(.+)$/.exec(args[i]);
+			if (eq && flags.has(eq[1])) {
+				names.push(unquote(eq[2]));
+				break;
+			}
+			if (!flags.has(args[i])) continue;
+			const name = args.slice(i + 1).find((t) => !t.startsWith('-'));
+			if (name) names.push(unquote(name));
+			break;
+		}
+	}
+	return names;
 }
 
 // 品質チェックを1本走らせる。合格なら null、失敗ならユーザーに返す文言を返す。
@@ -176,7 +250,12 @@ function runCheck(repoRoot, check) {
  * @returns {{decision: 'allow'|'deny', reason?: string, note?: string}}
  */
 function evaluate(input) {
-	const command = (input && input.command) || '';
+	// 判定の前にコマンド行を整える。
+	//   - 改行を \n にそろえる（CRLF のままだと、行末の \r のせいで git の呼び出しが見えなくなる）
+	//   - ヒアドキュメントの本文を取り除く（実行されないデータなので）
+	//   - 行末の \ でつないだ行を1行に戻す（`git switch \` と `-c 名前` を別々に読むと見落とす）
+	const raw = ((input && input.command) || '').replace(/\r\n?/g, '\n');
+	const command = stripHeredocs(raw).replace(/\\\n/g, ' ');
 	if (!command) return allow();
 
 	// 段階フィルタ。全てのシェル実行のたびに呼ばれるので、対象外だと分かった時点で
@@ -187,9 +266,9 @@ function evaluate(input) {
 
 	// --- ① ブランチ作成 -----------------------------------------------------
 
-	if (mayCreate && BRANCH_CREATE_RE.test(command) && !SKIP_BRANCH_RE.test(command)) {
-		const branch = newBranchName(command);
-		if (branch !== null && !BRANCH_RE.test(branch)) {
+	if (mayCreate && !SKIP_BRANCH_RE.test(command)) {
+		const branch = newBranchNames(command).find((name) => !BRANCH_RE.test(name));
+		if (branch !== undefined) {
 			return deny(
 				`ブランチ名が規約に合っていないため、作成をブロックしました: ${branch}\n\n` +
 					`  feature/<issue番号>-<内容を表す短い英語>\n` +
@@ -214,9 +293,12 @@ function evaluate(input) {
 	const isCommit = GIT_COMMIT_RE.test(command);
 	if (!isPush && !isCommit) return allow();
 
-	// git -C <dir> の <dir> を取り出す。無ければ呼び出し元の cwd で判定する。
-	const m = /\bgit\s+(?:-\S+\s+)*?-C\s+(\S+)/.exec(command);
-	const cwd = m ? m[1] : (input && input.cwd) || process.cwd();
+	// 判定するリポジトリは、その push / commit の呼び出しに付いた -C から取る。無ければ呼び出し元の cwd。
+	// 最初の git の -C を取ると、`git -C A status && git -C B push` で A を判定してしまう。
+	// 相対パスはコマンドの cwd を基準に解決する（guard のプロセスの cwd とは限らない）。
+	const base = (input && input.cwd) || process.cwd();
+	const ship = gitInvocations(command).find((inv) => inv.sub === 'push' || inv.sub === 'commit');
+	const cwd = ship && ship.dir ? path.resolve(base, ship.dir) : base;
 
 	let branch;
 	let repoRoot;
