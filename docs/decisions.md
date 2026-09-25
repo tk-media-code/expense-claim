@@ -498,3 +498,46 @@ cron は起動するたびに時刻を残し、それをホームに出す（[`0
 - **nginx stable**
 
 反映先は [`01-architecture.md`](design/01-architecture.md) 3章。
+
+### Cloudflare の前提の見直し（2026-09-24）
+
+目的②の入口になる [`01-architecture.md`](design/01-architecture.md) 2.3 と 6.2 を読み直し、
+公式ドキュメントと食い違っていた点を直した。**技術選定は変えていない。**
+
+| 直したこと | 何が違っていたか |
+| --- | --- |
+| **Workers の 3 MiB 上限を制約から外した** | 圧縮後 3 MiB（無料）／10 MiB（有料）と書いていた上限（Cloudflare の表記では MB）は 2026-09-04 に撤廃され、全プラン共通で非圧縮 64 MiB だけになった。文書はこれを「重いフレームワークを選べない」制約の柱にし、Hono・Nuxt・Drizzle の理由と Next.js・Prisma の却下理由に使っていた。大きさを理由にしていた箇所は、残る理由だけにするか、出典で確かめた別の理由に置き換えた |
+| **Hyperdrive は DB 本体を持たないと明記した** | Hyperdrive は別に用意した DB への接続プールとキャッシュで、無料プランに含まれる。6.2 は「Hyperdrive 経由の MySQL」と書くだけで、MySQL の置き場所に触れていなかった。「全て無料」の成否はそこで決まる。置き場所は目的②で決める |
+| **SPA の置き場所を Pages から Workers Static Assets に改めた** | Cloudflare は新規プロジェクトに Pages ではなく Workers を推奨している（Pages は継続サポート）。1つの Worker が `/api/*` を受け、それ以外を静的ファイルとして返せるので、4.3 の同一オリジンはそのまま成り立つ |
+
+10章の「このアプリが Workers の 3 MiB に収まる」は、圧縮後の上限が無くなり、非圧縮 64 MiB はこのアプリの規模では効かないので落とした。
+「Hyperdrive が無料プランで MySQL に使える」は、MySQL 対応が 2026-08-07 に GA になったことを
+公式ドキュメントで確かめたが、実機では試していないので未検証のまま残し、前提の文言だけ直した。
+
+あわせて 3.3 の「Express — Workers 非対応」と 3.2 の「Python — Workers では動かない」を直した。
+Cloudflare の公式チュートリアルが `nodejs_compat` で Express を動かしており、Python Workers も公式に
+提供されている。Hono と TypeScript を選んだ理由（Workers のために作られている。フロントと同じ言語）は変わらない。
+
+6.2 の「Hono・Nuxt・Drizzle はそのまま動く」には、D1 を採る場合の但し書きを足した。D1 は対話的な
+トランザクションを持たず `batch()` だけで、Drizzle の MySQL 専用の呼び出し（`$returningId()` など）も
+SQLite には無いので、スキーマ定義と `repositories` は書き直しになる。3.6 の「書き方が変わらない」も
+基本のクエリに限り、6.3 の「書き直しが要るのは `googleapis` だけ」にも同じ但し書きを付けた。
+
+出典（2026-09-24 に確認）:
+
+- [Workers Limits](https://developers.cloudflare.com/workers/platform/limits/)
+- [Deploy larger Workers — up to 64 MiB for both free and paid plans（2026-09-04）](https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/)
+- [Workers Pricing（静的アセットへのリクエストは無料で無制限）](https://developers.cloudflare.com/workers/platform/pricing/)
+- [Hyperdrive Pricing](https://developers.cloudflare.com/hyperdrive/platform/pricing/)
+- [MySQL support in Hyperdrive is now generally available（2026-08-07）](https://developers.cloudflare.com/changelog/post/2026-08-07-hyperdrive-mysql-ga/)
+- [Migrate from Pages to Workers](https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/)
+- [Single Page Application · Workers static assets](https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/)
+- [Hyperdrive（接続プールとキャッシュ。DB 本体は持たない）](https://developers.cloudflare.com/hyperdrive/)
+- [Cloudflare Pages（「Start new projects with Workers」）](https://developers.cloudflare.com/pages/)
+- [Your frontend, backend, and database — now in one Cloudflare Worker（Pages は継続サポート）](https://blog.cloudflare.com/full-stack-development-on-cloudflare-workers/)
+- [Deploy an Express.js application on Cloudflare Workers（`nodejs_compat` で動く）](https://developers.cloudflare.com/workers/tutorials/deploy-an-express-app/)
+- [Python Workers（`python_workers` フラグ）](https://developers.cloudflare.com/workers/languages/python/)
+- [Deploy to Cloudflare Workers & Pages · Prisma ORM（ドライバアダプタが要る）](https://www.prisma.io/docs/orm/v7/prisma-client/deployment/edge/deploy-to-cloudflare)
+- [Caching · OpenNext for Cloudflare（ISR などのキャッシュに R2 などのバインディングを使う）](https://opennext.js.org/cloudflare/caching)
+- [D1 Worker Binding API（トランザクションは `batch()` だけ）](https://developers.cloudflare.com/d1/worker-api/d1-database/)
+- [Cloudflare D1 transaction not supported · drizzle-orm #2463](https://github.com/drizzle-team/drizzle-orm/issues/2463)
