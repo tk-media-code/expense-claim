@@ -180,7 +180,8 @@ node scripts/plan-store.cjs link <ブランチ名> <プランのファイル名>
 - Subagent-driven → `subagent-driven-development`
 - Native → `executing-plans`
 
-**まだどちらか聞いていなければ、ここで聞く。** 実装が終わったら `submit-pull-request` へ進む。
+**まだ決まっていなければ、`subagent-driven-development` で始めると人に伝える。** Native は人が
+明示したときだけ（`development-flow` の④）。実装が終わったら `submit-pull-request` へ進む。
 
 ## よくある言い訳
 
