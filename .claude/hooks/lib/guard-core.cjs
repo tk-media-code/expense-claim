@@ -12,7 +12,7 @@
 //
 // 1 が「Issue 駆動」の入口の担保で、4 が出口の担保になっている。
 // ブランチを切る時点で Issue 番号を要求するので、Issue を作らずに実装へ入る経路が
-// 塞がる。番号が実在するかどうかは push 時に scripts/harness-check.sh が確かめる
+// 塞がる。番号が実在するかどうかは push 時に harness-check.cjs が確かめる
 // （ネットワークを見にいく判定を、対話の途中に挟まないため）。
 //
 // 「機械判定できるものはドキュメントに書かない」の方針で、ルール文書に書いた
@@ -25,14 +25,19 @@ const { execFileSync } = require('node:child_process');
 // 保護対象ブランチ。ここへの直接の commit / push を止める。
 const PROTECTED_BRANCHES = new Set(['main', 'master']);
 
-// 作業ブランチの規約。scripts/harness-check.sh の branch-name チェックと同じ形。
+// 作業ブランチの規約。harness-check.cjs の branch-name チェックと同じ形。
 // 片方だけ直すと「作れるのに送れない」ブランチができるので、変えるときは両方を直す。
 const BRANCH_RE = /^(feature|fix)\/[0-9]+-[a-z0-9._-]+$/;
 
 // 品質チェックの2段構え。順序が意味を持つ（安いほうを先に置き、落ちたら次は走らせない）。
+// 各段は候補を順に探し、最初に見つかった1本だけを走らせる。旧 harness-check.sh は候補に入れない
+// （ローカル改変で管理外に残っていても走らせない）。
 const CHECKS = [
-	{ script: 'scripts/harness-check.sh', label: '共通チェック' },
-	{ script: 'scripts/quality-check.sh', label: 'プロジェクト品質チェック' },
+	{ label: '共通チェック', candidates: ['scripts/harness-check.cjs'] },
+	{
+		label: 'プロジェクト品質チェック',
+		candidates: ['scripts/quality-check.cjs', 'scripts/quality-check.mjs', 'scripts/quality-check.js', 'scripts/quality-check.sh'],
+	},
 ];
 
 // チェックスクリプトの終了コード規約。1 は「品質上の指摘あり」、3 は「環境の問題で
@@ -193,15 +198,108 @@ function newBranchNames(command) {
 	return names;
 }
 
-// 品質チェックを1本走らせる。合格なら null、失敗ならユーザーに返す文言を返す。
-function runCheck(repoRoot, check) {
-	const abs = path.join(repoRoot, check.script);
+// 段の候補を順に探し、最初に見つかった 1 本を返す。無ければ null。
+function findCheck(repoRoot, check) {
+	for (const rel of check.candidates) {
+		const abs = path.join(repoRoot, rel);
+		if (fs.existsSync(abs)) return { rel, abs };
+	}
+	return null;
+}
+
+// 拡張子で起動方法を選ぶ。
+//   .cjs / .mjs / .js → この hook 自身が動いている Node（process.execPath）。PATH の node に依存しない
+//   .sh               → bash。Windows では Git Bash（resolveBash）。無ければ null
+function runnerFor(abs, bash, platform = process.platform) {
+	if (/\.(cjs|mjs|js)$/.test(abs)) return { file: process.execPath, args: [abs] };
+	if (!bash) return null;
+	// Git Bash には / 区切りで渡す。Linux / macOS では \ もファイル名に使える文字なので変えない。
+	return { file: bash, args: [platform === 'win32' ? abs.replace(/\\/g, '/') : abs] };
+}
+
+function defaultGitExecPath() {
+	try {
+		return execFileSync('git', ['--exec-path'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || null;
+	} catch {
+		return null;
+	}
+}
+
+// .sh のチェックを走らせる bash を決める。
+//
+// Windows では PATH の bash を使わない。WSL が入っていると C:\Windows\System32\bash.exe
+// （WSL のランチャー）に解決し、スクリプトを Linux 側で探しにいって必ず失敗する。
+// チェックが「失敗」した扱いになり、全ての送信が止まる。
+// Git for Windows の bash を、Claude Code と同じ環境変数 → git の導入先 → 既知の場所の順に探す。
+//
+// 引数で環境を受け取るのはテストのため。Linux 上で Windows の分岐を検証できる。
+function resolveBash({ platform = process.platform, env = process.env, exists = fs.existsSync, gitExecPath = defaultGitExecPath } = {}) {
+	if (platform !== 'win32') return 'bash';
+
+	const fromEnv = env.CLAUDE_CODE_GIT_BASH_PATH;
+	if (fromEnv && exists(fromEnv)) return fromEnv;
+
+	// git --exec-path は例えば C:/Program Files/Git/mingw64/libexec/git-core を返す。
+	// Git の導入先（git-core から 3 階層上）までだけを遡り、各階層で bin\bash.exe → usr\bin\bash.exe の順に探す。
+	// ドライブのルートまで遡ると、C:\bin\bash.exe のように誰でも置ける場所のものを拾ってしまう。
+	// ドライブ文字か UNC で始まらない exec path（MSYS2 / Cygwin の /usr/lib/git-core など）は使わない。
+	const execPath = gitExecPath();
+	if (execPath && /^([A-Za-z]:[\\/]|\\\\|\/\/)/.test(execPath)) {
+		let dir = path.win32.normalize(execPath);
+		for (let level = 0; level <= 3; level++) {
+			for (const rel of ['bin\\bash.exe', 'usr\\bin\\bash.exe']) {
+				const candidate = path.win32.join(dir, rel);
+				if (exists(candidate)) return candidate;
+			}
+			const parent = path.win32.dirname(dir);
+			if (parent === dir) break;
+			dir = parent;
+		}
+	}
+
+	// 既知の導入先。インストーラの既定と、ユーザー単位のインストール。
+	const bases = [env.ProgramFiles, env['ProgramFiles(x86)'], env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs')];
+	for (const base of bases) {
+		if (!base) continue;
+		const candidate = path.win32.join(base, 'Git', 'bin', 'bash.exe');
+		if (exists(candidate)) return candidate;
+	}
+	return null;
+}
+
+// 「対応:」の2項目。品質上の指摘（終了コード1）と、出力が上限を超えて止めた場合の
+// 両方で文言が同じなので、ここへ切り出して共有する。
+function qualityCheckActions() {
+	return (
+		`対応:\n` +
+		`1. 上記の指摘を修正し、コミットし直してからやり直してください\n` +
+		`   （指摘が解消するまで、この手順を自分で繰り返してください）\n` +
+		`2. 修正せずに進める必要がある場合は、必ずユーザーに確認し、\n` +
+		`   許可を得たときだけ SKIP_QUALITY_CHECK=1 を先頭に付けてください\n` +
+		`   （AI が自己判断でこの変数を付けることはルールで禁止しています）`
+	);
+}
+
+// 品質チェックを1段走らせる。
+//   failure … 送信を止める文言（合格・対象なしなら null）
+//   note    … 送信は通すが、ユーザーに見せる注記（無ければ null）
+function runCheck(repoRoot, check, getBash) {
+	const found = findCheck(repoRoot, check);
 	// 無ければ素通し。配布前のリポジトリや、checks を excludeShared で外した
 	// リポジトリがあるため、存在しないこと自体は異常ではない。
-	if (!fs.existsSync(abs)) return null;
+	if (!found) return { failure: null, note: null };
+
+	const runner = runnerFor(found.abs, /\.sh$/.test(found.abs) ? getBash() : null);
+	if (!runner) {
+		// Git Bash が見つからない。黙って素通しせず、飛ばした事実を見える形にする。
+		return {
+			failure: null,
+			note: `Git Bash が見つからないため ${found.rel} を飛ばしました。CLAUDE_CODE_GIT_BASH_PATH で場所を指定できます。`,
+		};
+	}
 
 	try {
-		execFileSync('bash', [abs], {
+		execFileSync(runner.file, runner.args, {
 			cwd: repoRoot,
 			encoding: 'utf8',
 			stdio: ['ignore', 'pipe', 'pipe'],
@@ -209,47 +307,58 @@ function runCheck(repoRoot, check) {
 			timeout: 15 * 60 * 1000,
 		});
 	} catch (e) {
-		// 終了コードが取れない＝そもそも起動できなかった（bash が無い等）。
+		// maxBuffer（16 MiB）を超えると、Node は子プロセスを SIGTERM で止め、status が
+		// null・code が ENOBUFS になる。これは「起動できなかった」のではなく「大量の指摘を
+		// 出して止められた」ケースなので、status の null 判定より先に見て、素通しせず止める。
+		if (e.code === 'ENOBUFS') {
+			const truncated = `${e.stdout || ''}${e.stderr || ''}`.slice(0, 65536);
+			return {
+				failure:
+					`${check.label}の出力が上限（16 MiB）を超えたため、途中で止めて送信をブロックしました。\n\n` +
+					`${truncated}\n…（以下省略）\n\n` +
+					qualityCheckActions(),
+				note: null,
+			};
+		}
+
+		// 終了コードが取れない＝そもそも起動できなかった。
 		// チェックの不備で全ての送信が止まるほうが被害が大きいので素通しする。
-		if (e.status === undefined || e.status === null) return null;
+		if (e.status === undefined || e.status === null) return { failure: null, note: null };
 		const combined = `${e.stdout || ''}${e.stderr || ''}`.trim();
 
 		// 終了コード 3 は「環境の問題で実行できない」。品質上の指摘とは別物なので、
 		// そうと分かる形で返す。ここを区別しないと、コンテナが起動していないだけの
 		// ときに、AI が存在しない指摘を直そうとしてコードをいじり始める。
 		if (e.status === EXIT_ENV_PROBLEM) {
-			return (
-				`${check.label}を実行できなかったため、送信をブロックしました。\n` +
-				`**これは品質上の指摘ではなく、環境の問題です。コードを直しても解決しません。**\n\n` +
-				`${combined}\n\n` +
-				`対応:\n` +
-				`1. 上記の案内に従って環境を整えてから、もう一度やり直してください\n` +
-				`2. 環境を整えられない事情がある場合は、ユーザーに状況を説明して指示を仰いでください\n` +
-				`   （許可を得たときだけ SKIP_QUALITY_CHECK=1 を先頭に付けられます）`
-			);
+			return {
+				failure:
+					`${check.label}を実行できなかったため、送信をブロックしました。\n` +
+					`**これは品質上の指摘ではなく、環境の問題です。コードを直しても解決しません。**\n\n` +
+					`${combined}\n\n` +
+					`対応:\n` +
+					`1. 上記の案内に従って環境を整えてから、もう一度やり直してください\n` +
+					`2. 環境を整えられない事情がある場合は、ユーザーに状況を説明して指示を仰いでください\n` +
+					`   （許可を得たときだけ SKIP_QUALITY_CHECK=1 を先頭に付けられます）`,
+				note: null,
+			};
 		}
 
-		return (
-			`${check.label}に失敗したため、送信をブロックしました。\n\n` +
-			`${combined}\n\n` +
-			`対応:\n` +
-			`1. 上記の指摘を修正し、コミットし直してからやり直してください\n` +
-			`   （指摘が解消するまで、この手順を自分で繰り返してください）\n` +
-			`2. 修正せずに進める必要がある場合は、必ずユーザーに確認し、\n` +
-			`   許可を得たときだけ SKIP_QUALITY_CHECK=1 を先頭に付けてください\n` +
-			`   （AI が自己判断でこの変数を付けることはルールで禁止しています）`
-		);
+		return {
+			failure: `${check.label}に失敗したため、送信をブロックしました。\n\n${combined}\n\n${qualityCheckActions()}`,
+			note: null,
+		};
 	}
-	return null;
+	return { failure: null, note: null };
 }
 
 /**
  * コマンドを評価して、実行を許すかどうかを返す。
  *
  * @param {{command?: string, cwd?: string}} input
+ * @param {{bash?: string|null}} [deps] テスト用。bash を差し替える（undefined なら自動で解決、null なら「無い」）
  * @returns {{decision: 'allow'|'deny', reason?: string, note?: string}}
  */
-function evaluate(input) {
+function evaluate(input, deps = {}) {
 	// 判定の前にコマンド行を整える。
 	//   - 改行を \n にそろえる（CRLF のままだと、行末の \r のせいで git の呼び出しが見えなくなる）
 	//   - ヒアドキュメントの本文を取り除く（実行されないデータなので）
@@ -349,12 +458,21 @@ function evaluate(input) {
 		};
 	}
 
-	for (const check of CHECKS) {
-		const failure = runCheck(repoRoot, check);
-		if (failure) return deny(failure);
-	}
+	// bash は .sh のチェックが見つかったときだけ、1 回だけ解決する（Windows では git を 1 回叩く）。
+	let bash = deps.bash;
+	const getBash = () => {
+		if (bash === undefined) bash = resolveBash();
+		return bash;
+	};
 
+	const notes = [];
+	for (const check of CHECKS) {
+		const { failure, note } = runCheck(repoRoot, check, getBash);
+		if (failure) return deny(failure);
+		if (note) notes.push(note);
+	}
+	if (notes.length) return { decision: 'allow', note: notes.join(' ') };
 	return allow();
 }
 
-module.exports = { evaluate };
+module.exports = { evaluate, resolveBash, runnerFor, findCheck, CHECKS };

@@ -69,7 +69,8 @@ process.stdin.on('end', () => {
 
 		cwd = payload.cwd || process.cwd();
 		const file = (payload.tool_input && payload.tool_input.planFilePath) || latestPlan(cwd);
-		if (file) execFileSync('node', [STORE, 'register', file], { cwd, stdio: 'ignore' });
+		// この hook 自身が動いている Node で起動する。PATH の node に依存しない。
+		if (file) execFileSync(process.execPath, [STORE, 'register', file], { cwd, stdio: 'ignore' });
 	} catch {
 		// 台帳への記録に失敗しても、次の手順の案内だけは出す。
 		// 記録漏れはあとから gc / link が拾えるが、順番を飛ばされるのは取り返しがつかない。

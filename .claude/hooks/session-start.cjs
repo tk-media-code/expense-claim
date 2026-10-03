@@ -46,7 +46,8 @@ const HARNESS_BRIDGE = [
 function gc() {
 	try {
 		if (!fs.existsSync(PLAN_STORE)) return;
-		execFileSync('node', [PLAN_STORE, 'gc'], { cwd: REPO, stdio: 'ignore', timeout: 10_000 });
+		// この hook 自身が動いている Node で起動する。PATH の node に依存しない。
+		execFileSync(process.execPath, [PLAN_STORE, 'gc'], { cwd: REPO, stdio: 'ignore', timeout: 10_000 });
 	} catch {
 		// プランの整理に失敗しても、セッションの開始は妨げない。
 	}
