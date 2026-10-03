@@ -15,7 +15,7 @@
 # これがスキル層と分けてフックを置いている理由。
 #
 # core.hooksPath はローカル設定でありコミットされない。**再クローンしたら
-# .harness/protect.sh を叩き直す必要がある。**
+# node ai-harness/protect.mjs を叩き直す必要がある。**
 
 set -uo pipefail
 

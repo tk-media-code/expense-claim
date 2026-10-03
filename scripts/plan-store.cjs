@@ -21,7 +21,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// ブランチ命名規約。harness-check.sh と同じものを見る。
+// ブランチ命名規約。harness-check.cjs と同じものを見る。
 // これに合わないブランチ（main など）はプランの紐付け対象にしない。
 const WORK_BRANCH = /^(feature|fix)\/[0-9]+-/;
 

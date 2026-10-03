@@ -3,7 +3,7 @@
 // 変更したい場合はこのファイルを直接編集してよい（以後このファイルは上書きされません）
 'use strict';
 
-// Claude Code の PreToolUse フック（matcher: Bash）。
+// Claude Code の PreToolUse フック（matcher: Bash|PowerShell）。どちらのツールも command は tool_input.command に入る。
 // 判定は lib/guard-core.cjs が持ち、ここは入出力の変換だけを行う。
 //
 // 拒否に exit code 2 + stderr を使い、JSON の permissionDecision: deny を使っていない。
@@ -25,7 +25,7 @@ process.stdin.on('end', () => {
 	let result;
 	try {
 		const payload = JSON.parse(input);
-		if (payload.tool_name && payload.tool_name !== 'Bash') return;
+		if (payload.tool_name && payload.tool_name !== 'Bash' && payload.tool_name !== 'PowerShell') return;
 
 		const { evaluate } = require(path.join(__dirname, 'lib', 'guard-core.cjs'));
 		result = evaluate({
@@ -37,8 +37,10 @@ process.stdin.on('end', () => {
 	}
 
 	if (result.decision === 'deny') {
+		// process.exit は書き残しを捨てる（Linux のパイプは非同期なので、長い出力の末尾が消える）。終了コードだけ決めて自然に終える。
 		process.stderr.write(`${result.reason}\n`);
-		process.exit(2);
+		process.exitCode = 2;
+		return;
 	}
 
 	if (result.note) {
