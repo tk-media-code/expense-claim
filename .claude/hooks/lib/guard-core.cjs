@@ -9,16 +9,23 @@
 //   2. main / master 上での git commit・git push
 //   3. refspec が main / master を指している git push
 //   4. 品質チェックを通っていない git push
+//   5. 判定先のリポジトリをコマンド行から決められない git commit・git push
 //
 // 1 が「Issue 駆動」の入口の担保で、4 が出口の担保になっている。
 // ブランチを切る時点で Issue 番号を要求するので、Issue を作らずに実装へ入る経路が
 // 塞がる。番号が実在するかどうかは push 時に harness-check.cjs が確かめる
 // （ネットワークを見にいく判定を、対話の途中に挟まないため）。
 //
+// 2〜4 は、コマンド行に出てくる push / commit のすべてを、それが実行される場所のリポジトリで
+// 判定する。5 は、その場所が変数やコマンド置換で書かれていて分からないとき。
+// 分からないまま通すと 2〜4 が効かないので止める。場所を絶対パスか cwd からの相対パスでそのまま書けば、
+// ほとんどの場合は通る（通らない書き方は docs/design.md の「送信・コミットの判定先」に挙げてある）。
+//
 // 「機械判定できるものはドキュメントに書かない」の方針で、ルール文書に書いた
 // フローのうち機械的に判定できる部分をここへ降ろしている。
 
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
@@ -44,20 +51,6 @@ const CHECKS = [
 // 実行できない」。後者は直すべき対象が違うので、返す文言を分けている。
 const EXIT_ENV_PROBLEM = 3;
 
-// コマンドラインのどこかにある git push / git commit を拾う。
-// 素朴な部分一致だと echo で文字列を表示するだけの場合にも誤爆し、逆に
-// git -C /path push のようなグローバルオプション付きの形を取りこぼす。以下の正規表現は:
-//   - 行頭 or シェル区切り文字（; & | ( ` 改行）の直後に限定する。改行を区切りに含めないと、
-//     ヒアドキュメントでコミットした後の行の git push を見落とす
-//   - 先頭に環境変数代入（例: FOO=bar git ...）が付いていても許容する
-//   - git の直後に -C <path> のようなグローバルオプションが挟まってもよい
-//   - git の前にラッパー（rtk など）が挟まってもよい
-//   - 最後は push / commit という単語で終わる（pushurl 等への前方一致誤爆を避ける）
-// 多少の過検知は許容する。過検知しても「チェックが通れば素通しする」だけで実害が無く、
-// 逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
-const GIT_PUSH_RE = /(^|[;&|(`\n])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+push(\s|$)/;
-const GIT_COMMIT_RE = /(^|[;&|(`\n])\s*([A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(rtk\s+)?git(\s+-\S+(\s+[^-\s]\S*)?)*\s+commit(\s|$)/;
-
 // ブランチを作るサブコマンドと、新しいブランチ名を取るオプション。`git branch <名前>` は含めない。
 // `git branch --merged main` のように「操作対象」と「作成名」を字面で区別できない形が
 // あり、誤爆すると後片付けの手順そのものが止まるため。作成経路としては下の3つで足りる
@@ -73,6 +66,9 @@ const CREATE_FLAGS = {
 
 // git の直後に置けるオプションのうち、値を次の語で取るもの。サブコマンドを探すときに読み飛ばす。
 const GLOBAL_OPTS_WITH_VALUE = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env']);
+
+// 環境変数の代入語（FOO=bar）。コマンドの前に並んでいてもよい。
+const ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 // 誤検知やチェック自体の不具合で永久に作業できなくなる事態を避けるための安全弁。
 // ユーザーが明示的に許可した場合にのみ使う。AI が自己判断で付けることは
@@ -97,15 +93,11 @@ function git(args, cwd) {
 	}).trim();
 }
 
-// push 以降、次のシェル区切り（改行を含む）までの引数を見て、保護ブランチを指す refspec があるか調べる。
+// git push の引数（サブコマンドより後ろの語）に、保護ブランチを指す refspec があるか調べる。
 // feature/1-main-thing のような名前に誤爆しないよう、ref 全体との一致だけを見る。
-// 改行で止めないと、`git push` の次の行の `git switch main` まで引数と読んで誤爆する。
-function pushTargetsProtected(command) {
-	const m = /\bpush\b([^;&|\n]*)/.exec(command);
-	if (!m) return false;
-	const args = m[1].trim();
-	if (!args) return false;
-	for (const token of args.split(/\s+/)) {
+// 引数はその push の呼び出しのものだけを渡す。次の行の `git switch main` まで読むと誤爆する。
+function refspecTargetsProtected(args) {
+	for (const token of args) {
 		if (token.startsWith('-')) continue;
 		// <local>:<remote> の形なら、判定対象は送り先である右辺。
 		const ref = token.includes(':') ? token.slice(token.indexOf(':') + 1) : token;
@@ -152,19 +144,21 @@ function stripHeredocs(command) {
 // 最初の git だけを見ると、`git status && git switch -c 名前` の2つ目を見落とし、
 // `git init -b main && …` の -b をブランチ作成と取り違える。
 // 引用符の中の区切りも切ってしまうが、過検知の側に倒れるだけなので許容する。
+//
+// ブランチ作成の判定（newBranchNames）だけが使う。push / commit の検知と判定先は、
+// 場所を追う resolveTargets のほうで読む。ブランチ作成の判定の挙動を変えないため、
+// こちらの読み方（引用符を語としてまとめない、場所を追わない）はそのまま残している。
 function gitInvocations(command) {
 	const out = [];
 	for (const segment of command.split(/[;&|()`\n]/)) {
 		const m = /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:rtk\s+)?git(?:\s+(.*))?$/.exec(segment);
 		if (!m) continue;
 		const tokens = (m[1] || '').trim().split(/\s+/).filter(Boolean);
-		let dir = null;
 		let i = 0;
 		for (; i < tokens.length && tokens[i].startsWith('-'); i++) {
-			if (tokens[i] === '-C') dir = tokens[i + 1] ? unquote(tokens[i + 1]) : null;
 			if (GLOBAL_OPTS_WITH_VALUE.has(tokens[i])) i += 1;
 		}
-		out.push({ sub: tokens[i] || '', args: tokens.slice(i + 1), dir });
+		out.push({ sub: tokens[i] || '', args: tokens.slice(i + 1) });
 	}
 	return out;
 }
@@ -196,6 +190,353 @@ function newBranchNames(command) {
 		}
 	}
 	return names;
+}
+
+// --- 実行される場所を追う（push / commit の判定先） ---------------------------------
+//
+// push / commit をどのリポジトリで判定するかは、hook の cwd だけでは決まらない。
+// `cd X && git push` の X、cd の後の相対パスの -C、`-C "$R"` の変数のように、場所は
+// コマンド行の中で動く。取り違えると、別のリポジトリを判定するか、存在しない場所の解決に
+// 失敗して素通しになる。そこで cd / pushd / popd と git の -C を前から順に追い、
+// git の呼び出しごとに、それが実行される場所を持たせる。
+//
+// シェルを解釈するのではなく、判定に要る分だけを字面で読む:
+//   - 区切りは ; & | ( ) ` 改行。引用符の中でも切る。引用符を正しく読むにはシェルと同じだけの
+//     規則が要る。多少の過検知は許容する。過検知しても「チェックが通れば素通しする」だけで
+//     実害が無く、逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
+//     例外は引用符の中の括弧で、"proj (1)" のようなパスを読めるよう、$( を除いて文字として扱う
+//   - コマンドとみなすのは、区切りの直後の語だけ。素朴な部分一致だと、echo で文字列を表示する
+//     だけの場合にも誤爆する。改行も区切りに含める。含めないと、ヒアドキュメントでコミットした
+//     後の行の git push を見落とす
+//   - git の前に環境変数代入（FOO=bar git ...）やラッパー（rtk）が付いていてもよい。git の直後の
+//     グローバルオプション（-C <path> など）は読み飛ばしてサブコマンドを探す。サブコマンドは
+//     語として完全に一致で見る（pushurl 等への前方一致の誤爆を避ける）
+//   - ( ) と ` は、中で動いた場所を閉じたところで元へ戻す（サブシェルとコマンド置換）。
+//     `$( … )` は外側の語の一部で、閉じた後に外側のコマンドの続きを読む
+//     （`git -C $(pwd) push` の push を見落とさないため）
+//   - 区切って得た各部分は、引用符を考慮して語に分ける（cd "/a b" の場所を取るため）。
+//     バックスラッシュの escape は処理しない（Windows のパス区切りと衝突する）
+//   - シェル変数は追わない。`R=/x && git -C "$R" push` の $R は展開せず、決まらない扱いにする。
+//     追い始めると、読み取りが小さなシェル解釈器に育つ。止めても場所をそのまま書けば通る
+//
+// 場所が静的に決まらないものは、推測せず cwd を null にして、原因の箇所を unresolved に残す。
+// 呼び出し側（evaluate）は、決まらない push / commit を止める。
+
+// コマンド行を、実行される順の出来事の列に読む。
+//   { type: 'cmd', words }  1 つの単純なコマンド。語は text（引用符を外した値）と raw（元の書き方）を持つ
+//   { type: 'enter' }       サブシェル・コマンド置換に入る
+//   { type: 'leave' }       そこを出る（enter と必ず対になる）
+//
+// 語のフラグ（場所として読むときに効く）:
+//   opaque    値が実行時にしか決まらない（$ を含む、コマンド置換や引用符の外の括弧で途切れた、引用符が閉じていない）
+//   glob      引用符の外に * ? がある
+//   backslash 引用符の外に \ がある
+//   tilde     引用符の外の ~ で始まる
+function lexCommands(command) {
+	const events = [];
+	const frames = []; // 開いている ( と `。外側の読みかけの語とコマンドを退避している
+	let words = []; // 今のコマンドの語
+	let cur = null; // 読んでいる途中の語
+	let quote = null; // 開いている引用符（' か "）
+
+	const newWord = (start) => ({
+		text: '',
+		raw: '',
+		start,
+		end: start,
+		started: false,
+		tilde: false,
+		opaque: false,
+		glob: false,
+		backslash: false,
+		parens: 0, // 引用符の中で文字として取り込んだ ( のうち、まだ ) で閉じていない数
+	});
+	const endWord = () => {
+		if (!cur) return;
+		// 引用符が閉じないまま区切りで切れた語は、値を読み取れない。
+		if (quote) cur.opaque = true;
+		cur.raw = command.slice(cur.start, cur.end);
+		words.push(cur);
+		cur = null;
+	};
+	const endCommand = () => {
+		endWord();
+		quote = null;
+		if (words.length > 0) events.push({ type: 'cmd', words });
+		words = [];
+	};
+	const add = (ch, i, quoted) => {
+		if (!cur) cur = newWord(i);
+		if (!cur.started) {
+			cur.started = true;
+			cur.tilde = !quoted && ch === '~';
+		}
+		cur.text += ch;
+		cur.end = i + 1;
+		if (ch === '$') cur.opaque = true;
+		if (!quoted && (ch === '*' || ch === '?')) cur.glob = true;
+		if (!quoted && ch === '\\') cur.backslash = true;
+	};
+	const enter = (i, tick) => {
+		// 語の途中（$( や foo(）で開くか、バッククォートで開くと、その語の値は置換の結果になる。
+		// 引用符の中の ( は、$( を除いて、ここへ来ない（文字として語に取り込む）。バッククォートは引用符の中でも切る。
+		if (cur || tick) {
+			if (!cur) cur = newWord(i);
+			cur.started = true;
+			cur.opaque = true;
+			cur.end = i + 1;
+		}
+		events.push({ type: 'enter' });
+		frames.push({ tick, words, cur, quote });
+		words = [];
+		cur = null;
+		quote = null;
+	};
+	const leave = (i) => {
+		endCommand();
+		events.push({ type: 'leave' });
+		({ words, cur, quote } = frames.pop());
+		// 閉じ括弧までを、外側の語の元の書き方に含める。
+		if (cur && i < command.length) cur.end = i + 1;
+	};
+
+	for (let i = 0; i < command.length; i++) {
+		const ch = command[i];
+		const top = frames[frames.length - 1];
+		if (ch === ';' || ch === '&' || ch === '|' || ch === '\n') {
+			endCommand();
+		} else if (ch === '`') {
+			// バッククォートは開閉が同じ字なので、交互に開いて閉じる。
+			if (top && top.tick) leave(i);
+			else enter(i, true);
+		} else if (ch === '(' && (quote === "'" || (quote === '"' && command[i - 1] !== '$'))) {
+			// 引用符の中の ( は、その語の文字そのもの（"proj (1)"、"Program Files (x86)"）。
+			// ただし "…$(…)…" は、引用符の中でもコマンド置換なので、下で括弧として開く。
+			add(ch, i, true);
+			cur.parens += 1;
+		} else if (ch === ')' && quote && cur && cur.parens > 0) {
+			// 引用符の中の ) は、同じ語の中で文字として取り込んだ ( を先に閉じる。
+			// 引用符を閉じた後の ) は、中の ( の相手にせず、下で $( などを閉じる括弧として読む。
+			add(ch, i, true);
+			cur.parens -= 1;
+		} else if (ch === '(') {
+			enter(i, false);
+		} else if (ch === ')') {
+			// 対応する ( の無い ) は、場所を戻さず、ただの区切りとして読む。
+			if (top && !top.tick) leave(i);
+			else endCommand();
+		} else if (quote) {
+			if (ch === quote) {
+				quote = null;
+				cur.end = i + 1;
+			} else {
+				add(ch, i, true);
+			}
+		} else if (ch === "'" || ch === '"') {
+			quote = ch;
+			if (!cur) cur = newWord(i);
+			cur.started = true;
+			cur.end = i + 1;
+		} else if (/\s/.test(ch)) {
+			endWord();
+		} else {
+			add(ch, i, false);
+		}
+	}
+	// 閉じられなかった ( や ` の外側のコマンドも、読み落とさず出す。
+	while (frames.length > 0) leave(command.length);
+	endCommand();
+	return events;
+}
+
+// 解決した先の長さの上限。OS のパスの上限（Linux の PATH_MAX）に合わせた値で、超えたら決まらない扱いにする。
+// 上限が無いと、相対の移動を何百回も重ねたコマンドで、そのたびに伸び続けたパス全体を解き直すことになり、
+// 二乗の時間がかかる（100 KB の連鎖で数秒）。決まらなくなれば、その先は解き直さない。
+const MAX_PATH_LENGTH = 4096;
+
+// 語が指す場所を、from（今の場所。不明なら null）を基準に解決する。
+// 決まらなければ path が null。基準が不明なせいで相対パスを解けないときだけ byBase が立つ
+// （原因は、この語ではなく、基準を不明にした先の cd のほうにあるため）。
+function resolveWord(word, from, { P, win32, home }) {
+	const unknown = { path: null, byBase: false };
+	const found = (p) => (p.length > MAX_PATH_LENGTH ? unknown : { path: p });
+	if (word.opaque || word.glob) return unknown;
+	// POSIX で引用符の外の \ は escape（my\ dir）。追わない。Windows では区切りなので、そのまま読む。
+	if (word.backslash && !win32) return unknown;
+
+	let p = word.text;
+	if (word.tilde) {
+		if (!home) return unknown;
+		if (p === '~') return found(P.resolve(home));
+		if (!p.startsWith('~/')) return unknown; // ~user は追わない
+		p = home + p.slice(1);
+	}
+	if (win32) {
+		// Git Bash の書き方 /c/work は C:/work と読む。// で始まるものは UNC なのでそのまま。
+		// それ以外の / 始まり（/tmp など）は Git Bash 独自の場所で、Windows のパスには直せない。
+		const m = /^\/([A-Za-z])(\/.*)?$/.exec(p);
+		if (m) p = `${m[1].toUpperCase()}:${m[2] || '/'}`;
+		else if (/^\/(?!\/)/.test(p)) return unknown;
+	}
+	// Windows の絶対パスは、ドライブ文字か UNC で始まるものだけ。\foo や C:foo は基準が要る。
+	const absolute = win32 ? /^([A-Za-z]:[\\/]|[\\/]{2})/.test(p) : p.startsWith('/');
+	if (absolute) return found(P.resolve(p));
+	if (from === null) return { path: null, byBase: true };
+	return found(P.resolve(from, p));
+}
+
+// from から word へ動いた後の場所。{ path, why } で、決まらなければ path が null、why が原因の箇所。
+function moveTo(from, word, cause, ctx) {
+	const r = resolveWord(word, from.path, ctx);
+	if (r.path !== null) return { path: r.path, why: null };
+	return { path: null, why: r.byBase ? from.why : cause };
+}
+
+// cd の引数に書けるオプション。
+const CD_OPTIONS = new Set(['-L', '-P', '-e', '-@']);
+// リダイレクトの語（>file、2>>log、< in など）。演算子だけの語（> /dev/null の >）は、次の語がリダイレクト先になる。
+// >& と &> は要らない。レキサーは & で必ず切るので、2>&1 は 2> までしか語に入らない。
+const REDIRECT_RE = /^\d*(>>?|<)/;
+const REDIRECT_OPERATOR_RE = /^\d*(>>?|<)$/;
+
+// 語の列から、リダイレクトを除く。演算子だけの語は、リダイレクト先の語も除く。
+// 除かないと、`popd >/dev/null` の >/dev/null や `cd > /dev/null` の /dev/null を、移動先と読んでしまう。
+function withoutRedirects(words) {
+	const out = [];
+	for (let i = 0; i < words.length; i++) {
+		const raw = words[i].raw; // 引用符で囲んだ ">x" はリダイレクトではなく名前なので、元の書き方で見る
+		if (!REDIRECT_RE.test(raw)) out.push(words[i]);
+		else if (REDIRECT_OPERATOR_RE.test(raw)) i++;
+	}
+	return out;
+}
+
+// cd / pushd / popd の効果。here（今の場所）と dirs（pushd で積んだ場所）を受け取り、動いた後のものを返す。
+// dirs は { here, next } の連なり（空なら null）。積む・戻すのたびに全体を写さないため、変更しない形で持つ。
+function changeDir(name, args, here, dirs, ctx) {
+	const rest = withoutRedirects(args);
+	// 動いた先が決まらないときの結果。stack は、その後のスタック（既定は今のまま）。
+	const lost = (cause, stack = dirs) => ({ here: { path: null, why: cause }, dirs: stack });
+
+	// オプションを読み飛ばす。cd の -L -P -e -@ と、どれにも付けられる -- （この後ろは、- で始まる語も名前。
+	// ただし - 自身は、-- の後でも OLDPWD）。
+	let a = 0;
+	if (name === 'cd') while (a < rest.length && CD_OPTIONS.has(rest[a].text)) a++;
+	const literal = a < rest.length && rest[a].text === '--';
+	if (literal) a++;
+	const arg = rest[a];
+
+	if (name === 'popd') {
+		if (arg) return lost(`popd ${arg.raw}`); // -n と +N / -N は追わない
+		if (dirs === null) return lost('popd');
+		return { here: dirs.here, dirs: dirs.next };
+	}
+
+	let next = dirs;
+	if (name === 'pushd') {
+		// pushd - は、今の場所を積んで、OLDPWD へ動く（-- の後ろでも同じ）。OLDPWD は追わないので動いた先は
+		// 決まらないが、今の場所は積む。積まないと、後ろの popd が、積んだ場所ではなく別の場所へ戻ってしまう。
+		if (arg && arg.text === '-') return lost(`pushd ${arg.raw}`, { here, next: dirs });
+		// 引数なし（上の 2 つを入れ替える）と、-n・+N・-N は追わない。
+		if (!arg || (!literal && /^[+-]/.test(arg.text))) return lost(arg ? `pushd ${arg.raw}` : 'pushd');
+		next = { here, next: dirs };
+	}
+	if (!arg) {
+		// 引数なしの cd は home。
+		if (!ctx.home) return lost(name);
+		return { here: { path: ctx.P.resolve(ctx.home), why: null }, dirs };
+	}
+	// cd - は直前の場所へ戻るが、それが何かは追わない（-- の後ろでも同じ）。ほかの - で始まる語は、知らないオプション。
+	if (arg.text === '-' || (!literal && arg.text.startsWith('-'))) return lost(`${name} ${arg.raw}`);
+	return { here: moveTo(here, arg, `${name} ${arg.raw}`, ctx), dirs: next };
+}
+
+// 単純なコマンドが git の呼び出しなら { sub, args, cwd, unresolved } を返す。そうでなければ null。
+function gitCall(words, here, ctx) {
+	let k = 0;
+	// GIT_DIR / GIT_WORK_TREE / --git-dir / --work-tree があると、リポジトリは cwd とは別に決まる。
+	// その場所は追わず、決まらない扱いにする（後ろに絶対パスの -C があっても同じ）。
+	let fixed = null;
+	while (k < words.length && ASSIGNMENT_RE.test(words[k].text)) {
+		if (fixed === null && /^GIT_(DIR|WORK_TREE)=/.test(words[k].text)) fixed = words[k].raw;
+		k++;
+	}
+	if (k < words.length && words[k].text === 'rtk') k++;
+	if (k >= words.length || words[k].text !== 'git') return null;
+	k++;
+
+	let at = fixed === null ? here : { path: null, why: fixed };
+	while (k < words.length && words[k].text.startsWith('-')) {
+		const opt = words[k++];
+		if (GLOBAL_OPTS_WITH_VALUE.has(opt.text)) {
+			const value = words[k++]; // 値は次の語（末尾で無ければ undefined）
+			if (fixed !== null) continue;
+			if (opt.text === '-C') {
+				// 複数あれば順に重なる（git -C a -C b は a/b）。
+				if (value) at = moveTo(at, value, `-C ${value.raw}`, ctx);
+			} else if (opt.text === '--git-dir' || opt.text === '--work-tree') {
+				fixed = value ? `${opt.raw} ${value.raw}` : opt.raw;
+				at = { path: null, why: fixed };
+			}
+		} else if (fixed === null && /^--(git-dir|work-tree)=/.test(opt.text)) {
+			fixed = opt.raw;
+			at = { path: null, why: fixed };
+		}
+	}
+	return {
+		sub: k < words.length ? words[k].text : '',
+		args: words.slice(k + 1).map((w) => w.text),
+		cwd: at.path,
+		unresolved: at.path === null ? at.why : null,
+	};
+}
+
+// os.homedir() は、HOME が無く passwd にも無い環境（任意の UID で動くコンテナなど）では例外を投げる。
+// guard の判定が丸ごと落ちて素通しになるので、取れなければ null にして、home を要る場所だけ決まらない扱いにする。
+function defaultHome() {
+	try {
+		return os.homedir();
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * コマンド行に出てくる git の呼び出しを、それが実行される場所つきで、出てきた順に返す。
+ *
+ * @param {string} command evaluate が整えた後のもの（CRLF → LF、ヒアドキュメント本文の除去、行末 \ の連結が済んでいる）
+ * @param {{base?: string, platform?: string, home?: string}} [opts]
+ *   base: コマンドが走り始める場所（hook の cwd）。platform / home は、パスの解決をテストで差し替えるため
+ * @returns {{sub: string, args: string[], cwd: string|null, unresolved: string|null}[]}
+ *   cwd: その呼び出しが実行される場所の絶対パス。静的に決まらなければ null
+ *   unresolved: cwd が null のとき、決まらなかった原因の箇所（例: cd "$R"、-C "$R"）。案内の文言に使う
+ */
+function resolveTargets(command, { base, platform = process.platform, home = defaultHome() } = {}) {
+	const win32 = platform === 'win32';
+	const ctx = { P: win32 ? path.win32 : path.posix, win32, home };
+	const out = [];
+	let here = base ? { path: base, why: null } : { path: null, why: '作業ディレクトリ' };
+	let dirs = null; // pushd で積んだ場所（changeDir を参照）
+	const scopes = []; // サブシェルに入る前の here / dirs
+
+	for (const ev of lexCommands(command)) {
+		if (ev.type === 'enter') {
+			scopes.push({ here, dirs });
+		} else if (ev.type === 'leave') {
+			({ here, dirs } = scopes.pop());
+		} else {
+			const words = ev.words;
+			const k = words[0].text === 'builtin' ? 1 : 0;
+			const name = k < words.length ? words[k].text : '';
+			if (name === 'cd' || name === 'pushd' || name === 'popd') {
+				({ here, dirs } = changeDir(name, words.slice(k + 1), here, dirs, ctx));
+			} else {
+				const call = gitCall(words, here, ctx);
+				if (call) out.push(call);
+			}
+		}
+	}
+	return out;
 }
 
 // 段の候補を順に探し、最初に見つかった 1 本を返す。無ければ null。
@@ -280,6 +621,11 @@ function qualityCheckActions() {
 	);
 }
 
+// どのリポジトリの話かを示す 1 行。別のリポジトリへ送るとき、どこの指摘か分かるようにする。
+function repoLine(repoRoot) {
+	return `対象のリポジトリ: ${repoRoot}`;
+}
+
 // 品質チェックを1段走らせる。
 //   failure … 送信を止める文言（合格・対象なしなら null）
 //   note    … 送信は通すが、ユーザーに見せる注記（無ければ null）
@@ -294,7 +640,9 @@ function runCheck(repoRoot, check, getBash) {
 		// Git Bash が見つからない。黙って素通しせず、飛ばした事実を見える形にする。
 		return {
 			failure: null,
-			note: `Git Bash が見つからないため ${found.rel} を飛ばしました。CLAUDE_CODE_GIT_BASH_PATH で場所を指定できます。`,
+			note:
+				`Git Bash が見つからないため ${found.rel} を飛ばしました。CLAUDE_CODE_GIT_BASH_PATH で場所を指定できます。\n` +
+				repoLine(repoRoot),
 		};
 	}
 
@@ -314,7 +662,8 @@ function runCheck(repoRoot, check, getBash) {
 			const truncated = `${e.stdout || ''}${e.stderr || ''}`.slice(0, 65536);
 			return {
 				failure:
-					`${check.label}の出力が上限（16 MiB）を超えたため、途中で止めて送信をブロックしました。\n\n` +
+					`${check.label}の出力が上限（16 MiB）を超えたため、途中で止めて送信をブロックしました。\n` +
+					`${repoLine(repoRoot)}\n\n` +
 					`${truncated}\n…（以下省略）\n\n` +
 					qualityCheckActions(),
 				note: null,
@@ -333,6 +682,7 @@ function runCheck(repoRoot, check, getBash) {
 			return {
 				failure:
 					`${check.label}を実行できなかったため、送信をブロックしました。\n` +
+					`${repoLine(repoRoot)}\n` +
 					`**これは品質上の指摘ではなく、環境の問題です。コードを直しても解決しません。**\n\n` +
 					`${combined}\n\n` +
 					`対応:\n` +
@@ -344,11 +694,45 @@ function runCheck(repoRoot, check, getBash) {
 		}
 
 		return {
-			failure: `${check.label}に失敗したため、送信をブロックしました。\n\n${combined}\n\n${qualityCheckActions()}`,
+			failure:
+				`${check.label}に失敗したため、送信をブロックしました。\n` +
+				`${repoLine(repoRoot)}\n\n` +
+				`${combined}\n\n` +
+				qualityCheckActions(),
 			note: null,
 		};
 	}
 	return { failure: null, note: null };
+}
+
+// 判定できなかった箇所を、文言に載せる形に整える。読み取りが切った名残（末尾の空白や、閉じる側が別の部分へ
+// 離れてしまった引用符の開き）は落とし、長いものは詰める（巨大な $( … ) をそのまま載せない）。
+function describeCause(cause) {
+	let s = cause.trim();
+	const last = s[s.length - 1];
+	if ((last === '"' || last === "'") && s.split(last).length % 2 === 0) s = s.slice(0, -1).trimEnd();
+	if (s.length <= 200) return s; // UTF-16 の単位で 200 以下なら、文字数も 200 以下
+	const chars = Array.from(s); // 文字（コードポイント）で数える。サロゲートペアの途中では切らない
+	return chars.length <= 200 ? s : `${chars.slice(0, 200).join('')}…`;
+}
+
+// 判定先のリポジトリを決められないときの文言。causes は、決まらなかった原因の箇所。
+function unlocatedReason(causes) {
+	return (
+		`送信先（またはコミット先）のリポジトリを判定できないため、ブロックしました。\n` +
+		`判定できなかった箇所: ${[...new Set(causes.map(describeCause))].join('、')}\n\n` +
+		`変数・コマンド置換（$R や $(…)）、cd -、--git-dir などで書かれた場所は、hook からは分かりません。\n` +
+		`分からないまま通すと、送信先の品質チェックが走らず、main への直接のコミット・送信も止められません。\n\n` +
+		`対応:\n` +
+		`1. 場所をそのまま書いて実行し直してください（絶対パスでも、今の作業ディレクトリからの相対パスでも構いません）\n` +
+		`   git -C /path/to/repo push\n` +
+		`   cd /path/to/repo && git push\n` +
+		`   git -C ../repo push\n` +
+		`2. 引用符の中の文字列（コミットメッセージなど）が場所の指定と読まれている場合は、\n` +
+		`   その文字列をヒアドキュメントやファイル（git commit -F）で渡すか、\n` +
+		`   push / commit を単独のコマンドに分けて実行し直してください\n\n` +
+		`SKIP_QUALITY_CHECK=1 を付けても、この判定は飛ばせません。`
+	);
 }
 
 /**
@@ -398,37 +782,59 @@ function evaluate(input, deps = {}) {
 
 	if (!mayShip) return allow();
 
-	const isPush = GIT_PUSH_RE.test(command);
-	const isCommit = GIT_COMMIT_RE.test(command);
-	if (!isPush && !isCommit) return allow();
-
-	// 判定するリポジトリは、その push / commit の呼び出しに付いた -C から取る。無ければ呼び出し元の cwd。
-	// 最初の git の -C を取ると、`git -C A status && git -C B push` で A を判定してしまう。
-	// 相対パスはコマンドの cwd を基準に解決する（guard のプロセスの cwd とは限らない）。
+	// --- 判定先を決める -----------------------------------------------------
+	// push / commit の検知と、その判定先は、同じ読み取り（resolveTargets）から出す。別々に読むと、
+	// 「push は見つけたが、その場所は見ていない」という食い違いが起きる。
+	// 判定するのは、コマンド行に出てくるすべての push / commit。最初の 1 つだけを見ると、
+	// `git -C A commit && git -C B push` で A だけを判定し、B の品質チェックを走らせない。
+	// 場所は、コマンドの cwd（guard のプロセスの cwd とは限らない）から、cd や -C を前から追って決める。
 	const base = (input && input.cwd) || process.cwd();
-	const ship = gitInvocations(command).find((inv) => inv.sub === 'push' || inv.sub === 'commit');
-	const cwd = ship && ship.dir ? path.resolve(base, ship.dir) : base;
+	const ships = resolveTargets(command, { base }).filter((t) => t.sub === 'push' || t.sub === 'commit');
+	if (ships.length === 0) return allow();
 
-	let branch;
-	let repoRoot;
-	try {
-		branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd);
-		repoRoot = git(['rev-parse', '--show-toplevel'], cwd);
-	} catch {
-		return allow(); // git リポジトリでない、または解決できない
+	// 場所が決まらない push / commit が 1 つでもあれば止める。通すと、その送信先の品質チェックが
+	// 走らず、main 上かどうかも確かめられない。場所を絶対パスか cwd からの相対パスでそのまま書き直せば、
+	// ほとんどの場合は通るので、止めても詰まらない（通らない書き方は docs/design.md に挙げてある）。
+	// SKIP_QUALITY_CHECK=1 でも止める（これは品質チェックを飛ばす指定で、場所を決める手段ではない）。
+	const unlocated = ships.filter((t) => t.cwd === null);
+	if (unlocated.length > 0) return deny(unlocatedReason(unlocated.map((t) => t.unresolved)));
+
+	// 判定先ごとに、ブランチとリポジトリのルートを取る（同じ場所は 1 回だけ）。
+	// git リポジトリでない、または解決できない場所は、その判定先だけ飛ばす（素通しの扱い）。
+	// 新しく作る場所（mkdir x && cd x && git init && git commit）を止めないため。
+	const repos = new Map();
+	const repoAt = (cwd) => {
+		if (!repos.has(cwd)) {
+			try {
+				repos.set(cwd, {
+					branch: git(['rev-parse', '--abbrev-ref', 'HEAD'], cwd),
+					repoRoot: git(['rev-parse', '--show-toplevel'], cwd),
+				});
+			} catch {
+				repos.set(cwd, null);
+			}
+		}
+		return repos.get(cwd);
+	};
+	const targets = [];
+	for (const ship of ships) {
+		const repo = repoAt(ship.cwd);
+		if (repo) targets.push({ ...ship, ...repo });
 	}
 
 	// --- ② 保護ブランチ上での commit / push --------------------------------
 
-	if (PROTECTED_BRANCHES.has(branch)) {
-		const verb = isCommit && !isPush ? 'コミット' : '送信';
+	for (const t of targets) {
+		if (!PROTECTED_BRANCHES.has(t.branch)) continue;
+		const verb = t.sub === 'commit' ? 'コミット' : '送信';
 		return deny(
-			`${branch} ブランチで直接${verb}しようとしています。\n\n` +
-				`このリポジトリは Issue 駆動の開発フローを採っており、${branch} への直接の\n` +
+			`${t.branch} ブランチで直接${verb}しようとしています。\n` +
+				`${repoLine(t.repoRoot)}\n\n` +
+				`このリポジトリは Issue 駆動の開発フローを採っており、${t.branch} への直接の\n` +
 				`変更は禁止されています（GitHub 側でも拒否されます）。\n\n` +
 				`正しい手順:\n` +
 				`1. Issue を起案してユーザーの承認を得る → creating-issues スキル\n` +
-				`2. git switch ${branch} && git pull\n` +
+				`2. git switch ${t.branch} && git pull\n` +
 				`3. git switch -c feature/<issue番号>-<内容>\n` +
 				`4. 作業してコミットし、送信して gh pr create\n\n` +
 				`creating-issues スキルがこの手順を持っています。`,
@@ -436,25 +842,31 @@ function evaluate(input, deps = {}) {
 	}
 
 	// --- ③ 保護ブランチを指す refspec --------------------------------------
+	// push の呼び出しごとに、その引数で判定する。
 
-	if (isPush && pushTargetsProtected(command)) {
+	for (const t of targets) {
+		if (t.sub !== 'push' || !refspecTargetsProtected(t.args)) continue;
 		return deny(
-			`保護ブランチ（main / master）へ直接送信しようとしています。\n\n` +
-				`変更は必ず PR 経由で入れてください。現在のブランチ ${branch} を送信し、\n` +
+			`保護ブランチ（main / master）へ直接送信しようとしています。\n` +
+				`${repoLine(t.repoRoot)}\n\n` +
+				`変更は必ず PR 経由で入れてください。現在のブランチ ${t.branch} を送信し、\n` +
 				`gh pr create で PR を作るのが正しい手順です。`,
 		);
 	}
 
 	// --- ④ 品質チェック -----------------------------------------------------
 	// ここから先は送信のときだけ。コミットは品質チェックの対象外。
+	// 送信先のリポジトリごとに 1 回ずつ、出てきた順に走らせる。最初に失敗したところで止める。
 
-	if (!isPush) return allow();
+	const roots = [...new Set(targets.filter((t) => t.sub === 'push').map((t) => t.repoRoot))];
+	if (roots.length === 0) return allow();
 
 	if (SKIP_QUALITY_RE.test(command)) {
 		// スキップした事実は必ず見える形にする。黙って素通しするとガードの意味が薄れる。
+		// どのリポジトリへの送信のチェックを飛ばしたかも添える。
 		return {
 			decision: 'allow',
-			note: 'SKIP_QUALITY_CHECK=1 の指定により、事前の品質チェックをスキップしました。',
+			note: `SKIP_QUALITY_CHECK=1 の指定により、事前の品質チェックをスキップしました。\n${roots.map(repoLine).join('\n')}`,
 		};
 	}
 
@@ -466,13 +878,15 @@ function evaluate(input, deps = {}) {
 	};
 
 	const notes = [];
-	for (const check of CHECKS) {
-		const { failure, note } = runCheck(repoRoot, check, getBash);
-		if (failure) return deny(failure);
-		if (note) notes.push(note);
+	for (const repoRoot of roots) {
+		for (const check of CHECKS) {
+			const { failure, note } = runCheck(repoRoot, check, getBash);
+			if (failure) return deny(failure);
+			if (note) notes.push(note);
+		}
 	}
-	if (notes.length) return { decision: 'allow', note: notes.join(' ') };
+	if (notes.length) return { decision: 'allow', note: notes.join('\n') };
 	return allow();
 }
 
-module.exports = { evaluate, resolveBash, runnerFor, findCheck, CHECKS };
+module.exports = { evaluate, resolveTargets, resolveBash, runnerFor, findCheck, CHECKS };
