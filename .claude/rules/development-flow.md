@@ -83,7 +83,7 @@ worktree を使う場合も同じで、`using-git-worktrees` が作るブラン�
 | | 中身 | 所有 |
 | --- | --- | --- |
 | `scripts/harness-check.cjs` | 言語非依存の共通チェック。必ず走る | ハーネス |
-| `scripts/quality-check.cjs`（または `.sh`） | Lint・型・テストなどプロジェクト固有。無ければ素通し | プロジェクト |
+| `scripts/quality-check.cjs`（または `.sh`） | Lint・型・テストなどプロジェクト固有。無いと共通チェックが送信を止める | プロジェクト |
 
 失敗すると `git push` を含むコマンドがブロックされる。リモートには何も出ていないので、
 **指摘の修正を `implementer` に出し（統括役は直さない）、まだ送信できていないコミットに `git commit --amend` で畳んでから送信し直す。**

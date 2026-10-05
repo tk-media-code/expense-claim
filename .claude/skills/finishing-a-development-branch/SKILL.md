@@ -1,6 +1,6 @@
 ---
 name: finishing-a-development-branch
-description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work. 実装が終わって統合の段になったら使う。このリポジトリ版は Superpowers の同名スキルを差し替えたもので、選択肢が「push して PR」の1本に絞ってある。
+description: Use when implementation is complete and you need to decide how to integrate the work. 実装が終わって統合の段になったら使う。このリポジトリ版は Superpowers の同名スキルを差し替えたもので、選択肢が「push して PR」の1本に絞ってある。
 ---
 
 # 開発ブランチを終える
@@ -12,19 +12,16 @@ description: Use when implementation is complete, all tests pass, and you need t
 
 **開始時に宣言する:** 「finishing-a-development-branch スキルで作業を仕上げます。」
 
-## 1. テストを確認する
+## 1. テストは push の hook に任せる
 
-プロジェクトのテストを全部走らせる（`npm test` / `cargo test` / `pytest` / `go test ./...`）。
+**ここでテストを走らせない。** テストは、送信を検知した hook が、プロジェクトの品質チェック
+（`scripts/quality-check.cjs` または `.sh`）で走らせる。落ちれば送信が止まるので、壊れたものは出ていかない。
+ここで先に走らせると、同じテストが続けて2回走るだけになる。
 
-**落ちているなら、そこで止めて報告する。** 統合の話はテストが緑になってから。
+**完了の証拠は、送信が通ったこと。** 「テストが通った」と言うのは、`submit-pull-request` で送信が通ってからにする。
 
-```
-テストが失敗しています（<N> 件）。統合の前に直す必要があります:
-
-[失敗の内容]
-```
-
-**「さっき通った」は根拠にならない。** これから統合する木の上で走らせた結果だけが証拠になる。
+プロジェクトの品質チェックが無いリポジトリでは、共通チェックが送信を止める。そのときは
+`writing-quality-checks` スキルで足す（走らせるものが無いリポジトリは、ユーザーに確認したうえで `.harness.json` で外す）。
 
 ## 2. どこで作業しているかを判定する
 
@@ -84,7 +81,7 @@ worktree とブランチの後片付けはそこにまとめてあるので、�
 
 | 考え | 現実 |
 | --- | --- |
-| 「テストはさっき通った」 | これから統合する木の上で走らせる。緑だったのは走らせた木の話 |
+| 「念のため、ここでもテストを走らせておく」 | push の hook が同じテストを走らせる。続けて2回走るだけ |
 | 「上流のスキルには3択と書いてある」 | このリポジトリでは2つが拒否される。拒否される操作を選択肢に出さない |
 | 「ローカルでマージすれば早い」 | `main` への直接の変更は GitHub 側と hook の両方が拒否する |
 | 「PR を出したから worktree はもう要らない」 | レビューの指摘はそこで直す。マージまで残す |

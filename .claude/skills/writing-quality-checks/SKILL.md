@@ -9,7 +9,7 @@ description: このプロジェクト固有の品質チェック（scripts/quali
 
 | | 中身 | 所有 | 直す場所 |
 | --- | --- | --- | --- |
-| `scripts/harness-check.cjs` | コンフリクトマーカー・秘匿情報・ブランチ名・Issue の実在 | ハーネス | ハーネスの `share/templates/` |
+| `scripts/harness-check.cjs` | コンフリクトマーカー・秘匿情報・ブランチ名・Issue の実在・プロジェクトの品質チェックが置いてあるか | ハーネス | ハーネスの `share/templates/` |
 | `scripts/quality-check.cjs` または `scripts/quality-check.sh` | Lint・型・テストなど、このプロジェクト固有のもの | プロジェクト | **ここ。このリポジトリで自由に書く** |
 
 **`scripts/harness-check.cjs` を直さない。** 全プロジェクトへ配られている共有物なので、
@@ -207,7 +207,11 @@ fail() {
 	return 0
 }
 
-cd "$(git rev-parse --show-toplevel)" || exit 3
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+	echo "git リポジトリの中で実行してください。" >&2
+	exit 3
+}
+cd "$root" || exit 3
 
 # --- 環境の確認 ---
 command -v npm >/dev/null 2>&1 || {
@@ -263,8 +267,9 @@ bash 版は `bash -n scripts/quality-check.sh` で構文を見てから `bash sc
 { "checks": { "branch-name": false } }
 ```
 
-外せるのは `conflict-markers` / `secrets` / `branch-name` / `issue-exists`。
-**プロジェクト側のチェックは自分で書いたものなので、要らなければ消せばよい。**
+外せるのは `conflict-markers` / `secrets` / `branch-name` / `issue-exists` / `quality-check`。
+**プロジェクト側のチェックの中身は自分で書いたものなので、要らない項目は消せばよい。** ファイルごと無くすと、
+共通チェックの `quality-check` が送信を止める。走らせるものが無いリポジトリは、ユーザーに確認したうえで `quality-check` を外す。
 
 ## よくある言い訳
 
