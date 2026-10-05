@@ -19,6 +19,7 @@
 //   secrets           秘匿情報の混入
 //   branch-name       ブランチ名の規約（Issue 番号を含むか）
 //   issue-exists      ブランチ名の Issue が実在するか
+//   quality-check     プロジェクトの品質チェック（scripts/quality-check.*）が置いてあるか
 //
 // 個別のチェックを外したいプロジェクトは、リポジトリ直下の .harness.json に書く:
 //   { "checks": { "secrets": false } }
@@ -37,6 +38,10 @@ const EXIT_ENV = 3;
 // 作業ブランチの規約。guard-core.cjs の BRANCH_RE と同じ形。
 // 片方だけ直すと「作れるのに送れない」ブランチができるので、変えるときは両方を直す。
 const BRANCH_RE = /^(feature|fix)\/[0-9]+-[a-z0-9._-]+$/;
+
+// プロジェクトの品質チェックのファイル名（リポジトリのルートからの相対パス）。guard-core.cjs の CHECKS と同じ並び。
+// 片方だけ直すと、置いてあるのに無いと言われる／無いのに通る、が起きるので、変えるときは両方を直す。
+const QUALITY_CHECK_FILES = ['scripts/quality-check.cjs', 'scripts/quality-check.mjs', 'scripts/quality-check.js', 'scripts/quality-check.sh'];
 
 // 自分自身。検出パターン（秘匿情報の正規表現など）を必然的に含むので検査から外す。
 // ファイル名で見るのは、配布先の scripts/ と正本の share/templates/ の両方を、パスの形を比べずに扱うため。
@@ -303,6 +308,29 @@ if (enabled('issue-exists')) {
 			}
 		}
 		// view === 'missing'（gh が無い）は黙って飛ばす
+	}
+}
+
+// --- ⑤ プロジェクトの品質チェックがあるか -----------------------------------
+//
+// 見るのは、決まった名前のファイルがあるかどうかだけ。中身は見ない（テスト・Lint・型チェックの
+// 走らせ方は言語ごとに違い、共通チェックの側からは確かめられない）。置いたスクリプトが通るかは、
+// hook が共通チェックの直後に走らせて確かめる。検査対象（これから出ていくファイル）の絞り込みとは
+// 関係なく、毎回見る。
+
+if (enabled('quality-check')) {
+	if (!QUALITY_CHECK_FILES.some((f) => fs.existsSync(f))) {
+		fail(
+			'プロジェクトの品質チェックがありません（scripts/quality-check.cjs または .sh）',
+			'',
+			'テスト・Lint・型チェックは、push のときに hook がこのファイルを走らせて確かめます。',
+			'無いと、このリポジトリでは push の前にテストが1回も走りません。',
+			'',
+			'対応:',
+			'  - writing-quality-checks スキルで scripts/quality-check.cjs（または .sh）を作ってください',
+			'  - 走らせるものが無いリポジトリなら、ユーザーに確認したうえで、.harness.json に',
+			'    { "checks": { "quality-check": false } } と書いて外してください',
+		);
 	}
 }
 
