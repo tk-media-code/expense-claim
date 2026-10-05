@@ -10,6 +10,7 @@
 //   3. refspec が main / master を指している git push
 //   4. 品質チェックを通っていない git push
 //   5. 判定先のリポジトリをコマンド行から決められない git commit・git push
+//   6. 最終レビューの印が無い gh pr create
 //
 // 1 が「Issue 駆動」の入口の担保で、4 が出口の担保になっている。
 // ブランチを切る時点で Issue 番号を要求するので、Issue を作らずに実装へ入る経路が
@@ -20,6 +21,10 @@
 // 判定する。5 は、その場所が変数やコマンド置換で書かれていて分からないとき。
 // 分からないまま通すと 2〜4 が効かないので止める。場所を絶対パスか cwd からの相対パスでそのまま書けば、
 // ほとんどの場合は通る（通らない書き方は docs/design.md の「送信・コミットの判定先」に挙げてある）。
+//
+// 6 は、PR を作るリポジトリの scripts/final-review.cjs check を走らせ、その終了コードで決める。
+// 印は PR にするコミットに付けるので、場所・--repo・--head・同じ行で HEAD を動かす操作のどれかで
+// 判定した中身と PR の中身がずれうるものは、確かめずに止める。
 //
 // 「機械判定できるものはドキュメントに書かない」の方針で、ルール文書に書いた
 // フローのうち機械的に判定できる部分をここへ降ろしている。
@@ -76,6 +81,31 @@ const ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=/;
 // 技術的に区別できないため、そこは文書規約に委ねる）。
 const SKIP_QUALITY_RE = /(^|[;&|(`])\s*SKIP_QUALITY_CHECK=1\s/;
 const SKIP_BRANCH_RE = /(^|[;&|(`])\s*SKIP_BRANCH_CHECK=1\s/;
+const SKIP_FINAL_REVIEW_RE = /(^|[;&|(`])\s*SKIP_FINAL_REVIEW=1\s/;
+
+// 最終レビューの印を確かめるスクリプト（リポジトリのルートからの場所）。
+const FINAL_REVIEW_SCRIPT = 'scripts/final-review.cjs';
+
+// HEAD や今のブランチを動かす git のサブコマンド。gh pr create と同じ行にあると、判定した後で
+// PR の中身が変わるので止める。push は HEAD を動かさないので含めない。
+const HEAD_MOVERS = new Set(['commit', 'merge', 'pull', 'rebase', 'cherry-pick', 'revert', 'reset', 'am', 'switch', 'checkout']);
+
+// gh pr のオプションのうち、値を次の語で取るもの。値の語（--title "gh pr create の説明" など）を
+// サブコマンドや別のオプションと読まないよう、値ごと読み飛ばす。
+const GH_PR_OPTS_WITH_VALUE = new Set([
+	'-t', '--title',
+	'-b', '--body',
+	'-F', '--body-file',
+	'-B', '--base',
+	'-H', '--head',
+	'-R', '--repo',
+	'-a', '--assignee',
+	'-l', '--label',
+	'-m', '--milestone',
+	'-p', '--project',
+	'-r', '--reviewer',
+	'-T', '--template',
+]);
 
 function allow() {
 	return { decision: 'allow' };
@@ -202,8 +232,9 @@ function newBranchNames(command) {
 //
 // シェルを解釈するのではなく、判定に要る分だけを字面で読む:
 //   - 区切りは ; & | ( ) ` 改行。引用符の中でも切る。引用符を正しく読むにはシェルと同じだけの
-//     規則が要る。多少の過検知は許容する。過検知しても「チェックが通れば素通しする」だけで
-//     実害が無く、逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
+//     規則が要る。多少の過検知は許容する。送信・コミットの判定では、過検知しても「チェックが
+//     通れば素通しする」だけ。PR の作成の判定は、過検知でも実際に止める場合がある（その場合の
+//     抜け方は、止める文言に書いてある）。逆に見逃しは仕組みの趣旨に反するため、迷ったら検知する側に倒す。
 //     例外は引用符の中の括弧で、"proj (1)" のようなパスを読めるよう、$( を除いて文字として扱う
 //   - コマンドとみなすのは、区切りの直後の語だけ。素朴な部分一致だと、echo で文字列を表示する
 //     だけの場合にも誤爆する。改行も区切りに含める。含めないと、ヒアドキュメントでコミットした
@@ -502,19 +533,18 @@ function defaultHome() {
 }
 
 /**
- * コマンド行に出てくる git の呼び出しを、それが実行される場所つきで、出てきた順に返す。
+ * コマンド行を前から読み、cd・pushd・popd とサブシェルの出入りで場所を追いながら、
+ * cd 類でない単純なコマンドごとに visit(words, here, ctx) を呼ぶ。
  *
  * @param {string} command evaluate が整えた後のもの（CRLF → LF、ヒアドキュメント本文の除去、行末 \ の連結が済んでいる）
  * @param {{base?: string, platform?: string, home?: string}} [opts]
  *   base: コマンドが走り始める場所（hook の cwd）。platform / home は、パスの解決をテストで差し替えるため
- * @returns {{sub: string, args: string[], cwd: string|null, unresolved: string|null}[]}
- *   cwd: その呼び出しが実行される場所の絶対パス。静的に決まらなければ null
- *   unresolved: cwd が null のとき、決まらなかった原因の箇所（例: cd "$R"、-C "$R"）。案内の文言に使う
+ * @param {(words: object[], here: {path: string|null, why: string|null}, ctx: object) => void} visit
+ *   here: そのコマンドが実行される場所。path が null なら決まらず、why が原因の箇所
  */
-function resolveTargets(command, { base, platform = process.platform, home = defaultHome() } = {}) {
+function walkCommands(command, { base, platform = process.platform, home = defaultHome() } = {}, visit) {
 	const win32 = platform === 'win32';
 	const ctx = { P: win32 ? path.win32 : path.posix, win32, home };
-	const out = [];
 	let here = base ? { path: base, why: null } : { path: null, why: '作業ディレクトリ' };
 	let dirs = null; // pushd で積んだ場所（changeDir を参照）
 	const scopes = []; // サブシェルに入る前の here / dirs
@@ -531,11 +561,76 @@ function resolveTargets(command, { base, platform = process.platform, home = def
 			if (name === 'cd' || name === 'pushd' || name === 'popd') {
 				({ here, dirs } = changeDir(name, words.slice(k + 1), here, dirs, ctx));
 			} else {
-				const call = gitCall(words, here, ctx);
-				if (call) out.push(call);
+				visit(words, here, ctx);
 			}
 		}
 	}
+}
+
+/**
+ * コマンド行に出てくる git の呼び出しを、それが実行される場所つきで、出てきた順に返す。
+ *
+ * @param {string} command evaluate が整えた後のもの（walkCommands を参照）
+ * @param {{base?: string, platform?: string, home?: string}} [opts] walkCommands を参照
+ * @returns {{sub: string, args: string[], cwd: string|null, unresolved: string|null}[]}
+ *   cwd: その呼び出しが実行される場所の絶対パス。静的に決まらなければ null
+ *   unresolved: cwd が null のとき、決まらなかった原因の箇所（例: cd "$R"、-C "$R"）。案内の文言に使う
+ */
+function resolveTargets(command, opts) {
+	const out = [];
+	walkCommands(command, opts, (words, here, ctx) => {
+		const call = gitCall(words, here, ctx);
+		if (call) out.push(call);
+	});
+	return out;
+}
+
+// 単純なコマンドが gh pr create（または別名の gh pr new）なら、resolvePrCreates の 1 件の形を返す。そうでなければ null。
+// gh の後ろの語は、値を取るオプションを値ごと読み飛ばし、- で始まる語も飛ばして、残った最初の 2 語で見る。
+// gh pr --repo o/r create のように、オプションが pr と create の間にあっても拾う。
+function prCreateCall(words, here) {
+	let k = 0;
+	while (k < words.length && ASSIGNMENT_RE.test(words[k].text)) k++;
+	if (k < words.length && words[k].text === 'rtk') k++;
+	if (k >= words.length || words[k].text !== 'gh') return null;
+
+	let repoFlag = false;
+	let head; // 付いていなければ undefined、読み取れなければ null
+	const rest = [];
+	for (let i = k + 1; i < words.length; i++) {
+		const word = words[i];
+		if (GH_PR_OPTS_WITH_VALUE.has(word.text)) {
+			const value = words[++i]; // 値は次の語（末尾で無ければ undefined）
+			if (word.text === '-R' || word.text === '--repo') repoFlag = true;
+			else if (word.text === '-H' || word.text === '--head') head = value && !value.opaque ? value.text : null;
+		} else if (word.text.startsWith('--repo=')) {
+			repoFlag = true;
+		} else if (word.text.startsWith('--head=')) {
+			head = word.opaque ? null : word.text.slice('--head='.length);
+		} else if (!word.text.startsWith('-')) {
+			rest.push(word.text);
+		}
+	}
+	if (rest[0] !== 'pr' || (rest[1] !== 'create' && rest[1] !== 'new')) return null;
+	return { cwd: here.path, unresolved: here.path === null ? here.why : null, repoFlag, head };
+}
+
+/**
+ * コマンド行に出てくる gh pr create（gh pr new）を、それが実行される場所つきで、出てきた順に返す。
+ *
+ * @param {string} command evaluate が整えた後のもの（walkCommands を参照）
+ * @param {{base?: string, platform?: string, home?: string}} [opts] walkCommands を参照
+ * @returns {{cwd: string|null, unresolved: string|null, repoFlag: boolean, head: string|null|undefined}[]}
+ *   cwd / unresolved: resolveTargets と同じ
+ *   repoFlag: -R / --repo（--repo=… を含む）が付いている
+ *   head: -H / --head の値。付いていなければ undefined、値が読み取れなければ null
+ */
+function resolvePrCreates(command, opts) {
+	const out = [];
+	walkCommands(command, opts, (words, here) => {
+		const call = prCreateCall(words, here);
+		if (call) out.push(call);
+	});
 	return out;
 }
 
@@ -613,8 +708,10 @@ function resolveBash({ platform = process.platform, env = process.env, exists = 
 function qualityCheckActions() {
 	return (
 		`対応:\n` +
-		`1. 上記の指摘を修正し、コミットし直してからやり直してください\n` +
-		`   （指摘が解消するまで、この手順を自分で繰り返してください）\n` +
+		`1. 上記の指摘の修正を、実装者（implementer）に出してください。統括役は自分で直しません\n` +
+		`   （人が Native を選んだ作業では、セッション自身が直します）\n` +
+		`   最終レビューの後なら、中身のある修正はレビュアー（reviewer）に1回見せます（final-review スキルの手順）\n` +
+		`   直ったら、コミットし直してからやり直してください。指摘が解消するまで、この手順を繰り返してください\n` +
 		`2. 修正せずに進める必要がある場合は、必ずユーザーに確認し、\n` +
 		`   許可を得たときだけ SKIP_QUALITY_CHECK=1 を先頭に付けてください\n` +
 		`   （AI が自己判断でこの変数を付けることはルールで禁止しています）`
@@ -735,6 +832,138 @@ function unlocatedReason(causes) {
 	);
 }
 
+// --- PR の作成（gh pr create） ---------------------------------------------------
+
+// 最終レビューの印を確かめる（<repoRoot>/scripts/final-review.cjs check）。読み替えは runCheck と同じ考え方。
+//   failure … PR の作成を止める文言（よい・対象なしなら null）
+//   note    … 通すが、ユーザーに見せる注記（無ければ null）
+function runFinalReview(repoRoot) {
+	const abs = path.join(repoRoot, FINAL_REVIEW_SCRIPT);
+	// 無ければ素通し。配布前のリポジトリや、final-review を配布から外したリポジトリがあるため。
+	if (!fs.existsSync(abs)) return { failure: null, note: null };
+
+	let stdout;
+	try {
+		stdout = execFileSync(process.execPath, [abs, 'check'], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'pipe'],
+			maxBuffer: 16 * 1024 * 1024,
+			timeout: 15 * 60 * 1000,
+		});
+	} catch (e) {
+		// 終了コードが取れない＝起動できなかった。チェックの不備で全ての PR の作成が止まるのを避けて素通しする。
+		if (e.status === undefined || e.status === null) return { failure: null, note: null };
+		const combined = `${e.stdout || ''}${e.stderr || ''}`.trim();
+		if (e.status === EXIT_ENV_PROBLEM) {
+			return {
+				failure:
+					`最終レビューの印を確かめられなかったため、PR の作成をブロックしました。\n` +
+					`${repoLine(repoRoot)}\n` +
+					`**これは環境の問題です。コードを直しても解決しません。**\n\n` +
+					combined,
+				note: null,
+			};
+		}
+		return {
+			failure: `最終レビューの印が有効でないため、PR の作成をブロックしました。\n${repoLine(repoRoot)}\n\n${combined}\n\n${PR_NOT_A_PR_HINT}`,
+			note: null,
+		};
+	}
+	// 0 でも表示があれば（配布物だけの変更で印を求めなかった、など）、どのリポジトリの話かを添えて見せる。
+	const shown = (stdout || '').trim();
+	return { failure: null, note: shown ? `${shown}\n${repoLine(repoRoot)}` : null };
+}
+
+// 印の有無に関係なく止める判定（場所不明・--repo / --head・同じ行で HEAD が動く）の文言の末尾に添える、抜け方の案内。
+// 字句解析は引用符の中でも ; などで切るので、コミットメッセージに書いた「gh pr create」や「git commit」を
+// 呼び出しと読むことがある。そのとき分けて実行するものが無いので、文字列の渡し方を変える道を示す。
+const PR_QUOTED_MISREAD_HINT =
+	`引用符の中の文字列（コミットメッセージや PR の本文など）が gh pr create や git の操作と読まれている場合は、\n` +
+	`その文字列をヒアドキュメントやファイル（git commit -F、gh pr create --body-file）で渡して実行し直してください`;
+
+// 印が無くて止める判定（終了コード 3 以外の 0 でない値）の文言の末尾に添える、抜け方の案内。
+// PR を作るコマンドでなくても、引用符の中の gh pr create（検索のパターンなど）を読んで止めることがある。
+const PR_NOT_A_PR_HINT =
+	`PR を作るコマンドではないのに止められた場合は、引用符の中の文字列（検索のパターンなど）が gh pr create と読まれています。\n` +
+	`区切り文字（; & | 改行 バッククォート）の直後に gh pr create が来ない書き方にするか、その文字列をファイルで渡して、実行し直してください`;
+
+// PR を作るリポジトリを決められないときの文言。
+function prUnlocatedReason(cause) {
+	return (
+		`PR を作るリポジトリを判定できないため、ブロックしました。\n` +
+		`判定できなかった箇所: ${describeCause(cause)}\n\n` +
+		`対応: 場所をそのまま書いて、gh pr create を実行し直してください\n` +
+		`（絶対パスでも、今の作業ディレクトリからの相対パスでも構いません。例: cd /path/to/repo && gh pr create）\n\n` +
+		PR_QUOTED_MISREAD_HINT
+	);
+}
+
+// --repo、または今のブランチと違う --head が付いているときの文言。
+// 印は今のリポジトリの今のブランチにしか付かないので、別の場所を指す PR は確かめられない。
+const PR_FOREIGN_REASON =
+	`--repo や、今のブランチ以外を指す --head が付いた gh pr create は判定できないため、ブロックしました。\n\n` +
+	`対応: PR にするブランチの上で、--repo と --head を付けずに実行し直してください\n\n` +
+	PR_QUOTED_MISREAD_HINT;
+
+// 同じコマンド行に HEAD を動かす操作があるときの文言。
+const PR_HEAD_MOVES_REASON =
+	`gh pr create は、コミットやブランチの切り替えと別のコマンドで実行してください。\n\n` +
+	`最終レビューの印は、PR にするコミットに付けます。同じコマンド行で HEAD が動くと、判定した後で中身が変わります\n\n` +
+	PR_QUOTED_MISREAD_HINT;
+
+/**
+ * コマンド行の gh pr create を、それぞれが実行される場所のリポジトリで判定する（設計書 8 節の表の順）。
+ *
+ * @param {string} command evaluate が整えた後のもの
+ * @param {string} base コマンドが走り始める場所（hook の cwd）
+ * @returns {{deny: string|null, notes: string[]}} deny: 止める文言（通すなら null）。notes: 通すときに見せる注記
+ */
+function evaluatePrCreates(command, base) {
+	const calls = resolvePrCreates(command, { base });
+	if (calls.length === 0) return { deny: null, notes: [] };
+
+	// 1. 明示的な回避。飛ばした事実は注記で必ず見せる。
+	if (SKIP_FINAL_REVIEW_RE.test(command)) {
+		return { deny: null, notes: ['SKIP_FINAL_REVIEW=1 の指定により、最終レビューの印の確認をスキップしました。'] };
+	}
+
+	// 4 の判定に使う。どのリポジトリに対する操作かは問わない（読み取りを単純に保つため）。
+	const movesHead = resolveTargets(command, { base }).some((t) => HEAD_MOVERS.has(t.sub));
+	const notes = [];
+	const checked = new Set(); // 同じリポジトリの check は 1 回だけ走らせる
+	for (const call of calls) {
+		if (call.cwd === null) return { deny: prUnlocatedReason(call.unresolved), notes: [] }; // 2
+		if (call.repoFlag) return { deny: PR_FOREIGN_REASON, notes: [] }; // 3
+		if (movesHead) return { deny: PR_HEAD_MOVES_REASON, notes: [] }; // 4
+
+		// 5. git リポジトリでない、またはスクリプトが無ければ、その gh pr create は通す。
+		let repoRoot;
+		let branch;
+		try {
+			repoRoot = git(['rev-parse', '--show-toplevel'], call.cwd);
+			branch = git(['rev-parse', '--abbrev-ref', 'HEAD'], call.cwd);
+		} catch {
+			continue;
+		}
+		if (!fs.existsSync(path.join(repoRoot, FINAL_REVIEW_SCRIPT))) continue;
+
+		// 6. --head は owner:branch の形なら : の後ろを比べる。今のブランチと同じなら、付いていないのと同じ。
+		if (call.head !== undefined) {
+			const target = call.head === null ? null : call.head.slice(call.head.indexOf(':') + 1);
+			if (target !== branch) return { deny: PR_FOREIGN_REASON, notes: [] };
+		}
+
+		// 7〜10
+		if (checked.has(repoRoot)) continue;
+		checked.add(repoRoot);
+		const { failure, note } = runFinalReview(repoRoot);
+		if (failure) return { deny: failure, notes: [] };
+		if (note) notes.push(note);
+	}
+	return { deny: null, notes };
+}
+
 /**
  * コマンドを評価して、実行を許すかどうかを返す。
  *
@@ -755,7 +984,8 @@ function evaluate(input, deps = {}) {
 	// 最小コストで抜ける。大多数のコマンドはここで終わる。
 	const mayCreate = command.includes('switch') || command.includes('checkout') || command.includes('worktree');
 	const mayShip = command.includes('push') || command.includes('commit');
-	if (!mayCreate && !mayShip) return allow();
+	const mayPr = /(?:^|[\s;&|(`])gh(?:\s|$)/.test(command) && command.includes(' pr');
+	if (!mayCreate && !mayShip && !mayPr) return allow();
 
 	// --- ① ブランチ作成 -----------------------------------------------------
 
@@ -780,15 +1010,41 @@ function evaluate(input, deps = {}) {
 		}
 	}
 
-	if (!mayShip) return allow();
+	// 場所は、コマンドの cwd（guard のプロセスの cwd とは限らない）から、cd や -C を前から追って決める。
+	const base = (input && input.cwd) || process.cwd();
 
+	// --- PR の作成 → 送信・コミット --------------------------------------------
+	// PR の判定を先に行う。送信の品質チェックは時間がかかるので、PR の判定で止まるなら走らせない。
+	// 同じ行に push と gh pr create の両方があれば、両方を判定し、注記はまとめて返す。
+	const notes = [];
+	if (mayPr) {
+		const pr = evaluatePrCreates(command, base);
+		if (pr.deny) return deny(pr.deny);
+		notes.push(...pr.notes);
+	}
+	if (mayShip) {
+		const shipped = evaluateShips(command, base, deps);
+		if (shipped.decision === 'deny') return shipped;
+		if (shipped.note) notes.push(shipped.note);
+	}
+	if (notes.length) return { decision: 'allow', note: notes.join('\n') };
+	return allow();
+}
+
+/**
+ * 送信・コミットを判定する（② 保護ブランチ、③ refspec、④ 品質チェック）。
+ *
+ * @param {string} command evaluate が整えた後のもの
+ * @param {string} base コマンドが走り始める場所（hook の cwd）
+ * @param {{bash?: string|null}} deps evaluate を参照
+ * @returns {{decision: 'allow'|'deny', reason?: string, note?: string}}
+ */
+function evaluateShips(command, base, deps) {
 	// --- 判定先を決める -----------------------------------------------------
 	// push / commit の検知と、その判定先は、同じ読み取り（resolveTargets）から出す。別々に読むと、
 	// 「push は見つけたが、その場所は見ていない」という食い違いが起きる。
 	// 判定するのは、コマンド行に出てくるすべての push / commit。最初の 1 つだけを見ると、
 	// `git -C A commit && git -C B push` で A だけを判定し、B の品質チェックを走らせない。
-	// 場所は、コマンドの cwd（guard のプロセスの cwd とは限らない）から、cd や -C を前から追って決める。
-	const base = (input && input.cwd) || process.cwd();
 	const ships = resolveTargets(command, { base }).filter((t) => t.sub === 'push' || t.sub === 'commit');
 	if (ships.length === 0) return allow();
 
@@ -889,4 +1145,4 @@ function evaluate(input, deps = {}) {
 	return allow();
 }
 
-module.exports = { evaluate, resolveTargets, resolveBash, runnerFor, findCheck, CHECKS };
+module.exports = { evaluate, resolveTargets, resolvePrCreates, resolveBash, runnerFor, findCheck, CHECKS };
