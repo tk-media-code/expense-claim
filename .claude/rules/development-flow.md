@@ -18,7 +18,7 @@ description: 開発フロー。Superpowers のスキルと Issue 駆動の接続
    ↓
 ⑤ push                 hook が品質チェックを自動実行 ──指摘あり──→ ④へ戻る
    ↓ 通過
-⑥ PR を作る            submit-pull-request
+⑥ PR を作る            submit-pull-request（最終レビューの印が無いと hook が止める）
    ↓
 ⑦ マージ               【人がやる。AI は触らない】
 ```
@@ -86,10 +86,10 @@ worktree を使う場合も同じで、`using-git-worktrees` が作るブラン�
 | `scripts/quality-check.cjs`（または `.sh`） | Lint・型・テストなどプロジェクト固有。無ければ素通し | プロジェクト |
 
 失敗すると `git push` を含むコマンドがブロックされる。リモートには何も出ていないので、
-**指摘を修正し、まだ送信できていないコミットに `git commit --amend` で畳んでから送信し直す。**
-**指摘が0件になるまで自分で繰り返す。** 安易に作業を止めたり人に丸投げしたりしない。
+**指摘の修正を `implementer` に出し（統括役は直さない）、まだ送信できていないコミットに `git commit --amend` で畳んでから送信し直す。**
+**指摘が0件になるまで繰り返す。** 安易に作業を止めたり人に丸投げしたりしない。
 
-ブロックを回避する `SKIP_QUALITY_CHECK=1` / `SKIP_BRANCH_CHECK=1` を、
+ブロックを回避する `SKIP_QUALITY_CHECK=1` / `SKIP_BRANCH_CHECK=1` / `SKIP_FINAL_REVIEW=1` を、
 **ユーザーの明示的な指示なしに付けてはならない。**
 
 ## ⑥⑦ PR を作ったら止まる
@@ -97,11 +97,10 @@ worktree を使う場合も同じで、`using-git-worktrees` が作るブラン�
 `finishing-a-development-branch` が出す選択肢のうち、**このリポジトリで採れるのは
 「push して PR を作る」だけ。** ローカルで `main` にマージする経路は使わない。
 
-PR 本文に **`Closes #<issue番号>`** を必ず含める。書式は `commit-and-pr` ルールに従う。
+**PR を作る前に、ブランチ全体の最終レビューを通して印を付ける**（`final-review` スキル）。印が無いと hook が `gh pr create` を止める。
+**レビューを通さずに印を付けない。** PR 本文には **`Closes #<issue番号>`** を必ず含める（書式は `commit-and-pr` ルール）。
 
-**`gh pr merge` は実行しない。** マージは人が内容を確認した上で行う。
-
-マージの報告を受けても、後片付けのために動かなくてよい。次の作業の ③ でまとめて片付く。
+**`gh pr merge` は実行しない。** マージは人が内容を確認した上で行う。マージの報告を受けても動かなくてよい（次の作業の ③ で片付く）。
 
 ## 生成された共有物を書き換えない
 
@@ -124,5 +123,6 @@ PR 本文に **`Closes #<issue番号>`** を必ず含める。書式は `commit-
 | ④ | 計画を実装する | `subagent-driven-development`（既定）／ `executing-plans`（人が明示したときだけ） |
 | ④ | バグを直す | `systematic-debugging` |
 | ⑤⑥ | 「push して」「PR 出して」「これで出していい？」 | `submit-pull-request` |
+| ④⑥ | 最終レビューを出す／PR を作る前／`gh pr create` が止められた／最終レビューの後にコードを直す | `final-review` |
 | — | このリポジトリだけのルールを追加する | `add-project-rule` |
 | — | このプロジェクトの品質チェックを作る・直す | `writing-quality-checks` |
