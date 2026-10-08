@@ -27,15 +27,15 @@ description: 開発フロー。Superpowers のスキルと Issue 駆動の接続
 
 ## ① 実装依頼には brainstorming から入る
 
-「〜を作って」「〜を直して」と言われて、いきなりコードを書き始めない。
-**まず brainstorming スキルを開く。** 既に設計が固まっている場合はそこで短く抜けられる。
+「〜を作って」「〜を直して」と言われて、いきなりコードを書き始めない。**まず brainstorming スキルを開く。** 既に設計が固まっている場合はそこで短く抜けられる。
 
 ## ② プランは `plans/` に置く
 
-writing-plans は既定で `docs/superpowers/plans/` に保存すると書いてあるが、
-**このリポジトリでは `plans/` を使う**（ユーザー設定がスキルの既定値に優先する）。
+writing-plans は既定で `docs/superpowers/plans/` に保存すると書いてあるが、**このリポジトリでは `plans/` を使う**（ユーザー設定がスキルの既定値に優先する）。
 
 `plans/` は Git 管理外の作業メモで、**紐付いたブランチが消えるまで残り、消えたら自動で片付く。**
+
+**テストの期待を書くときは、正常系より先に壊し方の分類を当てる**（分類は最終レビューの観点表、`final-review` スキルの `checklist.md` を参照）。
 
 ## ③ 実装に入る前に Issue を立てる
 
@@ -121,7 +121,7 @@ worktree を使う場合も同じで、`using-git-worktrees` が作るブラン�
 | ② | 設計が固まった／仕様が決まった | `writing-plans` |
 | ③ | 計画ができた／「#42 やります」 | `creating-issues` |
 | ④ | 計画を実装する | `subagent-driven-development`（既定）／ `executing-plans`（人が明示したときだけ） |
-| ④ | バグを直す | `systematic-debugging` |
+| ④ | バグを直す | `systematic-debugging`（不具合の調査では、推測でコードを読む前に、まずログとエラー出力を読む。読み方はプロジェクトのルールに従う） |
 | ⑤⑥ | 「push して」「PR 出して」「これで出していい？」 | `submit-pull-request` |
 | ④⑥ | 最終レビューを出す／PR を作る前／`gh pr create` が止められた／最終レビューの後にコードを直す | `final-review` |
 | — | このリポジトリだけのルールを追加する | `add-project-rule` |
