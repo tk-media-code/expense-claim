@@ -63,11 +63,13 @@ t3.micro（約 $0.0136/h）+ db.t4g.micro（約 $0.026/h）+ パブリック IPv
 
 1. 1Password で新規アイテム → SSH キー → 「Ed25519」で生成する。タイトルは `expense-claim-ec2`。保管庫は、SSH エージェントが鍵を出す保管庫（`agent.toml` の対象）にする
 2. アイテムの公開鍵を `~/.ssh/expense-claim-ec2.pub` に保存する
-3. `ssh-add -l` に `expense-claim-ec2` が出ることを確かめる（`SSH_AUTH_SOCK` が無い環境では、エージェントのソケットを `SSH_AUTH_SOCK` に指定して実行する）
+3. ssh が使うエージェントに `expense-claim-ec2` が載っていることを確かめる。ssh は `SSH_AUTH_SOCK` か、`~/.ssh/config` の `IdentityAgent` でエージェントを使う設定にしておく。確かめ方は次の 2 通り
+   - `IdentityAgent` を設定していないなら、そのまま `ssh-add -l`
+   - `IdentityAgent` を設定しているなら、そのソケットを `SSH_AUTH_SOCK` に指定して実行する（例: `SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l`。Linux の 1Password の既定の場所で、macOS では場所が違う）。両方あるときは ssh では `IdentityAgent` が勝つので、素の `ssh-add -l` では違う一覧を見ることがある
 
 **公開鍵だけ**を Terraform が AWS に登録します。Terraform に鍵そのものを生成させると、秘密鍵が state に平文で保存されてしまうため、この手順は手作業で行います。`deploy.sh` は `~/.ssh/expense-claim-ec2.pub` を指定して ssh を呼び、署名はエージェントが行います。
 
-1Password を使わない場合は、従来どおり `ssh-keygen` で鍵を作り、`deploy.sh` に秘密鍵のパスを渡します。
+1Password を使わない場合は、従来どおり `ssh-keygen` で鍵を作り、`deploy.sh` に秘密鍵のパスを渡します。手で打つ `ssh -i` も、`.pub` ではなく秘密鍵のパスにします（エージェントに鍵が無いと、ssh は公開鍵ファイルを秘密鍵として読もうとして失敗します）。
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/expense-claim-ec2 -C "expense-claim deploy" -N ''
@@ -201,7 +203,7 @@ cd e2e && E2E_BASE_URL=http://$IP SESSION_SECRET=<.env.ec2 の値> npx playwrigh
 | --- | --- |
 | `deploy.sh` が exit 3 で止まる | 環境側の問題。表示された案内に従う（tfstate が無い・鍵が無い・SSH が届かない・cloud-init が終わっていない） |
 | SSH が届かない | `ssh_allowed_cidr` が現在の IP と一致しているか。`curl -s https://checkip.amazonaws.com` |
-| 接続確認で止まる（IP は合っている） | `ssh-add -l` に `expense-claim-ec2` が出るか。出なければ 1Password がロックされていないか、鍵の保管庫が SSH エージェントの対象かを確かめる |
+| 接続確認で止まる（IP は合っている） | ssh が使うエージェントに `expense-claim-ec2` が載っているか。`IdentityAgent` を設定しているなら `SSH_AUTH_SOCK=<そのソケット> ssh-add -l`、そうでなければ `ssh-add -l`（手順 1 の 3.）。載っていなければ 1Password がロックされていないか、鍵の保管庫が SSH エージェントの対象かを確かめる。秘密鍵ファイルを使うなら `SSH_KEY=<秘密鍵のパス>` を付ける |
 | ブラウザで開けない | `http_allowed_cidrs` に現在の IP が入っているか（スマートフォンの回線は別の IP） |
 | `--db-init` が接続で固まる／`ETIMEDOUT` | RDS 側の SG が EC2 の SG を参照しているか、サブネットグループの指定。EC2 上で `timeout 5 bash -c '</dev/tcp/<db_host>/3306' && echo ok` |
 | `--db-init` が `ENOTFOUND` | VPC の `enable_dns_hostnames` が false |

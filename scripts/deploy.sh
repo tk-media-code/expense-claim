@@ -124,8 +124,9 @@ preflight() {
 	# 既知の IP で鍵だけが変わった場合は警告が出るので、そのときは
 	# ssh-keygen -R <IP> で古い記録を消す。
 	# IdentitiesOnly=yes を使う理由:
-	# -i に公開鍵を渡すと、ssh はエージェントから同じ鍵だけを選んで出す。これが無いと
-	# エージェントの他の鍵も順に出してしまい、鍵が多いと MaxAuthTries で切られる。
+	# -i に公開鍵を渡すと、ssh はその鍵をエージェントに署名させる。IdentitiesOnly=yes は、
+	# 指定の鍵が通らないとき（エージェントに無い・EC2 に未登録）に、エージェントの他の鍵まで
+	# EC2 に順に見せないためのもの。見せると MaxAuthTries で切られ、原因の分かりにくい失敗になる。
 	# ServerAliveInterval は、イメージ転送（数分）の間に接続を切られないための指定。
 	SSH_OPTS=(-i "$SSH_KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o ServerAliveInterval=30)
 
@@ -134,6 +135,9 @@ preflight() {
 		echo "  セキュリティグループの SSH 許可元（ssh_allowed_cidr）が現在の IP と一致しているか確認してください。" >&2
 		echo "  現在の IP: $(curl -s https://checkip.amazonaws.com 2>/dev/null)" >&2
 		echo "  鍵がエージェントに載っているか（ssh-add -l）と、1Password がロックされていないかも確認してください。" >&2
+		echo "  ~/.ssh/config の IdentityAgent でエージェントを使っているなら、SSH_AUTH_SOCK にそのソケットを指定して ssh-add -l を実行します。" >&2
+		echo "  例: SSH_AUTH_SOCK=~/.1password/agent.sock ssh-add -l（Linux の 1Password の既定の場所。macOS では場所が違います）" >&2
+		echo "  秘密鍵ファイルを使うなら SSH_KEY=<秘密鍵のパス> を付けて実行してください。" >&2
 		return 1
 	fi
 
