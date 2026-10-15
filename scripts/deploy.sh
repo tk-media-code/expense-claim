@@ -41,7 +41,7 @@ readonly ENV_FILE="$INFRA_DIR/.env.ec2"
 readonly REMOTE_DIR="/home/ec2-user/expense-claim"
 readonly BACKEND_IMAGE="expense-claim-backend"
 readonly NGINX_IMAGE="expense-claim-nginx"
-readonly SSH_KEY="${SSH_KEY:-$HOME/.ssh/expense-claim-ec2}"
+readonly SSH_KEY="${SSH_KEY:-$HOME/.ssh/expense-claim-ec2.pub}"
 
 readonly EXIT_OK=0
 readonly EXIT_FAILURE=1
@@ -95,9 +95,9 @@ preflight() {
 	fi
 
 	if [ ! -f "$SSH_KEY" ]; then
-		fail "SSH の秘密鍵が見つかりません: $SSH_KEY"
-		echo "  ssh-keygen -t ed25519 -f ~/.ssh/expense-claim-ec2 -N '' で作成してください。" >&2
-		echo "  別の鍵を使うなら SSH_KEY=<パス> を付けて実行してください。" >&2
+		fail "SSH の鍵が見つかりません: $SSH_KEY"
+		echo "  鍵は 1Password の SSH エージェントに置き、公開鍵を ~/.ssh/expense-claim-ec2.pub に置いてください（infra/README.md の 1.）。" >&2
+		echo "  秘密鍵ファイルを使うなら SSH_KEY=<秘密鍵のパス> を付けて実行してください。" >&2
 		return 1
 	fi
 
@@ -123,13 +123,17 @@ preflight() {
 	# apply のたびに IP もホスト鍵も変わりうるため、未知のホストは自動で受け入れる。
 	# 既知の IP で鍵だけが変わった場合は警告が出るので、そのときは
 	# ssh-keygen -R <IP> で古い記録を消す。
+	# IdentitiesOnly=yes を使う理由:
+	# -i に公開鍵を渡すと、ssh はエージェントから同じ鍵だけを選んで出す。これが無いと
+	# エージェントの他の鍵も順に出してしまい、鍵が多いと MaxAuthTries で切られる。
 	# ServerAliveInterval は、イメージ転送（数分）の間に接続を切られないための指定。
-	SSH_OPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o ServerAliveInterval=30)
+	SSH_OPTS=(-i "$SSH_KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=15 -o ServerAliveInterval=30)
 
 	if ! remote 'true' 2>/dev/null; then
 		fail "EC2 に接続できません: ec2-user@$HOST"
 		echo "  セキュリティグループの SSH 許可元（ssh_allowed_cidr）が現在の IP と一致しているか確認してください。" >&2
 		echo "  現在の IP: $(curl -s https://checkip.amazonaws.com 2>/dev/null)" >&2
+		echo "  鍵がエージェントに載っているか（ssh-add -l）と、1Password がロックされていないかも確認してください。" >&2
 		return 1
 	fi
 
@@ -286,7 +290,7 @@ deploy_up() {
 	done
 
 	fail "アプリケーションが起動しませんでした。ログを確認してください:"
-	echo "  ssh -i $SSH_KEY ec2-user@$HOST 'cd $REMOTE_DIR && docker compose ps && docker compose logs --tail 50 backend'" >&2
+	echo "  ssh -i $SSH_KEY -o IdentitiesOnly=yes ec2-user@$HOST 'cd $REMOTE_DIR && docker compose ps && docker compose logs --tail 50 backend'" >&2
 	return 1
 }
 
