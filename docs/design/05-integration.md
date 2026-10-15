@@ -688,6 +688,10 @@ README が「**これは N-14 でアプリがやるべき手順と同じ**」と
 
 **すべて環境変数**（`NF-07` / N-08 / N-18 / `01-architecture.md` 6.1 の縛り3）。
 
+秘密情報（OAuth クライアント、`SESSION_SECRET`、`TOKEN_ENCRYPTION_KEY`）は `.env` に書かず、
+1Password から渡す。ローカルで実物の Google に繋ぐときは [`google.op`](../../google.op)、EC2 は
+[`infra/files/env.ec2.op`](../../infra/files/env.ec2.op) が参照先の雛形である（`07-development.md` 2.7）。
+
 | 変数 | 何を | 使う場所 |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth クライアント | 3章 |
