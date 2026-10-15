@@ -23,7 +23,7 @@
 # EC2 に置く環境変数の秘密情報の渡し方:
 #   infra/files/env.ec2.op（1Password の参照だけを書いた雛形）を op inject で解決して、
 #   EC2 の .env に置く。実行のたびに 1Password の承認が 1 回要る。
-#   1Password を使わない人は ENV_FILE=<平文のファイル> を付ける（そのファイルを読む）。
+#   1Password を使わない人は ENV_FILE=<平文のファイル> を付ける（そのファイルを読む。op:// が残っていれば止まる）。
 #   OP_CMD で 1Password CLI を差し替えられる（既定は op.exe があれば op.exe（WSL）、無ければ op）。
 #
 # 使い方:
@@ -92,30 +92,41 @@ op_cmd() {
 
 # EC2 に置く環境変数の行を標準出力に出す。失敗したら 0 以外を返し、何も出さない。
 # ENV_FILE があればその中身。無ければ ENV_TEMPLATE を 1Password で解決した結果。
+# どちらの経路でも、コメント以外の行に op:// が残っていたら、その変数名を出して失敗する。
 # 解決した結果はディスクに書かない（変数と pipe だけで扱う）。
 resolve_env_source() {
-	if [ -n "$ENV_FILE" ]; then
-		cat "$ENV_FILE"
-		return
-	fi
-
 	local op resolved unresolved
-	op="$(op_cmd)"
 
-	# op inject は {{ op://... }} だけを置き換える。雛形は op run --env-file と同じ書式
-	# （値がまるごと参照の行）で書くので、ここで {{ }} で包む。
-	# op.exe は行末に CR を付けるので落とす。CR が残ると値の末尾に混ざる。
-	# 失敗（承認のタイムアウト・参照先が無いなど）のときは何も出さずに止まる。
-	if ! resolved="$(sed -E 's#^([A-Za-z_][A-Za-z0-9_]*)=(op://.*)$#\1={{ \2 }}#' "$ENV_TEMPLATE" | "$op" inject | tr -d '\r')"; then
-		fail "1Password での解決に失敗しました（$op inject）。"
-		return 1
+	if [ -n "$ENV_FILE" ]; then
+		if ! resolved="$(cat "$ENV_FILE")"; then
+			fail "ENV_FILE を読めません: $ENV_FILE"
+			return 1
+		fi
+	else
+		op="$(op_cmd)"
+
+		# op inject は {{ op://... }} だけを置き換える。雛形は op run --env-file と同じ書式
+		# （値がまるごと参照の行）で書くので、ここで {{ }} で包む。
+		# op.exe は行末に CR を付けるので落とす。CR が残ると値の末尾に混ざる。
+		# 失敗（承認のタイムアウト・参照先が無いなど）のときは何も出さずに止まる。
+		if ! resolved="$(sed -E 's#^([A-Za-z_][A-Za-z0-9_]*)=(op://.*)$#\1={{ \2 }}#' "$ENV_TEMPLATE" | "$op" inject | tr -d '\r')"; then
+			fail "1Password での解決に失敗しました（$op inject）。"
+			return 1
+		fi
 	fi
 
-	# 参照先のアイテムやフィールドが無いと、参照がそのまま残ることがある。
-	# 空や参照のままの値を EC2 に置くと、起動時に原因の分かりにくい失敗になるので、ここで止める。
+	# 参照が値のまま残っていたら止める。残る原因は、1Password 経路では参照先のアイテムやフィールドが無いこと、
+	# ENV_FILE 経路では、雛形を写して実値への置き換えを忘れたこと。
+	# 参照の文字列は十分に長く、backend の起動時検証（16 文字以上）を通ってしまう。
+	# しかも public なリポジトリに書いてある文字列なので、それが署名鍵のまま EC2 に置かれると、
+	# 誰でもセッション Cookie を作れる。空の値と違って起動が止まらないので、ここで止める。
 	unresolved="$(printf '%s\n' "$resolved" | sed -n '/^[[:space:]]*#/d; /op:\/\//s/=.*//p')"
 	if [ -n "$unresolved" ]; then
-		fail "1Password の参照を解決できなかった変数があります。アイテム expense-claim-aws とフィールド名を確認してください:"
+		if [ -n "$ENV_FILE" ]; then
+			fail "ENV_FILE に 1Password の参照（op://）が残っている変数があります。実値に置き換えてください:"
+		else
+			fail "1Password の参照を解決できなかった変数があります。アイテム expense-claim-aws とフィールド名を確認してください:"
+		fi
 		printf '%s\n' "$unresolved" | sed 's/^/  /' >&2
 		return 1
 	fi

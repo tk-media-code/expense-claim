@@ -119,6 +119,8 @@ cp infra/files/env.ec2.op infra/.env.ec2
 ENV_FILE=infra/.env.ec2 bash scripts/deploy.sh --all
 ```
 
+置き換え忘れて `op://` が残っていると、`deploy.sh` は変数名を出して止まります（参照の文字列は長さの検証を通るので、止めないと公開済みの文字列が鍵のまま EC2 に置かれます）。
+
 `*.tfvars` は `.gitignore` 済みでコミットされません。
 
 ---
