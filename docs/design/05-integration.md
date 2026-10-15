@@ -688,9 +688,10 @@ README が「**これは N-14 でアプリがやるべき手順と同じ**」と
 
 **すべて環境変数**（`NF-07` / N-08 / N-18 / `01-architecture.md` 6.1 の縛り3）。
 
-秘密情報（OAuth クライアント、`SESSION_SECRET`、`TOKEN_ENCRYPTION_KEY`）は `.env` に書かず、
-1Password から渡す。ローカルで実物の Google に繋ぐときは [`google.op`](../../google.op)、EC2 は
-[`infra/files/env.ec2.op`](../../infra/files/env.ec2.op) が参照先の雛形である（`07-development.md` 2.7）。
+秘密情報（OAuth クライアント、`TOKEN_ENCRYPTION_KEY`）は手元の `.env` に書かず、1Password から渡す。
+ローカルで実物の Google に繋ぐときは [`google.op`](../../google.op) が参照先の雛形である。
+EC2 の `SESSION_SECRET` と `TOKEN_ENCRYPTION_KEY` も 1Password から渡す。`deploy.sh` が
+[`infra/files/env.ec2.op`](../../infra/files/env.ec2.op) を解決して、EC2 側の `.env` に置く（`07-development.md` 2.7）。
 
 | 変数 | 何を | 使う場所 |
 | --- | --- | --- |
@@ -709,6 +710,8 @@ README が「**これは N-14 でアプリがやるべき手順と同じ**」と
 `tools/gmail-probe/` は使っているが、**アプリはラベルを条件にしない**（F-04 / 4.1）。
 
 雛形は [`.env.example`](../../.env.example)。**この章はその一覧である。**
+秘密情報の参照は、[`google.op`](../../google.op)（ローカルで実物の Google に繋ぐとき）と
+[`infra/files/env.ec2.op`](../../infra/files/env.ec2.op)（EC2）に書いてある。
 `GOOGLE_STUB` とローカル MySQL 用の変数は開発専用で、この表には入れない。
 
 **画面にも API の応答にも出さない**（N-08 / `02-screens.md` 3.11 / `04-api.md` 7章）。

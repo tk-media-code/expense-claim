@@ -5,7 +5,8 @@
 # シート ID などの秘密ではない値（SPREADSHEET_ID など）は、今までどおり .env に書く。
 #
 # GOOGLE_STUB=0 はここに書かず、シェルから渡す。
-# 書くと Playwright が立てる compose も実物に繋がり、E2E が本物のシートへ書きに行く（docs/design/07-development.md 2.9）。
+# 実物に繋ぐ操作を、毎回コマンドに残すため。なお .env に書くのは禁止（Playwright が立てる compose も
+# 実物に繋がり、E2E が本物のシートへ書きに行く。docs/design/07-development.md 2.9）。
 #
 # 使い方:
 #   GOOGLE_STUB=0 op run --env-file=google.op -- docker compose up -d

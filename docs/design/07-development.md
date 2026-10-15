@@ -124,17 +124,18 @@ EC2 では `scripts/deploy.sh --migrate` が backend コンテナの中で同じ
 
 `SPREADSHEET_ID` 以降が空でも起動し、**その連携（取り込み・提出・領収書・アラート）だけが使えない。**
 
-**秘密情報は `.env` に書かず、1Password に置く。** 実物の Google に繋ぐときの値は、雛形
+**秘密情報は手元の `.env` に書かず、1Password に置く。** 実物の Google に繋ぐときの値は、雛形
 [`google.op`](../../google.op)（参照 `op://` だけを書いた public のファイル）から渡す
 （2.9）。EC2 に配る値は [`infra/files/env.ec2.op`](../../infra/files/env.ec2.op) から渡す
-（[`infra/README.md`](../../infra/README.md)）。それ以外の環境依存の値は今までどおり `.env` に書く。
+（`deploy.sh` が解決して、EC2 側の `.env` に置く。[`infra/README.md`](../../infra/README.md)）。
+それ以外の環境依存の値は今までどおり手元の `.env` に書く。
 
-| 値 | 置き場所 | 理由 |
+| 値 | 置き場所（手元の話。EC2 の行は EC2 側の `.env`） | 理由 |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 1Password（`google.op`） | 対で発行される。シークレットは漏れると他人が本アプリとして振る舞える |
 | `TOKEN_ENCRYPTION_KEY`（実物の Google を使うとき） | 1Password（`google.op`） | 実物のリフレッシュトークンを守る鍵である |
-| `SESSION_SECRET` / `TOKEN_ENCRYPTION_KEY`（EC2） | 1Password（`env.ec2.op`） | 確認環境のセッションと暗号鍵 |
-| `GOOGLE_REDIRECT_URI_*` / `SPREADSHEET_ID` / `MY_SHEET_NAME` / `DRIVE_FOLDER_ID` / `GMAIL_SENDER` / `ALERT_TO` / `ALLOWED_EMAIL` / `APP_URL` | `.env` | 秘密ではないが、public のリポジトリには出せない値（N-08 / N-18） |
+| `SESSION_SECRET` / `TOKEN_ENCRYPTION_KEY`（EC2） | 1Password（`env.ec2.op`）。`deploy.sh` が EC2 側の `.env` に置く | 確認環境のセッションと暗号鍵 |
+| `GOOGLE_REDIRECT_URI_*` / `SPREADSHEET_ID` / `MY_SHEET_NAME` / `DRIVE_FOLDER_ID` / `GMAIL_SENDER` / `ALERT_TO` / `ALLOWED_EMAIL` / `APP_URL` | 手元の `.env` | 秘密ではないが、public のリポジトリには出せない値（N-08 / N-18） |
 | ローカルの `SESSION_SECRET` | 書かない（開発用の既定値） | E2E が同じ鍵で Cookie を作る |
 
 ### 2.8 GOOGLE_STUB — Google を叩かずに開発する
@@ -170,8 +171,13 @@ docker compose up -d                                                # 既定（�
 WSL は `op.exe run` が使えないので、`op.exe inject` を通して環境変数にするラッパー（例: `oprun`）を使う。
 ラッパーはこのリポジトリに含まれないので、各自で用意する（作りは `google.op` の冒頭に書いた）。
 
-**`GOOGLE_STUB=0` を `.env` や `google.op` に書いてはいけない。** Playwright が立てる compose も実物に繋がり、
-**E2E が本物のシートへ書きに行く。**
+**`GOOGLE_STUB=0` を `.env` に書いてはいけない。** Playwright が立てる compose も実物に繋がり、
+**E2E が本物のシートへ書きに行く。** `google.op` にも書かない。`google.op` は `op run` のときしか読まれないので
+E2E は巻き込まないが、実物に繋ぐ操作を毎回コマンドに残すため、シェルから渡す。
+
+- **E2E の前に `docker compose up -d` でスタブに戻す。** Playwright は起動中のスタックを使い回す
+  （`e2e/playwright.config.ts` の `reuseExistingServer: true`）ので、実物モードのまま流すと
+  E2E が本物のシートへ書きに行く
 
 - **`op run` を付けずに `up -d` し直すと、秘密情報が外れる。** compose は渡された環境変数で
   コンテナを作り直すので、`GOOGLE_CLIENT_ID` などが空になる。`GOOGLE_STUB=0` で起動し直すときも

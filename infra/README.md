@@ -111,7 +111,7 @@ openssl rand -hex 32
 
 `deploy.sh` は `--env` を含む実行のたびに、1Password の承認を 1 回求めます（WSL では `op.exe` を使い、Windows Hello で承認します）。1Password CLI は、`op.exe` があれば `op.exe`、無ければ `op` を使います。
 
-1Password を使わない場合は、雛形を写して参照を実値に置き換え、そのファイルを `ENV_FILE` で渡します。`.env` で始まる名前にすると `.gitignore` に除外されます。
+1Password を使わない場合は、雛形を写して参照を実値に置き換え、そのファイルを `ENV_FILE` で渡します。`.env.` で始まる名前（`infra/.env.ec2` など）にすると `.gitignore` に除外されます。`.env-ec2` や `.env_ec2` は除外されないので使わないでください。
 
 ```bash
 cp infra/files/env.ec2.op infra/.env.ec2
@@ -119,7 +119,7 @@ cp infra/files/env.ec2.op infra/.env.ec2
 ENV_FILE=infra/.env.ec2 bash scripts/deploy.sh --all
 ```
 
-置き換え忘れて `op://` が残っていると、`deploy.sh` は変数名を出して止まります（参照の文字列は長さの検証を通るので、止めないと公開済みの文字列が鍵のまま EC2 に置かれます）。
+置き換え忘れて `op://` が残っていると、`deploy.sh` は変数名を出して止まります。`SESSION_SECRET` と `TOKEN_ENCRYPTION_KEY` に値のある行が無いときも止まります（参照の文字列は長さの検証を通るので、止めないと公開済みの文字列が鍵のまま EC2 に置かれます）。
 
 `*.tfvars` は `.gitignore` 済みでコミットされません。
 
@@ -224,7 +224,7 @@ WSL では `op.exe read ... | tr -d '\r'` にします（`op.exe` は行末に C
 | --- | --- |
 | `deploy.sh` が exit 3 で止まる | 環境側の問題。表示された案内に従う（tfstate が無い・鍵が無い・1Password CLI が無い・SSH が届かない・cloud-init が終わっていない） |
 | SSH が届かない | `ssh_allowed_cidr` が現在の IP と一致しているか。`curl -s https://checkip.amazonaws.com` |
-| `deploy.sh` が 1Password の解決で止まる（承認がタイムアウトした、`op` が失敗した） | 1Password アプリがロックされていないか、承認の画面（Windows Hello）が出ていないかを確かめて、`deploy.sh` をやり直す。止まったときは EC2 の `.env` を書き換えていない |
+| `deploy.sh` が 1Password の解決で止まる（承認がタイムアウトした、`op` が失敗した） | 1Password アプリがロックされていないか、承認の画面（Windows Hello）が出ていないかを確かめて、`deploy.sh` をやり直す。止まったときは EC2 の `.env` を書き換えていない。やり直しても直らないときは、`op` のエラー表示を読み、1Password のアイテムやフィールドの名前が雛形と合っているか確かめる |
 | `deploy.sh` が「1Password の参照を解決できなかった変数」を出して止まる | 表示された変数の参照先（`infra/files/env.ec2.op`）を確かめる。保管庫 `tk-media` のアイテム `expense-claim-aws` と、フィールド名（`session-secret`・`token-encryption-key`）が一致しているか |
 | 接続確認で止まる（IP は合っている） | ssh が使うエージェントに `expense-claim-ec2` が載っているか。`IdentityAgent` を設定しているなら `SSH_AUTH_SOCK=<そのソケット> ssh-add -l`、そうでなければ `ssh-add -l`（手順 1 の 3.）。載っていなければ 1Password がロックされていないか、鍵の保管庫が SSH エージェントの対象かを確かめる。秘密鍵ファイルを使うなら `SSH_KEY=<秘密鍵のパス>` を付ける |
 | ブラウザで開けない | `http_allowed_cidrs` に現在の IP が入っているか（スマートフォンの回線は別の IP） |

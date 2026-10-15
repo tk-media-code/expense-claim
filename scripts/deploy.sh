@@ -95,7 +95,7 @@ op_cmd() {
 # どちらの経路でも、コメント以外の行に op:// が残っていたら、その変数名を出して失敗する。
 # 解決した結果はディスクに書かない（変数と pipe だけで扱う）。
 resolve_env_source() {
-	local op resolved unresolved
+	local op resolved unresolved missing name
 
 	if [ -n "$ENV_FILE" ]; then
 		if ! resolved="$(cat "$ENV_FILE")"; then
@@ -107,10 +107,14 @@ resolve_env_source() {
 
 		# op inject は {{ op://... }} だけを置き換える。雛形は op run --env-file と同じ書式
 		# （値がまるごと参照の行）で書くので、ここで {{ }} で包む。
+		# コメント行と空行は op inject に渡さない（コメントの文字列まで op に読ませる必要は無い。
+		# EC2 の .env にコメントが載らなくなるが、困らない）。
 		# op.exe は行末に CR を付けるので落とす。CR が残ると値の末尾に混ざる。
 		# 失敗（承認のタイムアウト・参照先が無いなど）のときは何も出さずに止まる。
-		if ! resolved="$(sed -E 's#^([A-Za-z_][A-Za-z0-9_]*)=(op://.*)$#\1={{ \2 }}#' "$ENV_TEMPLATE" | "$op" inject | tr -d '\r')"; then
+		if ! resolved="$(sed -E '/^[[:space:]]*(#|$)/d; s#^([A-Za-z_][A-Za-z0-9_]*)=(op://.*)$#\1={{ \2 }}#' "$ENV_TEMPLATE" | "$op" inject | tr -d '\r')"; then
 			fail "1Password での解決に失敗しました（$op inject）。"
+			echo "  承認がタイムアウトしたなら、1Password のロックと承認の画面を確かめて、やり直してください。" >&2
+			echo "  それでも直らないなら、op のエラー表示を読み、1Password のアイテムやフィールドの名前が雛形（infra/files/env.ec2.op）と合っているか確かめてください。" >&2
 			return 1
 		fi
 	fi
@@ -128,6 +132,20 @@ resolve_env_source() {
 			fail "1Password の参照を解決できなかった変数があります。アイテム expense-claim-aws とフィールド名を確認してください:"
 		fi
 		printf '%s\n' "$unresolved" | sed 's/^/  /' >&2
+		return 1
+	fi
+
+	# 秘密の 2 変数が空でない値で揃っているか。op が成功を返しても何も出さないとき、
+	# 出力が空のまま通ると、EC2 の .env が TAG / DATABASE_URL / APP_URL の 3 行だけに上書きされる。
+	# ENV_FILE の経路でも、必要な行を書き忘れたファイルを同じように止める。
+	missing=""
+	for name in SESSION_SECRET TOKEN_ENCRYPTION_KEY; do
+		if ! printf '%s\n' "$resolved" | grep -q -E "^$name=[^[:space:]]"; then
+			missing="$missing $name"
+		fi
+	done
+	if [ -n "$missing" ]; then
+		fail "EC2 に置く環境変数に、値のある行が揃っていません:$missing"
 		return 1
 	fi
 
