@@ -28,7 +28,8 @@ dist
 
 # Terraform（infra/）。state と tfvars は秘密（DB のパスワードが平文で入る）なのでコミットしない。
 # .terraform.lock.hcl はプロバイダの版を固定するものなのでコミットする。
-# EC2 に配る環境変数の実値 infra/.env.ec2 は、上の .env.* で既に除外されている。
+# EC2 に配る環境変数は 1Password の雛形 infra/files/env.ec2.op から組み立てるので、infra/.env.ec2 は使わなくなった。
+# ENV_FILE で平文のファイルを使う場合も、.env で始まる名前にすれば上の .env.* で除外される（コミットしない）。
 .terraform/
 *.tfstate
 *.tfstate.*

@@ -96,13 +96,30 @@ openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24; echo
 
 ### 3. EC2 に配る環境変数を用意する
 
+EC2 に置く秘密情報は 1Password に置きます。リポジトリにあるのは参照だけを書いた雛形 [`files/env.ec2.op`](files/env.ec2.op) で、`deploy.sh` が実行のたびにこれを 1Password で解決して EC2 の `.env` に置きます。値のファイルがディスクに残りません。
+
+1Password の tk-media 保管庫に、アイテム `expense-claim-aws`（SSH キー `expense-claim-ec2` とは別のアイテム）を作り、次の 2 つのフィールドに、それぞれ `openssl rand -hex 32` で作った値を入れます。
+
+| フィールド | 用途 |
+| --- | --- |
+| `session-secret` | セッション Cookie の署名鍵（`SESSION_SECRET`） |
+| `token-encryption-key` | リフレッシュトークンの暗号鍵（`TOKEN_ENCRYPTION_KEY`） |
+
 ```bash
-cp infra/files/env.ec2.example infra/.env.ec2
+openssl rand -hex 32
 ```
 
-`SESSION_SECRET` と `TOKEN_ENCRYPTION_KEY` を `openssl rand -hex 32` で生成して書きます。書き方の注意は雛形のコメントにあります。
+`deploy.sh` は `--env` を含む実行のたびに、1Password の承認を 1 回求めます（WSL では `op.exe` を使い、Windows Hello で承認します）。1Password CLI は、`op.exe` があれば `op.exe`、無ければ `op` を使います。
 
-`*.tfvars` と `infra/.env.ec2` は `.gitignore` 済みでコミットされません。
+1Password を使わない場合は、雛形を写して参照を実値に置き換え、そのファイルを `ENV_FILE` で渡します。`.env` で始まる名前にすると `.gitignore` に除外されます。
+
+```bash
+cp infra/files/env.ec2.op infra/.env.ec2
+# 参照（op://...）を openssl rand -hex 32 で作った値に置き換える
+ENV_FILE=infra/.env.ec2 bash scripts/deploy.sh --all
+```
+
+`*.tfvars` は `.gitignore` 済みでコミットされません。
 
 ---
 
@@ -156,7 +173,7 @@ bash scripts/deploy.sh --up        # docker compose up -d して /api/health を
 | 工程 | 何をするか | 所要時間の目安 |
 | --- | --- | --- |
 | `--images` | `backend/` と `nginx/Dockerfile`（frontend を含む）をローカルで `linux/amd64` としてビルドし、`docker save \| gzip \| ssh docker load` で転送する。イメージのタグは git の short SHA | ビルド数分 + 転送 260MB |
-| `--env` | `infra/.env.ec2` に `DATABASE_URL`・`TAG`・`APP_URL` を足して EC2 の `~/expense-claim/.env`（600）に置き、`compose.ec2.yaml` を `~/expense-claim/compose.yaml` として置く | 数秒 |
+| `--env` | `infra/files/env.ec2.op` を 1Password で解決したものに `DATABASE_URL`・`TAG`・`APP_URL` を足して EC2 の `~/expense-claim/.env`（600）に置き、`compose.ec2.yaml` を `~/expense-claim/compose.yaml` として置く | 数秒 |
 | `--db-init` | backend イメージの中で [`files/db-init.mjs`](files/db-init.mjs) を実行し、`CREATE DATABASE ... COLLATE utf8mb4_ja_0900_as_cs` する。作ったあと照合順序を読み返し、違えば失敗する | 数秒 |
 | `--migrate` | `docker compose run --rm backend npm run db:migrate` | 数秒 |
 | `--up` | `docker compose up -d` して nginx 越しに `/api/health` が返るまで待つ | 30 秒ほど |
@@ -191,18 +208,22 @@ docker compose logs --tail 50 backend
 
 照合順序は `bash scripts/deploy.sh --db-init` を再実行すると、データベースと全テーブル（`__drizzle_migrations` を含む）の照合順序が一覧で出ます。
 
-E2E のうち `smoke` と `auth` は本番 IP に向けて流せます（`SESSION_SECRET` は `infra/.env.ec2` と同じ値にする。揃っていないと自署名の Cookie が無効になります）。
+E2E のうち `smoke` と `auth` は本番 IP に向けて流せます（`SESSION_SECRET` は EC2 に置いた値と同じにする。揃っていないと自署名の Cookie が無効になります）。
 
 ```bash
-cd e2e && E2E_BASE_URL=http://$IP SESSION_SECRET=<.env.ec2 の値> npx playwright test smoke auth
+cd e2e && E2E_BASE_URL=http://$IP SESSION_SECRET="$(op read op://tk-media/expense-claim-aws/session-secret)" npx playwright test smoke auth
 ```
+
+WSL では `op.exe read ... | tr -d '\r'` にします（`op.exe` は行末に CR を付けるため）。
 
 ### うまくいかないときは
 
 | 症状 | 確認すること |
 | --- | --- |
-| `deploy.sh` が exit 3 で止まる | 環境側の問題。表示された案内に従う（tfstate が無い・鍵が無い・SSH が届かない・cloud-init が終わっていない） |
+| `deploy.sh` が exit 3 で止まる | 環境側の問題。表示された案内に従う（tfstate が無い・鍵が無い・1Password CLI が無い・SSH が届かない・cloud-init が終わっていない） |
 | SSH が届かない | `ssh_allowed_cidr` が現在の IP と一致しているか。`curl -s https://checkip.amazonaws.com` |
+| `deploy.sh` が 1Password の解決で止まる（承認がタイムアウトした、`op` が失敗した） | 1Password アプリがロックされていないか、承認の画面（Windows Hello）が出ていないかを確かめて、`deploy.sh` をやり直す。止まったときは EC2 の `.env` を書き換えていない |
+| `deploy.sh` が「1Password の参照を解決できなかった変数」を出して止まる | 表示された変数の参照先（`infra/files/env.ec2.op`）を確かめる。保管庫 `tk-media` のアイテム `expense-claim-aws` と、フィールド名（`session-secret`・`token-encryption-key`）が一致しているか |
 | 接続確認で止まる（IP は合っている） | ssh が使うエージェントに `expense-claim-ec2` が載っているか。`IdentityAgent` を設定しているなら `SSH_AUTH_SOCK=<そのソケット> ssh-add -l`、そうでなければ `ssh-add -l`（手順 1 の 3.）。載っていなければ 1Password がロックされていないか、鍵の保管庫が SSH エージェントの対象かを確かめる。秘密鍵ファイルを使うなら `SSH_KEY=<秘密鍵のパス>` を付ける |
 | ブラウザで開けない | `http_allowed_cidrs` に現在の IP が入っているか（スマートフォンの回線は別の IP） |
 | `--db-init` が接続で固まる／`ETIMEDOUT` | RDS 側の SG が EC2 の SG を参照しているか、サブネットグループの指定。EC2 上で `timeout 5 bash -c '</dev/tcp/<db_host>/3306' && echo ok` |
@@ -270,6 +291,6 @@ aws ce get-cost-and-usage --time-period Start=<destroy の前日>,End=<翌々日
 | `terraform.tfvars.example` | 変数の雛形 |
 | `files/user-data.sh` | EC2 の初回起動時に流れる初期化スクリプト（Docker と Compose プラグイン） |
 | `files/compose.ec2.yaml` | EC2 で動かす compose ファイル（ビルド定義を持たない） |
-| `files/env.ec2.example` | EC2 に配る環境変数の雛形 |
+| `files/env.ec2.op` | EC2 に配る環境変数の雛形（値は 1Password の参照） |
 | `files/db-init.mjs` | 照合順序を指定してデータベースを作るスクリプト |
 | `../scripts/deploy.sh` | ローカルでビルドして EC2 へ配置するスクリプト |
