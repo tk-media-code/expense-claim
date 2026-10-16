@@ -26,7 +26,7 @@ services:
   backend:
     image: expense-claim-backend:${TAG:?deploy.sh --env で .env を配置してください}
     pull_policy: never
-    # DATABASE_URL・SESSION_SECRET などは .env から入る（env.ec2.example）。
+    # DATABASE_URL・SESSION_SECRET などは .env から入る（env.ec2.op）。
     # TAG や APP_URL のような補間用の値もコンテナに入るが、アプリは未知の変数を無視する。
     env_file: .env
     environment:

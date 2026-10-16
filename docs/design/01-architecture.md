@@ -563,6 +563,8 @@ Drizzle のスキーマ定義と `repositories` は書き直しになる。**D1 
 | 許可するメールアドレス | 環境変数 | 🟡 個人情報（N-18） |
 
 **いずれもリポジトリに入れない**（`NF-07`）。雛形は [`.env.example`](../../.env.example)。
+秘密情報の参照は、[`google.op`](../../google.op)（ローカルで実物の Google に繋ぐとき）と
+[`infra/files/env.ec2.op`](../../infra/files/env.ec2.op)（EC2）に書いてある。
 アプリ本体の変数と、検証ツール（`tools/*-probe`）専用の変数を分けて書いてある。実値は入れない。
 
 ## 8. 設定データの控え（NF-11）

@@ -1,0 +1,29 @@
+# 実物の Google に繋ぐときの秘密情報の雛形。値そのものは書かず、1Password の参照（op://）だけを書く。
+# リポジトリは public なので、実値を書かない。
+#
+# 値は 1Password の tk-media 保管庫のアイテム expense-claim-google にある。
+# シート ID などの秘密ではない値（SPREADSHEET_ID など）は、今までどおり .env に書く。
+#
+# GOOGLE_STUB=0 はここに書かず、シェルから渡す。
+# 実物に繋ぐ操作を、毎回コマンドに残すため。なお .env に書くのは禁止（Playwright が立てる compose も
+# 実物に繋がり、E2E が本物のシートへ書きに行く。docs/design/07-development.md 2.9）。
+#
+# 使い方:
+#   GOOGLE_STUB=0 op run --env-file=google.op -- docker compose up -d
+#
+# WSL は op.exe run が使えないので、op.exe inject を通すラッパーを使う（例: oprun）。
+# ラッパーはこのリポジトリに含まれないので、各自で用意する。作りは、値の全体が op:// の行の、
+# その値を {{ }} で包んで op.exe inject に通し、結果を環境変数にしてコマンドを起動する。
+#   GOOGLE_STUB=0 oprun google.op -- docker compose up -d
+#
+# 値の書き方:
+#   - 1 行 1 変数。引用符を付けない。参照の行は、値の全体を参照にする
+#   - TOKEN_ENCRYPTION_KEY は 16 文字以上。1Password には  openssl rand -hex 32  で作った値を入れる
+
+# OAuth クライアント（Google Cloud コンソールで発行する。作り方は docs/google-cloud-basics.md 13章 ⑦）
+GOOGLE_CLIENT_ID=op://tk-media/expense-claim-google/client-id
+GOOGLE_CLIENT_SECRET=op://tk-media/expense-claim-google/client-secret
+
+# リフレッシュトークンの暗号鍵。実物のリフレッシュトークンを守る。
+# 変えると、保存済みのトークンが読めなくなる
+TOKEN_ENCRYPTION_KEY=op://tk-media/expense-claim-google/token-encryption-key

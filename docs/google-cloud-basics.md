@@ -381,7 +381,7 @@ https://console.cloud.google.com/auth/clients
    ローカルで確かめるときは `http://localhost:8080/api/auth/callback` と
    `http://localhost:8080/api/google/authorization/callback`。`localhost` は `http` のまま登録できた。
    本番はそのホストの `https://…` を**追加で**登録する（差し替えない）
-3. 表示されるクライアント ID とシークレットをアプリの環境変数に入れる（`.env.example`）。JSON は要らない
+3. 表示されるクライアント ID とシークレットを 1Password（tk-media 保管庫のアイテム `expense-claim-google`）に入れ、アプリへは雛形 `google.op` から渡す（設計 `07-development.md` 2.9）。`.env` には書かない。JSON は要らない
 4. 「承認済みの JavaScript 生成元」は空でよい。コードの交換はバックエンドが行い、ブラウザは Google を直接叩かない
 
 **実測で分かったこと（2026-09-18）**

@@ -20,10 +20,16 @@
 #   1: デプロイに失敗した
 #   3: そもそも実行できない（インフラ未構築・鍵が無い・EC2 に届かないなど環境側の問題）
 #
+# EC2 に置く環境変数の秘密情報の渡し方:
+#   infra/files/env.ec2.op（1Password の参照だけを書いた雛形）を op inject で解決して、
+#   EC2 の .env に置く。実行のたびに 1Password の承認が 1 回要る。
+#   1Password を使わない人は ENV_FILE=<平文のファイル> を付ける（そのファイルを読む。op:// が残っていれば止まる）。
+#   OP_CMD で 1Password CLI を差し替えられる（既定は op.exe があれば op.exe（WSL）、無ければ op）。
+#
 # 使い方:
 #   bash scripts/deploy.sh --all       # images → env → db-init → migrate → up の順に実行する
 #   bash scripts/deploy.sh --images    # ローカルで 2 つのイメージをビルドして転送する
-#   bash scripts/deploy.sh --env       # .env と compose.yaml を配置する
+#   bash scripts/deploy.sh --env       # .env（雛形を 1Password で解決する）と compose.yaml を配置する
 #   bash scripts/deploy.sh --db-init   # 照合順序を指定してデータベースを作る（冪等）
 #   bash scripts/deploy.sh --migrate   # drizzle-kit migrate を流す（冪等）
 #   bash scripts/deploy.sh --up        # docker compose up -d して /api/health を待つ
@@ -36,8 +42,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 INFRA_DIR="$REPO_ROOT/infra"
 
-# EC2 に配る環境変数の実値。雛形は infra/files/env.ec2.example
-readonly ENV_FILE="$INFRA_DIR/.env.ec2"
+# EC2 に配る環境変数の雛形。値は 1Password の参照で、実行時に解決する
+readonly ENV_TEMPLATE="$INFRA_DIR/files/env.ec2.op"
+# 1Password を使わないときの平文のファイル。環境変数で渡されたときだけ使う
+readonly ENV_FILE="${ENV_FILE:-}"
 readonly REMOTE_DIR="/home/ec2-user/expense-claim"
 readonly BACKEND_IMAGE="expense-claim-backend"
 readonly NGINX_IMAGE="expense-claim-nginx"
@@ -68,6 +76,80 @@ image_tag() {
 		tag="$tag-dirty"
 	fi
 	echo "$tag"
+}
+
+# 使う 1Password CLI。OP_CMD があればそれ、無ければ op.exe（WSL）、無ければ op。
+# WSL では op.exe を使う。Windows 側の 1Password アプリと Windows Hello で承認するため。
+op_cmd() {
+	if [ -n "${OP_CMD:-}" ]; then
+		echo "$OP_CMD"
+	elif command -v op.exe >/dev/null 2>&1; then
+		echo op.exe
+	else
+		echo op
+	fi
+}
+
+# EC2 に置く環境変数の行を標準出力に出す。失敗したら 0 以外を返し、何も出さない。
+# ENV_FILE があればその中身。無ければ ENV_TEMPLATE を 1Password で解決した結果。
+# どちらの経路でも、コメント以外の行に op:// が残っていたら、その変数名を出して失敗する。
+# 解決した結果はディスクに書かない（変数と pipe だけで扱う）。
+resolve_env_source() {
+	local op resolved unresolved missing name
+
+	if [ -n "$ENV_FILE" ]; then
+		if ! resolved="$(cat "$ENV_FILE")"; then
+			fail "ENV_FILE を読めません: $ENV_FILE"
+			return 1
+		fi
+	else
+		op="$(op_cmd)"
+
+		# op inject は {{ op://... }} だけを置き換える。雛形は op run --env-file と同じ書式
+		# （値がまるごと参照の行）で書くので、ここで {{ }} で包む。
+		# コメント行と空行は op inject に渡さない（コメントの文字列まで op に読ませる必要は無い。
+		# EC2 の .env にコメントが載らなくなるが、困らない）。
+		# op.exe は行末に CR を付けるので落とす。CR が残ると値の末尾に混ざる。
+		# 失敗（承認のタイムアウト・参照先が無いなど）のときは何も出さずに止まる。
+		if ! resolved="$(sed -E '/^[[:space:]]*(#|$)/d; s#^([A-Za-z_][A-Za-z0-9_]*)=(op://.*)$#\1={{ \2 }}#' "$ENV_TEMPLATE" | "$op" inject | tr -d '\r')"; then
+			fail "1Password での解決に失敗しました（$op inject）。"
+			echo "  承認がタイムアウトしたなら、1Password のロックと承認の画面を確かめて、やり直してください。" >&2
+			echo "  それでも直らないなら、op のエラー表示を読み、1Password のアイテムやフィールドの名前が雛形（infra/files/env.ec2.op）と合っているか確かめてください。" >&2
+			return 1
+		fi
+	fi
+
+	# 参照が値のまま残っていたら止める。残る原因は、1Password 経路では参照先のアイテムやフィールドが無いこと、
+	# ENV_FILE 経路では、雛形を写して実値への置き換えを忘れたこと。
+	# 参照の文字列は十分に長く、backend の起動時検証（16 文字以上）を通ってしまう。
+	# しかも public なリポジトリに書いてある文字列なので、それが署名鍵のまま EC2 に置かれると、
+	# 誰でもセッション Cookie を作れる。空の値と違って起動が止まらないので、ここで止める。
+	unresolved="$(printf '%s\n' "$resolved" | sed -n '/^[[:space:]]*#/d; /op:\/\//s/=.*//p')"
+	if [ -n "$unresolved" ]; then
+		if [ -n "$ENV_FILE" ]; then
+			fail "ENV_FILE に 1Password の参照（op://）が残っている変数があります。実値に置き換えてください:"
+		else
+			fail "1Password の参照を解決できなかった変数があります。アイテム expense-claim-aws とフィールド名を確認してください:"
+		fi
+		printf '%s\n' "$unresolved" | sed 's/^/  /' >&2
+		return 1
+	fi
+
+	# 秘密の 2 変数が空でない値で揃っているか。op が成功を返しても何も出さないとき、
+	# 出力が空のまま通ると、EC2 の .env が TAG / DATABASE_URL / APP_URL の 3 行だけに上書きされる。
+	# ENV_FILE の経路でも、必要な行を書き忘れたファイルを同じように止める。
+	missing=""
+	for name in SESSION_SECRET TOKEN_ENCRYPTION_KEY; do
+		if ! printf '%s\n' "$resolved" | grep -q -E "^$name=[^[:space:]]"; then
+			missing="$missing $name"
+		fi
+	done
+	if [ -n "$missing" ]; then
+		fail "EC2 に置く環境変数に、値のある行が揃っていません:$missing"
+		return 1
+	fi
+
+	printf '%s\n' "$resolved"
 }
 
 # リモートでコマンドを実行する。stdin はそのまま渡る。
@@ -101,10 +183,29 @@ preflight() {
 		return 1
 	fi
 
-	if [ "$need_env" -eq 1 ] && [ ! -f "$ENV_FILE" ]; then
-		fail "EC2 に配る環境変数のファイルがありません: $ENV_FILE"
-		echo "  cp infra/files/env.ec2.example infra/.env.ec2 して値を書いてください。" >&2
-		return 1
+	if [ "$need_env" -eq 1 ]; then
+		if [ -n "$ENV_FILE" ]; then
+			if [ ! -f "$ENV_FILE" ]; then
+				fail "ENV_FILE のファイルがありません: $ENV_FILE"
+				return 1
+			fi
+		else
+			if [ ! -f "$ENV_TEMPLATE" ]; then
+				fail "EC2 に配る環境変数の雛形がありません: $ENV_TEMPLATE"
+				return 1
+			fi
+			if ! command -v "$(op_cmd)" >/dev/null 2>&1; then
+				fail "1Password CLI（$(op_cmd)）を実行できません。"
+				echo "  1Password CLI を入れてください（WSL では Windows 側の op.exe を PATH に通します）。" >&2
+				echo "  1Password を使わないなら、平文のファイルを ENV_FILE=<パス> で渡してください（infra/README.md の 3.）。" >&2
+				return 1
+			fi
+			if [ -f "$INFRA_DIR/.env.ec2" ]; then
+				echo "[注意] infra/.env.ec2 は使われません。EC2 に置く値は infra/files/env.ec2.op を 1Password で解決したものになりました。" >&2
+				echo "  値を 1Password（アイテム expense-claim-aws）に移したら、infra/.env.ec2 は消してください。" >&2
+				echo "  1Password を使わず使い続けるなら、ENV_FILE=infra/.env.ec2 を付けて実行してください。" >&2
+			fi
+		fi
 	fi
 
 	HOST="$(tf_output ec2_public_ip)"
@@ -199,7 +300,7 @@ deploy_env() {
 
 	info "設定ファイルを配置します"
 
-	local database_url app_url
+	local database_url app_url env_source
 	database_url="$(tf_output database_url)"
 	app_url="$(tf_output app_url)"
 	if [ -z "$database_url" ] || [ -z "$app_url" ]; then
@@ -207,12 +308,24 @@ deploy_env() {
 		return 1
 	fi
 
+	# 環境変数は先に全部解決してから、まとめて EC2 に流す。
+	# 流しながら解決すると、解決の失敗（承認のタイムアウトなど）で途中までしか書かれず、
+	# EC2 の .env が半端な内容になる。先に解決すれば、失敗したら remote を呼ばずに止まり、
+	# EC2 の .env は前の内容のまま残る。
+	if [ -z "$ENV_FILE" ]; then
+		info "環境変数を 1Password で解決します（承認を求められたら承認してください）"
+	fi
+	if ! env_source="$(resolve_env_source)"; then
+		fail "環境変数を用意できませんでした。EC2 の .env は変更していません。"
+		return 1
+	fi
+
 	# umask 077 でファイルを 600 にしてから書き出す。値はコマンドラインに載せず stdin で渡す。
 	# DATABASE_URL・TAG・APP_URL は terraform output と git から合成するので、
-	# infra/.env.ec2 に同名の行があっても捨てる。
+	# 雛形（または ENV_FILE）に同名の行があっても捨てる。
 	if ! {
 		printf 'TAG=%s\nDATABASE_URL=%s\nAPP_URL=%s\n' "$TAG" "$database_url" "$app_url"
-		grep -v -E '^(TAG|DATABASE_URL|APP_URL)=' "$ENV_FILE" || true
+		printf '%s\n' "$env_source" | grep -v -E '^(TAG|DATABASE_URL|APP_URL)=' || true
 	} | remote "umask 077 && cat > $REMOTE_DIR/.env"; then
 		fail ".env の配置に失敗しました。"
 		return 1
@@ -365,4 +478,7 @@ main() {
 	return $EXIT_OK
 }
 
-main "$@"
+# source されたときは走らせない（確認用に関数だけを読み込めるようにする）
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+	main "$@"
+fi
