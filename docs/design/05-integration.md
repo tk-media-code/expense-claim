@@ -709,8 +709,9 @@ EC2 の `SESSION_SECRET` と `TOKEN_ENCRYPTION_KEY` も 1Password から渡す�
 **`GMAIL_LABEL_NAME` は要らない。**
 `tools/gmail-probe/` は使っているが、**アプリはラベルを条件にしない**（F-04 / 4.1）。
 
-雛形は [`.env.example`](../../.env.example)。**この章はその一覧である。**
-秘密情報の参照は、[`google.op`](../../google.op)（ローカルで実物の Google に繋ぐとき）と
+アプリが読む変数の一覧である。雛形は [`.env.example`](../../.env.example)。
+秘密情報は `.env` に書かず、1Password から渡す。参照は、[`google.op`](../../google.op)
+（ローカルで実物の Google に繋ぐとき）と
 [`infra/files/env.ec2.op`](../../infra/files/env.ec2.op)（EC2）に書いてある。
 `GOOGLE_STUB` とローカル MySQL 用の変数は開発専用で、この表には入れない。
 

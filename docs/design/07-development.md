@@ -128,13 +128,16 @@ EC2 では `scripts/deploy.sh --migrate` が backend コンテナの中で同じ
 [`google.op`](../../google.op)（参照 `op://` だけを書いた public のファイル）から渡す
 （2.9）。EC2 に配る値は [`infra/files/env.ec2.op`](../../infra/files/env.ec2.op) から渡す
 （`deploy.sh` が解決して、EC2 側の `.env` に置く。[`infra/README.md`](../../infra/README.md)）。
-それ以外の環境依存の値は今までどおり手元の `.env` に書く。
+Terraform に渡す RDS のパスワードも、雛形 [`infra/terraform.op`](../../infra/terraform.op) から
+`TF_VAR_db_password` として渡す。Terraform の秘密でない値（`ssh_allowed_cidr` など）は
+`terraform.tfvars` に書く。それ以外の環境依存の値は今までどおり手元の `.env` に書く。
 
 | 値 | 置き場所（手元の話。EC2 の行は EC2 側の `.env`） | 理由 |
 | --- | --- | --- |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | 1Password（`google.op`） | 対で発行される。シークレットは漏れると他人が本アプリとして振る舞える |
 | `TOKEN_ENCRYPTION_KEY`（実物の Google を使うとき） | 1Password（`google.op`） | 実物のリフレッシュトークンを守る鍵である |
 | `SESSION_SECRET` / `TOKEN_ENCRYPTION_KEY`（EC2） | 1Password（`env.ec2.op`）。`deploy.sh` が EC2 側の `.env` に置く | 確認環境のセッションと暗号鍵 |
+| `db_password`（Terraform の RDS マスターパスワード） | 1Password（`infra/terraform.op`）。`TF_VAR_db_password` で Terraform に渡す | 平文の値を持つファイル（`terraform.tfvars`）をディスクに残さないため。state には今も平文で入るので、`terraform.tfstate` と `.backup` は秘密として扱う |
 | `GOOGLE_REDIRECT_URI_*` / `SPREADSHEET_ID` / `MY_SHEET_NAME` / `DRIVE_FOLDER_ID` / `GMAIL_SENDER` / `ALERT_TO` / `ALLOWED_EMAIL` / `APP_URL` | 手元の `.env` | 秘密ではないが、public のリポジトリには出せない値（N-08 / N-18） |
 | ローカルの `SESSION_SECRET` | 書かない（開発用の既定値） | E2E が同じ鍵で Cookie を作る |
 

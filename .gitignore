@@ -26,7 +26,9 @@ dist
 # Vitest / rtk のレポート出力
 **/.vitest/
 
-# Terraform（infra/）。state と tfvars は秘密（DB のパスワードが平文で入る）なのでコミットしない。
+# Terraform（infra/）。state は秘密（DB のパスワードが平文で入る）なのでコミットしない。
+# tfvars は自分の IP など public に出せない値を持つのでコミットしない。
+# db_password は tfvars に書かず infra/terraform.op から渡す。
 # .terraform.lock.hcl はプロバイダの版を固定するものなのでコミットする。
 # EC2 に配る環境変数は 1Password の雛形 infra/files/env.ec2.op から組み立てるので、infra/.env.ec2 は使わなくなった。
 # ENV_FILE で平文のファイルを使う場合も、.env. で始まる名前（infra/.env.ec2 など）にすれば上の .env.* で除外される（コミットしない）。.env-ec2 や .env_ec2 は除外されない。

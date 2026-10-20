@@ -89,21 +89,28 @@ cp infra/terraform.tfvars.example infra/terraform.tfvars
 ```bash
 # 自分のグローバル IP（SSH と HTTP の許可元に使う）
 curl -s https://checkip.amazonaws.com
+```
 
-# DB のパスワード（英数字のみ。理由は variables.tf のコメント参照）
+RDS のマスターパスワード（`db_password`）は `terraform.tfvars` に書きません。平文の値を持つファイルをディスクに残さないためです（state には今も平文で入るので、`terraform.tfstate` と `.backup` は秘密として扱います）。値は 1Password に置き、雛形 [`terraform.op`](terraform.op) から環境変数 `TF_VAR_db_password` として Terraform に渡します。値は英数字のみ 16〜41 文字です（理由は `variables.tf` のコメント参照）。1Password のアイテムは次の手順 3 で作るので、ここでは値を作るだけにします。
+
+```bash
+# DB のパスワードを作る。手順 3 のアイテムのフィールド db-password に入れる
 openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24; echo
 ```
+
+`terraform.tfvars` に `db_password` の行が残っていれば消します（tfvars は環境変数より優先されるため、残っていると 1Password の値が使われません）。
 
 ### 3. EC2 に配る環境変数を用意する
 
 EC2 に置く秘密情報は 1Password に置きます。リポジトリにあるのは参照だけを書いた雛形 [`files/env.ec2.op`](files/env.ec2.op) で、`deploy.sh` が実行のたびにこれを 1Password で解決して EC2 の `.env` に置きます。値のファイルがディスクに残りません。
 
-1Password の tk-media 保管庫に、アイテム `expense-claim-aws`（SSH キー `expense-claim-ec2` とは別のアイテム）を作り、次の 2 つのフィールドに、それぞれ `openssl rand -hex 32` で作った値を入れます。
+1Password の tk-media 保管庫に、アイテム `expense-claim-aws`（SSH キー `expense-claim-ec2` とは別のアイテム）を作り、次の 3 つのフィールドに値を入れます。`session-secret` と `token-encryption-key` には `openssl rand -hex 32` で作った値を、`db-password` には手順 2 で作った値を入れます。
 
 | フィールド | 用途 |
 | --- | --- |
 | `session-secret` | セッション Cookie の署名鍵（`SESSION_SECRET`） |
 | `token-encryption-key` | リフレッシュトークンの暗号鍵（`TOKEN_ENCRYPTION_KEY`） |
+| `db-password` | RDS のマスターパスワード（`TF_VAR_db_password`。`terraform.op` が参照する。`env.ec2.op` からは参照しない。EC2 には terraform output の `database_url` に含まれて届く） |
 
 ```bash
 openssl rand -hex 32
@@ -129,11 +136,19 @@ ENV_FILE=infra/.env.ec2 bash scripts/deploy.sh --all
 
 **`terraform apply` は必ず `plan` の内容を読んでから実行してください。** `-auto-approve` は使いません。
 
+`db_password` は 1Password から渡すので、`plan` と `apply` は [`terraform.op`](terraform.op) を通して実行します。WSL では `oprun`（`op.exe inject` を通すラッパー。リポジトリには含まれず、作りは [`google.op`](../google.op) の冒頭に書いてある。`op run` と同じく出力の秘密の値をマスクし、先頭の `--no-masking` で外せる前提）、ほかの OS では `op run` を使います。
+
 ```bash
 terraform -chdir=infra init
-terraform -chdir=infra plan      # 何が作られるかを読む
-terraform -chdir=infra apply     # RDS の作成に 5〜10 分かかる
+oprun infra/terraform.op -- terraform -chdir=infra plan -input=false    # 何が作られるかを読む
+oprun --no-masking infra/terraform.op -- terraform -chdir=infra apply   # RDS の作成に 5〜10 分かかる
+
+# WSL 以外は oprun を op run に読み替える
+# op run --env-file=infra/terraform.op -- terraform -chdir=infra plan -input=false
+# op run --no-masking --env-file=infra/terraform.op -- terraform -chdir=infra apply
 ```
+
+`apply` は確認の入力を求める対話なので、出力のマスクを外します（`--no-masking`）。
 
 `plan` を読むときに特に見るべき点：
 
@@ -230,7 +245,7 @@ WSL では `op.exe read ... | tr -d '\r'` にします（`op.exe` は行末に C
 | ブラウザで開けない | `http_allowed_cidrs` に現在の IP が入っているか（スマートフォンの回線は別の IP） |
 | `--db-init` が接続で固まる／`ETIMEDOUT` | RDS 側の SG が EC2 の SG を参照しているか、サブネットグループの指定。EC2 上で `timeout 5 bash -c '</dev/tcp/<db_host>/3306' && echo ok` |
 | `--db-init` が `ENOTFOUND` | VPC の `enable_dns_hostnames` が false |
-| `--db-init` が `Access denied` | `terraform.tfvars` の `db_password` を apply 後に変えていないか |
+| `--db-init` が `Access denied` | 1Password の `expense-claim-aws` の `db-password` を apply 後に変えていないか |
 | `--up` が health を待ちきれない | `docker compose logs --tail 50 backend`。環境変数の不足は起動時に「環境変数が正しくありません」で落ちる |
 | `image not found` / `pull access denied` | `.env` の `TAG` に対応するイメージが未転送。`--images` を先に |
 | 502 Bad Gateway | backend コンテナが落ちている。`docker compose ps` |
@@ -245,10 +260,10 @@ WSL では `op.exe read ... | tr -d '\r'` にします（`op.exe` は行末に C
 
 ```bash
 # 1. 何が消えるかを先に読む
-terraform -chdir=infra plan -destroy
+oprun infra/terraform.op -- terraform -chdir=infra plan -destroy -input=false
 
 # 2. 実行する
-terraform -chdir=infra destroy
+oprun --no-masking infra/terraform.op -- terraform -chdir=infra destroy
 
 # 3. state が空になったことを確認する
 terraform -chdir=infra state list
@@ -290,7 +305,8 @@ aws ce get-cost-and-usage --time-period Start=<destroy の前日>,End=<翌々日
 | `compute.tf` | AMI の検索と EC2 |
 | `database.tf` | RDS（初期データベースは作らせない） |
 | `outputs.tf` | 接続情報の出力。`deploy.sh` が読む |
-| `terraform.tfvars.example` | 変数の雛形 |
+| `terraform.tfvars.example` | 変数の雛形（`db_password` は含まない） |
+| `terraform.op` | Terraform に渡す秘密情報の雛形（`db_password`。値は 1Password の参照） |
 | `files/user-data.sh` | EC2 の初回起動時に流れる初期化スクリプト（Docker と Compose プラグイン） |
 | `files/compose.ec2.yaml` | EC2 で動かす compose ファイル（ビルド定義を持たない） |
 | `files/env.ec2.op` | EC2 に配る環境変数の雛形（値は 1Password の参照） |

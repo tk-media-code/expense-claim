@@ -157,10 +157,13 @@ VPC・サブネット・セキュリティグループまで [`infra/`](infra/) 
   ローカルのフックが担保する
 
 ```bash
-terraform -chdir=infra plan && terraform -chdir=infra apply   # plan を読んでから apply する
-bash scripts/deploy.sh --all                                  # ローカルでビルドして EC2 へ配置する
-terraform -chdir=infra destroy                                # 確認が済んだら消す
+op run --env-file=infra/terraform.op -- terraform -chdir=infra plan -input=false      # 先に plan を読む
+op run --no-masking --env-file=infra/terraform.op -- terraform -chdir=infra apply     # 読んでから apply する
+bash scripts/deploy.sh --all                                                          # ローカルでビルドして EC2 へ配置する
+op run --no-masking --env-file=infra/terraform.op -- terraform -chdir=infra destroy   # 確認が済んだら消す
 ```
+
+`db_password` は 1Password から渡す（`infra/terraform.op`）。WSL は `oprun [--no-masking] infra/terraform.op -- ...` の形にする（`infra/README.md` を参照）。
 
 **構築・配置・確認・片付けの手順は [`infra/README.md`](infra/README.md) が正本。**
 
