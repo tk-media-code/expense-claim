@@ -1,0 +1,31 @@
+# Terraform に渡す秘密情報の雛形。値そのものは書かず、1Password の参照（op://）だけを書く。
+# リポジトリは public なので、実値を書かない。
+#
+# 渡す値は RDS のマスターパスワード（variables.tf の db_password）。
+# 平文の値を持つファイル（terraform.tfvars）をディスクに残さないため、環境変数 TF_VAR_db_password で渡す。
+# なお state には今も平文で入る。terraform.tfstate と .backup は秘密として扱う。
+#
+# 値は 1Password の tk-media 保管庫のアイテム expense-claim-aws のフィールド db-password にある。
+# ssh_allowed_cidr などの秘密ではない値は、今までどおり terraform.tfvars に書く。
+# terraform.tfvars に db_password の行が残っていれば消す（tfvars は環境変数より優先される）。
+#
+# 使い方:
+#   oprun infra/terraform.op -- terraform -chdir=infra plan -input=false
+#   oprun --no-masking infra/terraform.op -- terraform -chdir=infra apply
+#
+# apply は確認の入力を求める対話なので、出力のマスクを外す（--no-masking）。
+# 他の OS は op run を使う。
+#   op run --env-file=infra/terraform.op -- terraform -chdir=infra plan -input=false
+#   op run --no-masking --env-file=infra/terraform.op -- terraform -chdir=infra apply
+#
+# oprun は WSL 用のラッパーで、このリポジトリには含まれない。各自で用意する。
+# 作りは google.op の冒頭に書いたとおり（値の全体が op:// の行を op.exe inject に通し、
+# 結果を環境変数にしてコマンドを起動する）。op run と同じく出力の中の秘密の値をマスクし、
+# 先頭の --no-masking でそれを外せるようにしておく。
+#
+# 値の決まり:
+#   - 英数字のみ 16〜41 文字（variables.tf の validation が検査する。理由も同じ場所に書いてある）
+#   - 1Password には  openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24; echo  で作った値を入れる
+#   - 1 行 1 変数。引用符を付けない。参照の行は、値の全体を参照にする
+
+TF_VAR_db_password=op://tk-media/expense-claim-aws/db-password

@@ -172,7 +172,7 @@ preflight() {
 
 	if [ ! -f "$INFRA_DIR/terraform.tfstate" ]; then
 		fail "infra/terraform.tfstate がありません。先にインフラを構築してください。"
-		echo "  terraform -chdir=infra apply" >&2
+		echo "  oprun --no-masking infra/terraform.op -- terraform -chdir=infra apply（WSL。ほかは op run --no-masking --env-file=infra/terraform.op -- ...。infra/README.md の構築の手順を参照）" >&2
 		return 1
 	fi
 
@@ -356,7 +356,7 @@ deploy_db_init() {
 		fail "データベースの作成に失敗しました。"
 		echo "  接続で固まる／ETIMEDOUT: RDS 側の SG が EC2 の SG を参照しているか、サブネットグループを確認" >&2
 		echo "  ENOTFOUND: VPC の enable_dns_hostnames" >&2
-		echo "  Access denied: terraform.tfvars の db_password を apply 後に変えていないか" >&2
+		echo "  Access denied: 1Password の db-password（TF_VAR_db_password）を apply 後に変えていないか" >&2
 		echo "  到達性だけを見るには EC2 上で: timeout 5 bash -c '</dev/tcp/$(tf_output db_host)/3306' && echo ok" >&2
 		return 1
 	fi

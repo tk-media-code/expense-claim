@@ -10,6 +10,5 @@ ssh_allowed_cidr = "203.0.113.1/32"
 # スマートフォンから見たいときは、その回線のグローバル IP を足す。
 http_allowed_cidrs = ["203.0.113.1/32"]
 
-# RDS のマスターパスワード。英数字のみ 16〜41 文字。
-# 生成方法: openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 24; echo
-db_password = "CHANGE_ME_alnum_only_16_to_41"
+# RDS のマスターパスワード（db_password）は、ここに書かない。
+# 1Password から TF_VAR_db_password で渡す（infra/terraform.op）。
