@@ -7,7 +7,7 @@ description: Use when implementation is complete and you need to decide how to i
 
 **このスキルは Superpowers の `finishing-a-development-branch` を、このリポジトリの
 運用に合わせて差し替えたものです。** 上流版は「ローカルで main にマージする」を
-選択肢に出しますが、**このリポジトリでは採れません**（GitHub 側と hook の両方が拒否します）。
+選択肢に出しますが、**このリポジトリでは採れません**（ローカルの hook が拒否します。GitHub 側の守りを使えるリポジトリでは、GitHub 側でも拒否されます）。
 統合の経路は Pull Request の1本だけです。
 
 **開始時に宣言する:** 「finishing-a-development-branch スキルで作業を仕上げます。」
@@ -83,7 +83,7 @@ worktree とブランチの後片付けはそこにまとめてあるので、�
 | --- | --- |
 | 「念のため、ここでもテストを走らせておく」 | push の hook が同じテストを走らせる。続けて2回走るだけ |
 | 「上流のスキルには3択と書いてある」 | このリポジトリでは2つが拒否される。拒否される操作を選択肢に出さない |
-| 「ローカルでマージすれば早い」 | `main` への直接の変更は GitHub 側と hook の両方が拒否する |
+| 「ローカルでマージすれば早い」 | `main` への直接の変更はローカルの hook が拒否する。GitHub 側の守りを使えるリポジトリでは、GitHub 側でも拒否される |
 | 「PR を出したから worktree はもう要らない」 | レビューの指摘はそこで直す。マージまで残す |
 | 「『もういい』と言われたから破棄する」 | 破棄は `discard` と打ってもらってから |
 | 「push が拒否された。force push で通す」 | リモートが進んでいる。調べる。force push は人が明示的に求めたときだけ |

@@ -726,6 +726,7 @@ function repoLine(repoRoot) {
 // 品質チェックを1段走らせる。
 //   failure … 送信を止める文言（合格・対象なしなら null）
 //   note    … 送信は通すが、ユーザーに見せる注記（無ければ null）
+//   passed  … チェックを実際に走らせ、合格した（印を書いてよい）。対象なし・飛ばした・起動できなかったときは false
 function runCheck(repoRoot, check, getBash) {
 	const found = findCheck(repoRoot, check);
 	// 無ければ素通し。配布前のリポジトリや、checks を excludeShared で外した
@@ -799,7 +800,69 @@ function runCheck(repoRoot, check, getBash) {
 			note: null,
 		};
 	}
-	return { failure: null, note: null };
+	return { failure: null, note: null, passed: true };
+}
+
+// 印を書く前提を、いまの状態から読む。
+//   head … HEAD の ID。ref … HEAD が指すブランチの ref（git symbolic-ref HEAD）。clean … 追跡ファイルに変更が無い。
+// 読めない（detached HEAD で symbolic-ref が失敗する、git status が失敗する、HEAD の ID が 40 桁でない）ときは null。
+// 追跡していないファイルは変更に数えない。チェックの出力や作業メモが置かれるだけで印を書けなくなるのを避ける。
+function readRepoState(repoRoot) {
+	try {
+		const head = git(['rev-parse', 'HEAD'], repoRoot);
+		if (!/^[0-9a-f]{40}$/.test(head)) return null; // SHA-256 のリポジトリなどは対象外。印の形を保つ
+		const ref = git(['symbolic-ref', 'HEAD'], repoRoot);
+		if (!ref) return null;
+		const clean = git(['status', '--porcelain', '--untracked-files=no'], repoRoot) === '';
+		return { head, ref, clean };
+	} catch {
+		return null;
+	}
+}
+
+// push の前の品質チェックを通したコミットの印を書く。Git の pre-push フックが読み、同じコミットで
+// チェックを 2 回走らせないために使う。
+//   <git の共通ディレクトリ>/tk-harness/push-checked に、1 行「<HEAD の 40 桁の ID> <UNIX 秒> <ブランチの ref>」と改行。
+// 共通ディレクトリは worktree でもメインの .git を指す（final-review.cjs の印と同じ置き場）。
+//
+// 印の約束は「この ID・このブランチ・追跡ファイルに変更なしの状態を、チェックが確かめた」。
+// 約束できないときは書かない。
+//   - SKIP_QUALITY_CHECK=1 で飛ばした／チェックが 1 本も無い／Git Bash が無くて .sh を飛ばした／終了コードが取れなかった
+//     （呼び出し側が判断する）
+//   - チェックの前に、追跡ファイルに変更がある・detached HEAD・状態を読めない
+//   - チェックの後に、読み直した ID かブランチが前と違う（最中にコミットやブランチの切り替えがあった）、追跡ファイルに変更がある
+// 渡す before は、チェックを始める前に readRepoState で取ったもの。書くのはその値。
+//
+// 追跡していないファイルは印の約束の外。数えると、.gitignore されない出力を残すチェックで印が使えなくなる。
+//
+// 書けなくても黙って何もしない。印が無ければ pre-push がチェックを走らせ直すだけで、
+// 印を書けないことで push の許可・拒否を変えてはいけない。
+function writePushCheckMark(repoRoot, before) {
+	let tmp;
+	try {
+		if (!before || !before.clean) return;
+		const after = readRepoState(repoRoot);
+		if (!after || !after.clean || after.head !== before.head || after.ref !== before.ref) return;
+		const common = path.resolve(repoRoot, git(['rev-parse', '--git-common-dir'], repoRoot));
+		const dir = path.join(common, 'tk-harness');
+		fs.mkdirSync(dir, { recursive: true });
+		const file = path.join(dir, 'push-checked');
+		// 一時ファイルに書いてから置き換える。書きかけのファイルを読ませない。
+		tmp = path.join(dir, `push-checked.${process.pid}.tmp`);
+		fs.writeFileSync(tmp, `${before.head} ${Math.floor(Date.now() / 1000)} ${before.ref}\n`);
+		fs.renameSync(tmp, file);
+		tmp = undefined;
+	} catch {
+		// 書けない（権限・ディレクトリを作れない・git が答えない）。印が無いだけなので続ける
+	} finally {
+		if (tmp) {
+			try {
+				fs.unlinkSync(tmp);
+			} catch {
+				// 残っても害は無い
+			}
+		}
+	}
 }
 
 // 判定できなかった箇所を、文言に載せる形に整える。読み取りが切った名残（末尾の空白や、閉じる側が別の部分へ
@@ -1087,7 +1150,7 @@ function evaluateShips(command, base, deps) {
 			`${t.branch} ブランチで直接${verb}しようとしています。\n` +
 				`${repoLine(t.repoRoot)}\n\n` +
 				`このリポジトリは Issue 駆動の開発フローを採っており、${t.branch} への直接の\n` +
-				`変更は禁止されています（GitHub 側でも拒否されます）。\n\n` +
+				`変更は禁止されています。\n\n` +
 				`正しい手順:\n` +
 				`1. Issue を起案してユーザーの承認を得る → creating-issues スキル\n` +
 				`2. git switch ${t.branch} && git pull\n` +
@@ -1135,14 +1198,23 @@ function evaluateShips(command, base, deps) {
 
 	const notes = [];
 	for (const repoRoot of roots) {
+		// 印を書くのは、見つかったチェックが全部通ったとき。1 本も無い、note が付いた（.sh を飛ばした）、
+		// 起動できなかったときは書かない。通ったリポジトリから順に書く（後のリポジトリで拒否しても、先の印は残ってよい）。
+		// 印に書く ID とブランチは、チェックを始める前に取る。通ったあとに読み直して、同じときだけ書く。
+		const before = readRepoState(repoRoot);
+		let passedCount = 0;
+		let complete = true;
 		for (const check of CHECKS) {
-			const { failure, note } = runCheck(repoRoot, check, getBash);
+			const { failure, note, passed } = runCheck(repoRoot, check, getBash);
 			if (failure) return deny(failure);
 			if (note) notes.push(note);
+			if (passed) passedCount += 1;
+			else if (note || findCheck(repoRoot, check)) complete = false; // 見つかったのに、通ったと言えない
 		}
+		if (passedCount > 0 && complete) writePushCheckMark(repoRoot, before);
 	}
 	if (notes.length) return { decision: 'allow', note: notes.join('\n') };
 	return allow();
 }
 
-module.exports = { evaluate, resolveTargets, resolvePrCreates, resolveBash, runnerFor, findCheck, CHECKS };
+module.exports = { evaluate, resolveTargets, resolvePrCreates, resolveBash, runnerFor, findCheck, writePushCheckMark, readRepoState, CHECKS };

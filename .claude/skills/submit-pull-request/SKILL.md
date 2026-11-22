@@ -79,6 +79,12 @@ git push -u origin <ブランチ名>
 # implementer が指摘を修正してから
 git add <ファイル>
 git commit --amend --no-edit
+```
+
+**push は別のコマンドで実行する。** commit と 1 回の実行にまとめると、Git の pre-push がチェックを走らせ直し、
+時間切れになりうる。
+
+```bash
 git push -u origin <ブランチ名>
 ```
 
@@ -88,7 +94,7 @@ git push -u origin <ブランチ名>
 **指摘が0件になるまで、この手順を繰り返す。** 安易に作業を止めたり、
 ユーザーに丸投げしたりしない。
 
-ブロックを回避する `SKIP_QUALITY_CHECK=1` を、**ユーザーの明示的な指示なしに付けてはならない。**
+ブロックを回避する `SKIP_QUALITY_CHECK=1` と `git push --no-verify` を、**ユーザーの明示的な指示なしに付けてはならない。**
 誤検知やチェック自体の不具合を疑うときは、まずユーザーに状況を説明して判断を仰ぐ。
 
 ## 5. 印を付ける
