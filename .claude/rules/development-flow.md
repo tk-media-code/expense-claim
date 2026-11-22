@@ -85,11 +85,14 @@ worktree を使う場合も同じで、`using-git-worktrees` が作るブラン�
 | `scripts/harness-check.cjs` | 言語非依存の共通チェック。必ず走る | ハーネス |
 | `scripts/quality-check.cjs`（または `.sh`） | Lint・型・テストなどプロジェクト固有。無いと共通チェックが送信を止める | プロジェクト |
 
+人が端末から push したときも、Git の pre-push が同じ2段を走らせる。AI の hook がチェックを通した直後の送信では、同じチェックをもう一度は走らせない（追跡ファイルに未コミットの変更が残っていると、走らせ直す）。
+**commit と push は別々に実行する**（1回の実行にまとめると、pre-push がチェックを走らせ直し、時間切れになりうる）。
+
 失敗すると `git push` を含むコマンドがブロックされる。リモートには何も出ていないので、
 **指摘の修正を `implementer` に出し（統括役は直さない）、まだ送信できていないコミットに `git commit --amend` で畳んでから送信し直す。**
 **指摘が0件になるまで繰り返す。** 安易に作業を止めたり人に丸投げしたりしない。
 
-ブロックを回避する `SKIP_QUALITY_CHECK=1` / `SKIP_BRANCH_CHECK=1` / `SKIP_FINAL_REVIEW=1` を、
+ブロックを回避する `SKIP_QUALITY_CHECK=1` / `SKIP_BRANCH_CHECK=1` / `SKIP_FINAL_REVIEW=1` / `git push --no-verify` を、
 **ユーザーの明示的な指示なしに付けてはならない。**
 
 ## ⑥⑦ PR を作ったら止まる

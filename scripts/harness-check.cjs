@@ -16,7 +16,8 @@
 //
 // 検査するもの:
 //   conflict-markers  コンフリクトマーカーの残留
-//   secrets           秘匿情報の混入
+//   secrets           秘匿情報の混入（ファイル名と中身。いまの中身に加えて、手元のリモートの追跡参照から
+//                     届かないコミットが足した分も見る。見つけた値は表示しない。ファイル名・行番号・種類だけを出す）
 //   branch-name       ブランチ名の規約（Issue 番号を含むか）
 //   issue-exists      ブランチ名の Issue が実在するか
 //   quality-check     プロジェクトの品質チェック（scripts/quality-check.*）が置いてあるか
@@ -66,17 +67,23 @@ function git(args) {
 	return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 }
 
-// NUL 区切りで返す git のサブコマンドを配列にする。失敗したら空。
+// NUL 区切りで返す git のサブコマンドを配列にする。失敗したら投げる。
+function gitListStrict(args) {
+	// bash 版に出力の上限は無いので、上限で黙って切り捨てない（超えると秘匿情報を素通しする）。
+	// -z はサブコマンドの直後に置く。末尾に足すと、-- のあとに書いた引数がパスとして読まれる。
+	return execFileSync('git', [args[0], '-z', ...args.slice(1)], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'ignore'],
+		maxBuffer: Infinity,
+	})
+		.split('\0')
+		.filter(Boolean);
+}
+
+// 失敗したら空。見られなくても進めてよい場面に使う。
 function gitList(args) {
 	try {
-		// bash 版に出力の上限は無いので、上限で黙って切り捨てない（超えると秘匿情報を素通しする）。
-		return execFileSync('git', [...args, '-z'], {
-			encoding: 'utf8',
-			stdio: ['ignore', 'pipe', 'ignore'],
-			maxBuffer: Infinity,
-		})
-			.split('\0')
-			.filter(Boolean);
+		return gitListStrict(args);
 	} catch {
 		return [];
 	}
@@ -138,24 +145,30 @@ const hasHead = revExists('HEAD');
 const baseRef = ['origin/main', 'main', 'origin/master', 'master'].find((ref) => revExists(ref)) || null;
 
 let mergeBase = null;
+// 既定ブランチはあるのに merge-base が失敗した（共通の祖先が無い・浅いクローンで祖先まで届かない）。
+// 「既定ブランチが無い」とは別に扱う。履歴の走査（秘匿情報の節）が黙って飛ぶのを防ぐため。
+let mergeBaseFailed = false;
 if (baseRef && hasHead) {
 	try {
 		mergeBase = git(['merge-base', baseRef, 'HEAD']);
 	} catch {
 		mergeBase = null;
+		mergeBaseFailed = true;
 	}
 }
 if (mergeBase) {
-	candidates.push(...gitList(['diff', '--name-only', '--diff-filter=d', mergeBase, 'HEAD']));
+	// 末尾の -- は、直下に HEAD や main という名前のファイル・フォルダがあっても、リビジョンと取り違えないため
+	// （取り違えると git が失敗し、黙って 0 ファイルになる）。
+	candidates.push(...gitList(['diff', '--name-only', '--diff-filter=d', mergeBase, 'HEAD', '--']));
 } else if (hasHead) {
-	// 既定ブランチが見つからない（クローン直後など）。追跡ファイル全体に倒す。
+	// 既定ブランチが見つからない（クローン直後など）、または共通の祖先を取れない。追跡ファイル全体に倒す。
 	// 取りこぼすより過剰に見るほうが安全。
-	out('既定ブランチが見つかりません。追跡ファイル全体を検査します。');
+	out(mergeBaseFailed ? '既定ブランチとの共通の祖先を取れません。追跡ファイル全体を検査します。' : '既定ブランチが見つかりません。追跡ファイル全体を検査します。');
 	candidates.push(...gitList(['ls-files']));
 }
 
 // 未コミットの変更（ステージ済み・未ステージ・未追跡）
-if (hasHead) candidates.push(...gitList(['diff', '--name-only', '--diff-filter=d', 'HEAD']));
+if (hasHead) candidates.push(...gitList(['diff', '--name-only', '--diff-filter=d', 'HEAD', '--']));
 candidates.push(...gitList(['ls-files', '--others', '--exclude-standard']));
 
 // 重複を落としつつ、自分自身を検査から外す。
@@ -170,21 +183,41 @@ for (const f of candidates) {
 
 out(`共通チェック: ${changed.length} ファイルを検査します`);
 
-// 変更ファイルに対して git grep をかける。-I でバイナリを除外し、--untracked で未追跡も対象に入れる。
+// git grep -z -n の出力（「パス NUL 行番号 NUL 行の中身 改行」の繰り返し）から、行の中身を捨てて
+// 場所だけを取る。パスは NUL で終わるので、空白・日本語・引用符を含んでいても壊れない。
+function parseGrepLocations(stdout) {
+	const locations = [];
+	let pos = 0;
+	while (pos < stdout.length) {
+		const pathEnd = stdout.indexOf('\0', pos);
+		if (pathEnd < 0) break;
+		const lineEnd = stdout.indexOf('\0', pathEnd + 1);
+		if (lineEnd < 0) break;
+		locations.push({ file: stdout.slice(pos, pathEnd), line: Number(stdout.slice(pathEnd + 1, lineEnd)) });
+		const next = stdout.indexOf('\n', lineEnd + 1);
+		pos = next < 0 ? stdout.length : next + 1;
+	}
+	return locations;
+}
+
+// 変更ファイルに対して git grep をかけ、pattern に当たる場所（ファイルと行番号）を返す。
+// **行の中身は返さない。** 中身が秘匿情報のことがあり、標準出力はログや会話に残るため。
+// -I でバイナリを除外し、--untracked で未追跡も対象に入れる。--literal-pathspecs は、ファイル名に
+// [ ] * や先頭の :! があっても、パターンやマジックと読まず、その名前のファイルとして扱うため。
 // 該当なしのとき git grep は 1 を返すので、エラーとは区別する（0 でヒット、それ以外は無視）。
-function grepChanged(pattern) {
-	const hits = [];
+function grepLocations(pattern) {
+	const locations = [];
 	for (let i = 0; i < changed.length; i += GREP_CHUNK) {
 		const chunk = changed.slice(i, i + GREP_CHUNK);
 		// bash 版に出力の上限は無いので、上限で黙って切り捨てない（超えると秘匿情報を素通しする）。
-		const r = spawnSync('git', ['grep', '-I', '--untracked', '-n', '-E', '-e', pattern, '--', ...chunk], {
+		const r = spawnSync('git', ['--literal-pathspecs', 'grep', '-I', '--untracked', '-n', '-z', '-E', '-e', pattern, '--', ...chunk], {
 			encoding: 'utf8',
 			stdio: ['ignore', 'pipe', 'ignore'],
 			maxBuffer: Infinity,
 		});
-		if (r.status === 0 && r.stdout) hits.push(r.stdout.replace(/\n$/, ''));
+		if (r.status === 0 && r.stdout) locations.push(...parseGrepLocations(r.stdout));
 	}
-	return hits.join('\n');
+	return locations;
 }
 
 // --- ① コンフリクトマーカーの残留 -------------------------------------------
@@ -196,54 +229,239 @@ if (enabled('conflict-markers')) {
 	//
 	// 中央の区切り（等号 7 個）は見ない。Markdown の見出し下線（====）に誤爆するため。
 	// 開始と終了の 2 種だけで、残留したコンフリクトは確実に検出できる。
-	const hits = grepChanged(`^(${'<'.repeat(7)}|${'>'.repeat(7)}) `);
-	if (hits) {
-		fail('コンフリクトマーカーが残っています', hits, '', 'マージの解決が終わっていません。該当箇所を直してからコミットし直してください。');
+	//
+	// 行の中身は出さない（場所だけ）。マーカーの行にはブランチ名などが付くため、秘匿情報と同じ扱いにする。
+	const hits = grepLocations(`^(${'<'.repeat(7)}|${'>'.repeat(7)}) `);
+	if (hits.length > 0) {
+		fail(
+			'コンフリクトマーカーが残っています',
+			hits.map((h) => `  ${h.file}:${h.line}`).join('\n'),
+			'',
+			'マージの解決が終わっていません。該当箇所を直してからコミットし直してください。',
+		);
 	}
 }
 
 // --- ② 秘匿情報の混入 -------------------------------------------------------
+//
+// 見るのは 2 つ。
+//   (a) いまの中身: 検査対象のファイル（changed）の名前と、git grep で見つけた中身
+//   (b) 途中のコミット: 既定ブランチからの分岐点〜HEAD（共通の祖先が取れないときは、既定ブランチから届かないもの全部）の
+//       各コミットが、足した・変えたファイルの名前と、足した行
+//
+// (b) を見るのは、あとのコミットで消しても履歴には残るため。(a) だけだと、コミットし直さずに
+// 消した鍵が、そのまま送信されてしまう。
+//
+// ただし (b) は、手元にあるリモートの追跡参照（refs/remotes/*）から届かないコミットだけ。
+// 送信済みのコミットを毎回見直すと、鍵を再発行したあとも送信が止まり続けるため、追跡参照から届くものは見ない。
+// --single-branch や浅いクローンでは、送信しても追跡参照ができず、絞り込みが効かない（見続ける。安全側）。
+// (a) は変えない（追跡参照から届いていても、いまの中身に残っていれば止める）。
+//
+// **見つけた値は表示しない。** 出すのはファイル名・行番号・種類だけ。標準出力はログや会話に残るので、
+// 値を出すと、止めたはずの鍵をこのチェック自身が広げてしまう。
+
+// 秘匿情報のファイル名（basename）。.example / .sample / .template / .md は雛形なので対象外。
+// .npmrc は名前では止めない（トークンを書かずに使うことが多い）。中身の _authToken= で見る。
+function isSecretFileName(f) {
+	if (/\.(example|sample|template|md)$/.test(f)) return false;
+	const base = path.posix.basename(f);
+	if (base === '.env' || base.startsWith('.env.')) return true;
+	if (base === '.dev.vars' || base.startsWith('.dev.vars.')) return true;
+	if (/\.(pem|p12|pfx|jks|keystore|tfstate|tfvars|kdbx)$/.test(base)) return true;
+	if (/\.(tfstate\.backup|tfvars\.json)$/.test(base)) return true;
+	if (/^service-?account.*\.json$/.test(base)) return true;
+	return [
+		'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519',
+		'.netrc', '.pgpass', '.htpasswd',
+		'credentials', 'credentials.json', 'secrets.json', 'secrets.yaml', 'secrets.yml',
+	].includes(base);
+}
+
+// 内容の形。pattern は git grep -E と JavaScript の RegExp の両方で同じ意味になる書き方だけを使う
+// （(a) は git grep、(b) は足した行を RegExp で見るため）。
+//
+// 誤検知を減らす工夫が 2 つある。npm の _authToken= は 20 文字以上だけ（YOUR_TOKEN_HERE や NPM_TOKEN のような
+// 書きかけを通す）。Stripe の鍵は、左が英数字でないこと（task_live_ のような別の語の一部を通す）。
+//
+// 「APIキーらしき長い文字列」のような汎用パターンは使わない。誤検知で送信が
+// 止まるほうが害が大きい。形式が確定していて誤検知しないものだけを見る。
+const SECRET_PATTERNS = [
+	{ kind: '秘密鍵', pattern: '-----BEGIN [A-Z ]*PRIVATE KEY-----' },
+	{ kind: 'AWS のアクセスキー', pattern: 'AKIA[0-9A-Z]{16}' },
+	{ kind: 'GitHub のトークン', pattern: 'gh[pousr]_[A-Za-z0-9]{36}' },
+	{ kind: 'GitHub のトークン', pattern: 'github_pat_[A-Za-z0-9_]{82}' },
+	{ kind: 'Slack のトークン', pattern: 'xox[baprs]-[0-9A-Za-z-]{10,}' },
+	{ kind: 'Slack の Webhook の URL', pattern: 'hooks\\.slack\\.com/services/T[A-Za-z0-9_]+/B[A-Za-z0-9_]+/[A-Za-z0-9_]+' },
+	{ kind: 'npm のトークン', pattern: 'npm_[A-Za-z0-9]{36}' },
+	{ kind: 'npm のトークン', pattern: '_authToken=[A-Za-z0-9_-]{20,}' },
+	{ kind: 'Google の API キー', pattern: 'AIza[0-9A-Za-z_-]{35}' },
+	{ kind: 'Stripe の本番の鍵', pattern: '(^|[^A-Za-z0-9])[sr]k_live_[0-9A-Za-z]{24,}' },
+	{ kind: 'Anthropic の API キー', pattern: 'sk-ant-[A-Za-z0-9_-]{20,}' },
+].map((p) => ({ ...p, re: new RegExp(p.pattern) }));
+
+// (b) 1 つのコミットが足した行のうち、秘匿情報の形に当たるもの。失敗したら投げる（黙って飛ばさない）。
+// 行番号は、そのコミットの時点でのファイルの行番号。
+// ファイルごとに呼ぶのは、patch の見出しではファイル名が引用符で囲まれ、空白や日本語で読み違えるため。
+// 名前は diff-tree -z で受けたものをそのまま使う。
+//
+// 利用者の設定で patch の形が変わっても読み違えないようにしてある。
+//   --no-textconv / --no-ext-diff   設定した変換や外部の差分ツールを通さない（足した行そのものを見る）
+//   --inter-hunk-context=0          近いかたまりを 1 つにつなげない
+//   GIT_DIFF_OPTS=-u3 などで文脈行が混ざっても、かたまりの中の文脈行（空白で始まる行）で行番号を進める
+function addedLineHits(commit, file) {
+	const patch = execFileSync(
+		'git',
+		['--literal-pathspecs', 'show', '--format=', '--unified=0', '--inter-hunk-context=0', '--no-color', '--no-ext-diff', '--no-textconv', commit, '--', file],
+		{ encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: Infinity },
+	);
+	const hits = [];
+	let inHunk = false;
+	let lineNo = 0;
+	for (const row of patch.split('\n')) {
+		// 見出し（diff --git / index / --- / +++）は、かたまりの外にだけある。かたまりの中の行は必ず
+		// + - 空白 \ のどれかで始まるので、列 0 の diff --git と @@ は見出しと新しいかたまりの始まり。
+		if (row.startsWith('diff --git ')) {
+			inHunk = false;
+			continue;
+		}
+		const m = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(row);
+		if (m) {
+			inHunk = true;
+			lineNo = Number(m[1]);
+			continue;
+		}
+		// 消した行（-）と「改行なし」の注記（\）は、新しいファイルの行ではない
+		if (!inHunk || row.startsWith('-') || row.startsWith('\\')) continue;
+		if (row.startsWith('+')) {
+			const text = row.slice(1);
+			for (const p of SECRET_PATTERNS) {
+				if (p.re.test(text)) hits.push({ file, line: lineNo, kind: p.kind });
+			}
+		}
+		lineNo += 1;
+	}
+	return hits;
+}
 
 if (enabled('secrets')) {
-	// (a) ファイル名で判断できるもの
-	const secretFiles = changed.filter((f) => {
-		if (/\.(example|sample|template|md)$/.test(f)) return false;
-		const base = path.posix.basename(f);
-		if (base === '.env' || base.startsWith('.env.')) return true;
-		if (/\.(pem|p12|pfx|jks|keystore)$/.test(base)) return true;
-		return ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'].includes(base);
-	});
-	if (secretFiles.length > 0) {
+	// 指摘の組み立て。(ファイル[:行:種類]) ごとに 1 件にして、見つけたコミットの ID を並べる。
+	const nameFindings = new Map(); // ファイル → { file, commits }
+	const textFindings = new Map(); // ファイル:行:種類 → { file, line, kind, commits }
+	const add = (map, key, base, commit) => {
+		let x = map.get(key);
+		if (!x) {
+			x = { ...base, commits: [] };
+			map.set(key, x);
+		}
+		if (commit && !x.commits.includes(commit)) x.commits.push(commit);
+	};
+
+	// (a) いまの中身
+	for (const f of changed) {
+		if (isSecretFileName(f)) add(nameFindings, f, { file: f }, '');
+	}
+	for (const p of SECRET_PATTERNS) {
+		for (const { file, line } of grepLocations(p.pattern)) {
+			add(textFindings, `${file}\0${line}\0${p.kind}`, { file, line, kind: p.kind }, '');
+		}
+	}
+	const currentNames = new Set(nameFindings.keys());
+	const currentKinds = new Set([...textFindings.values()].map((x) => `${x.file}\0${x.kind}`));
+
+	// (b) 手元のリモートの追跡参照から届かないコミット（マージコミットは飛ばす。マージで持ち込まれた分は、いまの中身の走査が拾う）。
+	// 読めなかったものは、黙って飛ばさず指摘にする（飛ばすと、鍵を見逃したまま「指摘なし」で通る）。
+	const scanErrors = [];
+	// 既定ブランチに届かず、リモートの追跡参照にも届かないコミット。--not は 1 つにまとめる（2 つ書くと除外の向きが戻る）。
+	// 末尾の -- は、直下に HEAD や main という名前のファイル・フォルダがあっても、リビジョンと取り違えないため。
+	// 共通の祖先（mergeBase）が取れないとき（孤立した枝・浅いクローン）は、既定ブランチそのものを除外に使う。
+	// 止めてしまうと、値は表示しないので、鍵ごと外に出る抜け道（secrets を外す・チェックを飛ばす）しか残らない。
+	const exclude = mergeBase || (mergeBaseFailed ? baseRef : null);
+	if (exclude) {
+		let commits = [];
+		try {
+			commits = execFileSync('git', ['rev-list', '--no-merges', '--abbrev-commit', '--reverse', 'HEAD', '--not', exclude, '--remotes', '--'], {
+				encoding: 'utf8',
+				stdio: ['ignore', 'pipe', 'ignore'],
+				maxBuffer: Infinity,
+			})
+				.split('\n')
+				.map((c) => c.trim())
+				.filter(Boolean);
+		} catch {
+			scanErrors.push('コミットの一覧を取れませんでした（git rev-list）');
+		}
+		for (const commit of commits) {
+			// 追加・変更・種類の変更（A・M・T）されたファイル。消されたものは、足した行が無いので見ない。
+			let touched;
+			try {
+				touched = gitListStrict(['diff-tree', '--no-commit-id', '-r', '--name-only', '--diff-filter=AMT', '--root', commit]).filter(
+					(f) => path.posix.basename(f) !== SELF_NAME,
+				);
+			} catch {
+				scanErrors.push(`コミット ${commit}: 変更されたファイルの一覧を取れませんでした`);
+				continue;
+			}
+			for (const f of touched) {
+				if (isSecretFileName(f)) add(nameFindings, f, { file: f }, commit);
+				let hits;
+				try {
+					hits = addedLineHits(commit, f);
+				} catch {
+					scanErrors.push(`コミット ${commit}: ${f} の足した行を読めませんでした`);
+					continue;
+				}
+				for (const h of hits) add(textFindings, `${h.file}\0${h.line}\0${h.kind}`, h, commit);
+			}
+		}
+	}
+
+	// 履歴にだけ残るもの（いまの中身には無い）があるかを、案内に使う。名前の指摘と文字列の指摘で別に持つ。
+	const historyOnlyNames = [...nameFindings.values()].some((x) => x.commits.length > 0 && !currentNames.has(x.file));
+	const historyOnlyText = [...textFindings.values()].some((x) => x.commits.length > 0 && !currentKinds.has(`${x.file}\0${x.kind}`));
+
+	const suffix = (x) => (x.commits.length > 0 ? `（コミット ${x.commits.join(', ')}）` : '');
+	const historyNote = (only) =>
+		only
+			? [
+					'',
+					'あとのコミットで消しても、履歴には残ります。',
+					'このコミットは、手元にあるリモートの追跡参照（refs/remotes/*）からは届きません。',
+					'送信していなければ、コミットを作り直してから送信してください（作り直せないときは、ユーザーに相談してください）。',
+					'送信済みなら（--single-branch や浅いクローンでは、送信しても追跡参照ができません）、鍵やトークンを再発行してください。',
+				]
+			: [];
+
+	if (nameFindings.size > 0) {
 		fail(
 			'秘匿情報を含む可能性のあるファイルが変更に含まれています',
-			secretFiles.map((f) => `  ${f}`).join('\n'),
+			[...nameFindings.values()].map((x) => `  ${x.file}${suffix(x)}`).join('\n'),
 			'',
 			'.gitignore に追加し、git rm --cached で追跡から外してください。',
 			'既にリモートへ出ている場合は、鍵やトークンの再発行が必要です。',
+			...historyNote(historyOnlyNames),
 		);
 	}
 
-	// (b) 内容で判断できるもの
-	//
-	// 「APIキーらしき長い文字列」のような汎用パターンは使わない。誤検知で送信が
-	// 止まるほうが害が大きい。形式が確定していて誤検知しないものだけを見る。
-	const secretPatterns = [
-		'-----BEGIN [A-Z ]*PRIVATE KEY-----',
-		'AKIA[0-9A-Z]{16}',
-		'gh[pousr]_[A-Za-z0-9]{36}',
-		'xox[baprs]-[0-9A-Za-z-]{10,}',
-	];
-	for (const pattern of secretPatterns) {
-		const hits = grepChanged(pattern);
-		if (hits) {
-			fail(
-				'秘匿情報らしき文字列が含まれています',
-				hits,
-				'',
-				'該当箇所を環境変数や設定ファイルへ追い出してください。',
-				'既にリモートへ出ている場合は、鍵やトークンの再発行が必要です。',
-			);
-		}
+	if (textFindings.size > 0) {
+		fail(
+			'秘匿情報らしき文字列が含まれています',
+			[...textFindings.values()].map((x) => `  ${x.file}:${x.line}  ${x.kind}${suffix(x)}`).join('\n'),
+			'',
+			'値は表示していません。該当箇所を開いて確かめてください。',
+			'該当箇所を環境変数や設定ファイルへ追い出してください。',
+			'既にリモートへ出ている場合は、鍵やトークンの再発行が必要です。',
+			...historyNote(historyOnlyText),
+		);
+	}
+
+	if (scanErrors.length > 0) {
+		fail(
+			'履歴を走査できませんでした',
+			scanErrors.map((e) => `  ${e}`).join('\n'),
+			'',
+			'このままだと、途中のコミットに秘匿情報があっても見つけられません。',
+			'リポジトリが壊れていないか（git fsck）を確かめ、直してから送信し直してください。',
+		);
 	}
 }
 
